@@ -1,0 +1,22 @@
+# fork 载体 · dist 剪枝清单
+#
+# 构建后执行；语法：相对仓库根的路径，* 匹配同目录下的同名后缀
+# （例如 anthropic.* 会删掉 anthropic.js / .d.ts / .js.map / .d.ts.map）
+#
+# 这些是 OAuth 登录流的实现文件。保留它们的前提是"有人引用"，
+# 而唯一的静态引用者 dist/bun-oauth.js 已被替换成 no-op、唯一动态入口
+# dist/auth/oauth/load.js 已被替换成替身 —— 所以它们已不可达。
+# 上游新增 OAuth 流时，driver 的"引用检查"会报错，在这里补一行即可。
+
+packages/ai/dist/auth/oauth/anthropic.*
+packages/ai/dist/auth/oauth/callback-server.*
+packages/ai/dist/auth/oauth/device-code.*
+packages/ai/dist/auth/oauth/github-copilot.*
+packages/ai/dist/auth/oauth/kimi-coding.*
+packages/ai/dist/auth/oauth/meta.*
+packages/ai/dist/auth/oauth/openai-chatgpt.*
+packages/ai/dist/auth/oauth/openai-codex.*
+packages/ai/dist/auth/oauth/openrouter.*
+packages/ai/dist/auth/oauth/pkce.*
+packages/ai/dist/auth/oauth/radius.*
+packages/ai/dist/auth/oauth/xai.*

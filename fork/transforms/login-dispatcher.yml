@@ -1,0 +1,9 @@
+id: disable-oauth-login-dispatcher
+language: JavaScript
+severity: error
+message: 短路交互模式里硬编码的 /login 与 /logout 派发分支（fork 载体，S4 产物 AST 重写）
+rule:
+  any:
+    - pattern: if (text === "/login" || text.startsWith("/login ")) { $$$BODY }
+    - pattern: if (text === "/logout") { $$$BODY }
+fix: if (false) { $$$BODY }
