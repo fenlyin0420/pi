@@ -42,17 +42,22 @@ import type {
 	TextContent,
 	ToolResultMessage,
 	Usage,
+	UserMessage,
 } from "@earendil-works/pi-ai/compat";
 import {
+	type AutoThinkingClassifier,
+	type AutoThinkingSignals,
 	clampThinkingLevel,
 	cleanupSessionResources,
 	getSupportedThinkingLevels,
+	hasNativeAutoThinking,
 	isContextOverflow,
 	isRecoverableLength,
 	isRetryableAssistantError,
 	modelsAreEqual,
 	type RetryCallbacks,
 	resetApiProviders,
+	resolveAutoThinkingLevel,
 	streamSimple,
 } from "@earendil-works/pi-ai/compat";
 import { getThemeByName, theme } from "../modes/interactive/theme/theme.ts";
@@ -445,6 +450,10 @@ export class AgentSession {
 	private _modelRuntime: ModelRuntime;
 	private _cacheWarmer?: Pick<CacheWarmer, "cancel" | "status" | "onAgentSettled" | "onModeChanged" | "onWarmed">;
 
+	// Cache for classifier-resolved "auto" thinking levels, one per user turn.
+	private _autoResolvedLevel: ThinkingLevel | undefined;
+	private _autoResolvedForUserCount: number | undefined;
+
 	// Tool registry for extension getTools/setTools
 	private _toolRegistry: Map<string, AgentTool> = new Map();
 	/** Created on the first `ctx.executeTool()` call. */
@@ -761,6 +770,16 @@ export class AgentSession {
 		this.agent.prepareRequest = async (request, signal) => {
 			const failed = this._failedResponse;
 			this._failedResponse = undefined;
+			// Auto thinking: when the session level is "auto", resolve a concrete level for this request
+			// before the delegate runs, so every downstream consumer (extensions, virtual-model routing,
+			// the provider call) sees a real level. Providers that natively understand "auto" keep it.
+			let autoThinkingLevel: ThinkingLevel | undefined;
+			if (this.agent.state.thinkingLevel === "auto" && this.model && !hasNativeAutoThinking(this.model)) {
+				if (process.env.PI_DEBUG_AUTO_THINKING) {
+					console.error(`[auto-thinking] prepareRequest: state=auto model=${this.model.id} nativeAuto=false`);
+				}
+				autoThinkingLevel = await this._resolveAutoThinkingLevel(this.model, signal);
+			}
 			const prepare = async () => {
 				const projection = this.sessionManager.buildSessionProjection();
 				const canonicalContext = {
@@ -774,7 +793,7 @@ export class AgentSession {
 						...request,
 						context: canonicalContext,
 						model: this.agent.state.model,
-						thinkingLevel: this.agent.state.thinkingLevel,
+						thinkingLevel: autoThinkingLevel ?? this.agent.state.thinkingLevel,
 					},
 					signal,
 				);
@@ -782,7 +801,7 @@ export class AgentSession {
 			};
 			let { previous, context, projection } = await prepare();
 			const model = previous?.model ?? this.agent.state.model;
-			const thinkingLevel = previous?.thinkingLevel ?? this.agent.state.thinkingLevel;
+			const thinkingLevel = previous?.thinkingLevel ?? autoThinkingLevel ?? this.agent.state.thinkingLevel;
 			if (!isVirtualModel(model)) return { ...previous, context, model, thinkingLevel };
 
 			// The selection stays in agent state; only this request uses the routed model. A routing
@@ -2564,7 +2583,14 @@ export class AgentSession {
 	 */
 	setThinkingLevel(level: ThinkingLevel, options: ModelMutationOptions = {}): void {
 		const availableLevels = this.getAvailableThinkingLevels();
-		const effectiveLevel = availableLevels.includes(level) ? level : this._clampThinkingLevel(level, availableLevels);
+		// "auto" is a session-level concept resolved per request, so it is never
+		// clamped away on model switches while the model can reason.
+		const effectiveLevel =
+			level === "auto" && this.model?.reasoning
+				? "auto"
+				: availableLevels.includes(level)
+					? level
+					: this._clampThinkingLevel(level, availableLevels);
 
 		// Only persist if actually changing
 		const previousLevel = this.agent.state.thinkingLevel;
@@ -2584,6 +2610,90 @@ export class AgentSession {
 				level: effectiveLevel,
 				previousLevel,
 			});
+		}
+	}
+
+	private async _resolveAutoThinkingLevel(model: Model<any>, signal?: AbortSignal): Promise<ThinkingLevel> {
+		const messages = this.sessionManager.buildSessionProjection().messages;
+		const userCount = messages.filter((message) => message.role === "user").length;
+		if (userCount === this._autoResolvedForUserCount && this._autoResolvedLevel) {
+			if (process.env.PI_DEBUG_AUTO_THINKING) {
+				console.error(
+					`[auto-thinking] reusing ${this._autoResolvedLevel} (source: classifier, cached for user turn)`,
+				);
+			}
+			return this._autoResolvedLevel;
+		}
+		const classifier = await this._buildAutoThinkingClassifier(signal);
+		const result = await resolveAutoThinkingLevel({
+			model,
+			signals: this._buildAutoThinkingSignals(messages),
+			classifier,
+			signal,
+		});
+		if (classifier && result.source === "classifier") {
+			this._autoResolvedLevel = result.level;
+			this._autoResolvedForUserCount = userCount;
+		}
+		if (process.env.PI_DEBUG_AUTO_THINKING) {
+			console.error(`[auto-thinking] resolved ${result.level} (source: ${result.source})`);
+		}
+		return result.level;
+	}
+
+	private _buildAutoThinkingSignals(messages: AgentMessage[]): AutoThinkingSignals {
+		let lastUserIndex = -1;
+		for (let i = messages.length - 1; i >= 0; i--) {
+			if (messages[i].role === "user") {
+				lastUserIndex = i;
+				break;
+			}
+		}
+		const afterUser = lastUserIndex >= 0 ? messages.slice(lastUserIndex + 1) : [];
+		let previousOutcome: AutoThinkingSignals["previousOutcome"];
+		for (let i = afterUser.length - 1; i >= 0; i--) {
+			const message = afterUser[i];
+			if (message.role === "assistant") {
+				previousOutcome =
+					message.stopReason === "error" ? "error" : message.stopReason === "aborted" ? "aborted" : "completed";
+				break;
+			}
+		}
+		const contextUsage = this.getContextUsage();
+		const lastUser = lastUserIndex >= 0 ? messages[lastUserIndex] : undefined;
+		const userContent = lastUser && lastUser.role === "user" ? (lastUser as UserMessage).content : undefined;
+		return {
+			prompt: userContent !== undefined ? contentText(userContent) : "",
+			imageCount: Array.isArray(userContent) ? userContent.filter((part) => part.type === "image").length : 0,
+			toolLoopDepth: afterUser.filter((message) => message.role === "assistant").length,
+			previousOutcome,
+			contextUsageRatio: contextUsage?.percent != null ? contextUsage.percent / 100 : undefined,
+		};
+	}
+
+	private async _buildAutoThinkingClassifier(signal?: AbortSignal): Promise<AutoThinkingClassifier | undefined> {
+		const spec = this.settingsManager.getAutoThinkingClassifier();
+		if (process.env.PI_DEBUG_AUTO_THINKING) console.error(`[auto-thinking] classifier spec=${spec ?? "(unset)"}`);
+		if (!spec) return undefined;
+		const slash = spec.indexOf("/");
+		if (slash <= 0 || slash === spec.length - 1) return undefined;
+		const model = this._modelRuntime.getModel(spec.slice(0, slash), spec.slice(slash + 1));
+		if (!model) {
+			if (process.env.PI_DEBUG_AUTO_THINKING) console.error(`[auto-thinking] classifier model not found: ${spec}`);
+			return undefined;
+		}
+		try {
+			const resolution = await this._modelRuntime.getAuth(model, { signal });
+			if (!resolution?.auth.apiKey) return undefined;
+			return {
+				model: resolution.auth.baseUrl ? { ...model, baseUrl: resolution.auth.baseUrl } : model,
+				streamFn: this.agent.streamFunction,
+				apiKey: resolution.auth.apiKey,
+				headers: resolution.auth.headers,
+				timeoutMs: this.settingsManager.getAutoThinkingClassifierTimeoutMs(),
+			};
+		} catch {
+			return undefined;
 		}
 	}
 
@@ -2609,7 +2719,10 @@ export class AgentSession {
 	 */
 	getAvailableThinkingLevels(): ThinkingLevel[] {
 		if (!this.model) return [...THINKING_LEVEL_OPTIONS];
-		return getSupportedThinkingLevels(this.model) as ThinkingLevel[];
+		const levels = getSupportedThinkingLevels(this.model) as ThinkingLevel[];
+		// "auto" is a session-level option (resolved per request) rather than a
+		// model capability, so it is added on top of the model's supported levels.
+		return this.model.reasoning ? [...levels, "auto"] : levels;
 	}
 
 	/**

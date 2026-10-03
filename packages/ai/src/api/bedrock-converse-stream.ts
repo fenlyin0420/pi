@@ -1286,10 +1286,16 @@ function buildAdditionalModelRequestFields(
 						high: 16384,
 						xhigh: 16384, // Budget-based Claude clamps extended levels to high
 						max: 16384,
+						auto: 8192, // Resolved to medium when the provider lacks a native auto
 					};
 
 					// Custom budgets only cover token-based levels through high.
-					const level = options.reasoning === "xhigh" || options.reasoning === "max" ? "high" : options.reasoning;
+					const level =
+						options.reasoning === "xhigh" || options.reasoning === "max"
+							? "high"
+							: options.reasoning === "auto"
+								? "medium"
+								: options.reasoning;
 					const budget = options.thinkingBudgets?.[level] ?? defaultBudgets[options.reasoning];
 
 					return {

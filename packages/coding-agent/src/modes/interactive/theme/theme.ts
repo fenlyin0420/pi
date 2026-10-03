@@ -420,6 +420,10 @@ export class Theme {
 				return (str: string) => this.fg("thinkingLow", str);
 			case "medium":
 				return (str: string) => this.fg("thinkingMedium", str);
+			case "auto":
+				// Auto resolution is session-level; the border reflects the default
+				// medium color while individual requests may resolve to other levels.
+				return (str: string) => this.fg("thinkingMedium", str);
 			case "high":
 				return (str: string) => this.fg("thinkingHigh", str);
 			case "xhigh":

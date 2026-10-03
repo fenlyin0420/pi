@@ -136,6 +136,8 @@ export interface Settings {
 	defaultModel?: string;
 	defaultThinkingLevel?: ThinkingLevel;
 	modelThinkingLevels?: Record<string, ThinkingLevel>; // per-model default thinking level overrides keyed by "provider/modelId"
+	autoThinkingClassifier?: string; // "provider/modelId" — cheap model used to classify task complexity for the "auto" thinking level; heuristic fallback when unset or the call fails
+	autoThinkingClassifierTimeoutMs?: number; // upper bound (ms) for the auto thinking classifier call before falling back to the heuristic; default 6000
 	transport?: TransportSetting; // default: "auto"
 	steeringMode?: "all" | "one-at-a-time";
 	followUpMode?: "all" | "one-at-a-time";
@@ -1273,6 +1275,14 @@ export class SettingsManager {
 
 	getThinkingBudgets(): ThinkingBudgetsSettings | undefined {
 		return this.settings.thinkingBudgets;
+	}
+
+	getAutoThinkingClassifier(): string | undefined {
+		return this.settings.autoThinkingClassifier;
+	}
+
+	getAutoThinkingClassifierTimeoutMs(): number | undefined {
+		return this.settings.autoThinkingClassifierTimeoutMs;
 	}
 
 	getTerminalCapabilityOverrides(): Partial<TerminalCapabilities> {

@@ -8,6 +8,7 @@ import { type SlashCommandContribution, SlashCommands } from "./slash-commands.t
 
 const THINKING_DESCRIPTIONS: Record<ModelThinkingLevel, string> = {
 	off: "No reasoning",
+	auto: "Model picks the level by task complexity",
 	minimal: "Very brief reasoning",
 	low: "Light reasoning",
 	medium: "Moderate reasoning",

@@ -46,7 +46,7 @@ Windows Terminal reserves some Alt shortcuts. See [Terminal Setup](terminal-setu
 Type `/` to search the available commands. The commands you will use most often are:
 
 - `/model` selects a model. Press `Ctrl+L` to open the same selector.
-- `/thinking` selects how much reasoning the current model uses. Press `Shift+Tab` to cycle through supported levels.
+- `/thinking` selects how much reasoning the current model uses. Press `Shift+Tab` to cycle through supported levels, including `auto`, which picks the level per request based on task complexity.
 - `/login` and `/logout` manage provider access.
 - `/settings` changes common preferences.
 
