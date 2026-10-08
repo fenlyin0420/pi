@@ -50,6 +50,7 @@ Review a session before exporting or sharing it. Sessions can contain prompts, t
 | `/hotkeys` | Show active keyboard shortcuts |
 | `/changelog` | Show changelog entries |
 | `/quit` | Quit Pi |
+| `/exit` | Quit Pi (alias for `/quit`) |
 
 ## Commands added by resources
 
