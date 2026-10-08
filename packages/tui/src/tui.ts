@@ -473,6 +473,14 @@ export interface TUI extends Component {
 	requestRender(force?: boolean): void;
 	addInputListener(listener: TuiInputListener): () => void;
 	removeInputListener(listener: TuiInputListener): void;
+	/**
+	 * Scroll the primary viewport by `lines` (negative scrolls back).
+	 *
+	 * Optional: only viewport-backed TUIs (fullscreen) have a scroll position of
+	 * their own. In regular mode the terminal keeps the native scrollback, so
+	 * this is absent and callers do nothing.
+	 */
+	scrollViewport?(lines: number): void;
 	onTerminalColorSchemeChange(listener: (scheme: TerminalColorScheme) => void): () => void;
 	setTerminalColorSchemeNotifications(enabled: boolean): void;
 	queryTerminalColors(options: {

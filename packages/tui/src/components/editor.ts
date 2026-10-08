@@ -18,9 +18,11 @@ import {
 	getGraphemeSegmenter,
 	getWordSegmenter,
 	isWhitespaceChar,
+	PUNCTUATION_REGEX,
 	sliceByColumn,
 	visibleWidth,
 } from "../utils.ts";
+import { isVimModeEnabled, type VimEditorMode } from "../vim-mode.ts";
 import { findWordBackward, findWordForward } from "../word-navigation.ts";
 import { SelectList, type SelectListLayoutOptions, type SelectListTheme } from "./select-list.ts";
 
@@ -237,11 +239,84 @@ interface LayoutLine {
 export interface EditorTheme {
 	borderColor: (str: string) => string;
 	selectList: SelectListTheme;
+	/** Styles the mode label embedded in the bottom border while vim mode is on. */
+	vimModeLabel?: (text: string, mode: VimEditorMode) => string;
 }
 
 export interface EditorOptions {
 	paddingX?: number;
 	autocompleteMaxVisible?: number;
+}
+
+// =============================================================================
+// Vim mode key tables
+// =============================================================================
+
+/** Motions reachable from a single normal-mode key. */
+type VimMotion =
+	| "charLeft"
+	| "charRight"
+	| "lineUp"
+	| "lineDown"
+	| "lineStart"
+	| "firstNonBlank"
+	| "lineEnd"
+	| "wordForward"
+	| "wordBackward"
+	| "wordEnd"
+	| "documentStart"
+	| "documentEnd"
+	| "pageUp"
+	| "pageDown";
+
+/** Operators that take a motion (`d`, `c`, `y`). Repeating one is linewise. */
+type VimOperator = "d" | "c" | "y";
+
+/** Multi-key prefixes that wait for the following key. */
+type VimPrefix = "g" | "f" | "F" | "t" | "T" | "r";
+
+const VIM_MOTION_KEYS: Record<string, VimMotion> = {
+	h: "charLeft",
+	l: "charRight",
+	j: "lineDown",
+	k: "lineUp",
+	"0": "lineStart",
+	"^": "firstNonBlank",
+	$: "lineEnd",
+	w: "wordForward",
+	// WORD motions differ from word motions only for punctuation runs, which the
+	// word segmenter already splits; both map to the same motion here.
+	W: "wordForward",
+	b: "wordBackward",
+	B: "wordBackward",
+	e: "wordEnd",
+	E: "wordEnd",
+	G: "documentEnd",
+};
+
+const VIM_PREFIX_KEYS = new Set<string>(["g", "f", "F", "t", "T", "r"]);
+const VIM_OPERATOR_KEYS = new Set<string>(["d", "c", "y"]);
+
+/**
+ * Motions that operate on whole lines when combined with an operator: `dj`
+ * deletes two lines, not two characters. Character-wise motions instead make
+ * the operator range include the character under the cursor when moving
+ * forward (`dl` deletes one char, `dh` deletes the one before it).
+ */
+const VIM_LINEWISE_MOTIONS = new Set<VimMotion>(["lineUp", "lineDown", "documentStart", "documentEnd"]);
+const VIM_INCLUSIVE_MOTIONS = new Set<VimMotion>(["charRight", "wordEnd", "lineEnd"]);
+
+interface VimPosition {
+	line: number;
+	col: number;
+}
+
+interface VimRange {
+	startLine: number;
+	startCol: number;
+	endLine: number;
+	/** Exclusive end column. */
+	endCol: number;
 }
 
 const SLASH_COMMAND_SELECT_LIST_LAYOUT: SelectListLayoutOptions = {
@@ -291,6 +366,37 @@ function createScrollBorder(direction: "↑" | "↓", hiddenLineCount: number, w
 	const ellipsis = "...".slice(0, availableWidth);
 	const indicatorWidth = availableWidth - visibleWidth(ellipsis);
 	return sliceByColumn(indicator, 0, indicatorWidth, true) + ellipsis;
+}
+
+/**
+ * Toggle the case of the first cased character in a grapheme, as vim's `~` does.
+ * Uncased graphemes (digits, punctuation, CJK) come back unchanged.
+ */
+function swapCase(text: string): string {
+	for (const char of text) {
+		const lower = char.toLowerCase();
+		const upper = char.toUpperCase();
+		if (lower === upper) continue;
+		return text.replace(char, char === lower ? upper : lower);
+	}
+	return text;
+}
+
+/**
+ * Character classes vim's word motions run between: whitespace, punctuation,
+ * and everything else. CJK counts as "everything else" because CJK ideographs
+ * are letters, which is how vim treats them too.
+ */
+type VimCharClass = "space" | "punctuation" | "word";
+
+function vimCharClass(char: string): VimCharClass {
+	if (isWhitespaceChar(char)) return "space";
+	return PUNCTUATION_REGEX.test(char) ? "punctuation" : "word";
+}
+
+interface VimCell {
+	index: number;
+	class: VimCharClass;
 }
 
 export class Editor implements Component, Focusable {
@@ -352,6 +458,20 @@ export class Editor implements Component, Focusable {
 
 	// Character jump mode
 	private jumpMode: "forward" | "backward" | null = null;
+
+	// Vim mode: modal command state, only consulted while vim mode is enabled.
+	private vimActive = false;
+	private vimMode: VimEditorMode = "insert";
+	private vimCount = 0;
+	private vimOperator: VimOperator | null = null;
+	private vimPrefix: VimPrefix | null = null;
+	// Whether the text currently on the kill ring came from a whole-line
+	// operator (dd, yy), which decides whether `p` pastes a line or inline.
+	private vimYankLinewise = false;
+	// Set while resolving a motion target by dry-running the move, so the
+	// autocomplete popup is not re-queried for a cursor position that is about
+	// to be discarded.
+	private vimResolvingTarget = false;
 
 	// Preferred visual column for vertical cursor movement (sticky column)
 	private preferredVisualCol: number | null = null;
@@ -514,7 +634,27 @@ export class Editor implements Component, Focusable {
 
 	protected renderBottomBorder(width: number, hiddenLineCount: number): string {
 		const border = hiddenLineCount > 0 ? createScrollBorder("↓", hiddenLineCount, width) : "─".repeat(width);
-		return this.borderColor(border);
+		return isVimModeEnabled() ? this.renderVimBorder(border, width) : this.borderColor(border);
+	}
+
+	/**
+	 * Embed the current vim mode into the right end of the bottom border.
+	 *
+	 * `border` is exactly `width` columns wide, so the label splices over the last
+	 * columns. While a count or operator is pending the border shows plain lines:
+	 * the label would otherwise flicker between states on every keystroke. The
+	 * label is also dropped when the border is carrying a scroll indicator, which
+	 * is centered and would otherwise collide.
+	 */
+	private renderVimBorder(border: string, width: number): string {
+		if (!this.vimActive || this.vimPrefix !== null || this.vimOperator !== null || this.vimCount > 0) {
+			return this.borderColor(border);
+		}
+		const label = ` ${this.vimMode === "insert" ? "INSERT" : "NORMAL"} `;
+		const labelWidth = visibleWidth(label);
+		if (labelWidth + 4 > width || !border.endsWith("─".repeat(labelWidth))) return this.borderColor(border);
+		const styleLabel = this.theme.vimModeLabel ?? ((text: string) => this.borderColor(text));
+		return this.borderColor(border.slice(0, width - labelWidth)) + styleLabel(label, this.vimMode);
 	}
 
 	render(width: number): string[] {
@@ -693,6 +833,16 @@ export class Editor implements Component, Focusable {
 	}
 
 	handleInput(data: string): void {
+		// Vim mode owns its keys before anything else, except bracketed paste:
+		// pasted text is literal in every mode and is handled below.
+		if (isVimModeEnabled() && !data.includes("\x1b[200~")) {
+			if (!this.vimActive) {
+				this.vimActive = true;
+				this.vimMode = "insert";
+			}
+			if (this.handleVimInput(data)) return;
+		}
+
 		const kb = getKeybindings();
 
 		// Handle character jump mode (awaiting next character to jump to)
@@ -1371,6 +1521,8 @@ export class Editor implements Component, Focusable {
 		this.scrollOffset = 0;
 		this.undoStack.clear();
 		this.lastAction = null;
+		// Vim mode behaves like `startinsert`: the next prompt is typed.
+		this.resetVimState();
 
 		if (this.onChange) this.onChange("");
 		if (this.onSubmit) this.onSubmit(result);
@@ -1948,7 +2100,7 @@ export class Editor implements Component, Focusable {
 		// left from `/cmd ` back into the command name leaves the argument
 		// picker showing against a `/cmd` prefix (and a Tab there would
 		// concatenate the stale suggestion onto the partial command name).
-		if (this.autocompleteState) {
+		if (this.autocompleteState && !this.vimResolvingTarget) {
 			this.updateAutocomplete();
 		}
 	}
@@ -2468,5 +2620,890 @@ export class Editor implements Component, Focusable {
 	private updateAutocomplete(): void {
 		if (!this.autocompleteState || !this.autocompleteProvider) return;
 		this.requestAutocomplete({ force: this.autocompleteState === "force", explicitTab: false });
+	}
+
+	// =========================================================================
+	// Vim mode
+	//
+	// Normal mode is a small key-sequence state machine: `vimCount` holds a typed
+	// count prefix, `vimOperator` a pending d/c/y, `vimPrefix` a pending
+	// multi-key prefix. Each key either advances that state or resolves to a
+	// command. Motions are the one reused primitive — `runVimMotion` serves both
+	// plain navigation and operators, resolving the target by dry-running the
+	// move so an operator gets the same position the motion would land on.
+	// =========================================================================
+
+	/**
+	 * Whether this editor is currently consuming input through the vim state
+	 * machine. Subclasses use it to hand Escape over to vim mode instead of
+	 * treating it as an app-level interrupt.
+	 */
+	public isVimEditing(): boolean {
+		return isVimModeEnabled() && this.vimActive;
+	}
+
+	private resetVimState(): void {
+		this.vimActive = isVimModeEnabled();
+		this.vimMode = "insert";
+		this.clearVimPending();
+	}
+
+	private clearVimPending(): void {
+		this.vimCount = 0;
+		this.vimOperator = null;
+		this.vimPrefix = null;
+	}
+
+	private takeVimCount(): number {
+		const count = this.vimCount;
+		this.vimCount = 0;
+		return count > 0 ? count : 1;
+	}
+
+	/** Returns true when the key was consumed by vim mode. */
+	private handleVimInput(data: string): boolean {
+		if (this.vimMode === "insert") {
+			if (matchesKey(data, "escape")) {
+				// The picker stays open: normal mode can still walk it, accept it
+				// with Tab, or dismiss it with Escape.
+				this.vimMode = "normal";
+				this.clearVimPending();
+				this.lastAction = null;
+				this.tui.requestRender();
+				return true;
+			}
+			// Typing, arrows, Ctrl combos, Tab and Enter keep their normal meaning.
+			return false;
+		}
+		return this.handleVimNormalInput(data);
+	}
+
+	private handleVimNormalInput(data: string): boolean {
+		// An open picker owns navigation in normal mode: j/k walk it, Tab and
+		// Enter accept. Anything else closes it and is then a normal-mode command.
+		if (this.autocompleteState && this.autocompleteList && this.handleVimAutocompleteInput(data)) {
+			return true;
+		}
+
+		if (matchesKey(data, "escape")) {
+			this.clearVimPending();
+			return true;
+		}
+		// Enter submits from any mode; the prompt box is a text field, not a file.
+		if (matchesKey(data, "enter")) return false;
+		if (this.handleVimNormalControlKey(data)) return true;
+
+		const char = this.readVimChar(data);
+		if (char === undefined) {
+			// Neither a vim command nor a character: hand it back so Pi's own
+			// bindings (ctrl+w, ctrl+], the character jump, ...) still work.
+			return false;
+		}
+		this.handleVimNormalChar(char);
+		return true;
+	}
+
+	/**
+	 * Control keys that behave like vim keys in normal mode. These are fixed
+	 * vim bindings, not keybinding-registry entries, so they are not remappable.
+	 */
+	private handleVimNormalControlKey(data: string): boolean {
+		const motion = this.matchVimControlMotion(data);
+		if (motion !== undefined) {
+			this.runVimMotion(motion);
+			return true;
+		}
+		if (matchesKey(data, "ctrl+p")) {
+			this.cancelAutocomplete();
+			this.navigateHistory(-1);
+			return true;
+		}
+		if (matchesKey(data, "ctrl+n")) {
+			this.cancelAutocomplete();
+			this.navigateHistory(1);
+			return true;
+		}
+		return false;
+	}
+
+	private matchVimControlMotion(data: string): VimMotion | undefined {
+		if (matchesKey(data, "left")) return "charLeft";
+		if (matchesKey(data, "right")) return "charRight";
+		if (matchesKey(data, "up")) return "lineUp";
+		if (matchesKey(data, "down")) return "lineDown";
+		if (matchesKey(data, "home")) return "firstNonBlank";
+		if (matchesKey(data, "end")) return "lineEnd";
+		if (matchesKey(data, "pageUp") || matchesKey(data, "ctrl+b")) return "pageUp";
+		if (matchesKey(data, "pageDown") || matchesKey(data, "ctrl+f")) return "pageDown";
+		// ctrl+d / ctrl+u scroll by half a page, which pi's editor expresses as a
+		// partial vertical move.
+		if (matchesKey(data, "ctrl+d")) return "lineDown";
+		if (matchesKey(data, "ctrl+u")) return "lineUp";
+		return undefined;
+	}
+
+	/** Single printable character for a keypress, or undefined if there is none. */
+	private readVimChar(data: string): string | undefined {
+		const printable = decodePrintableKey(data);
+		if (printable !== undefined) return printable;
+		if (data.length === 1 && data.charCodeAt(0) >= 32) return data;
+		return undefined;
+	}
+
+	private handleVimNormalChar(char: string): boolean {
+		if (this.vimPrefix !== null) return this.handleVimPrefixChar(char);
+
+		if (char >= "0" && char <= "9") {
+			// A leading 0 is the line-start motion; otherwise it extends the count.
+			if (char === "0" && this.vimCount === 0) return this.runVimMotion("lineStart");
+			this.vimCount = this.vimCount * 10 + Number(char);
+			return true;
+		}
+
+		// Repeating a pending operator makes it linewise: dd, cc, yy.
+		if (this.vimOperator !== null && char === this.vimOperator) {
+			const operator = this.vimOperator;
+			this.vimOperator = null;
+			this.applyVimOperatorLines(operator, this.takeVimCount());
+			return true;
+		}
+
+		const motion = VIM_MOTION_KEYS[char];
+		if (motion !== undefined) return this.runVimMotion(motion);
+		if (VIM_OPERATOR_KEYS.has(char)) {
+			this.vimOperator = char as VimOperator;
+			return true;
+		}
+		if (VIM_PREFIX_KEYS.has(char)) {
+			this.vimPrefix = char as VimPrefix;
+			return true;
+		}
+		return this.runVimCommand(char);
+	}
+
+	private handleVimPrefixChar(char: string): boolean {
+		const prefix = this.vimPrefix;
+		this.vimPrefix = null;
+
+		if (prefix === "g") {
+			// gg is the only supported g-command; the rest of the g family
+			// (gt, gi, gv) has no meaning here and is ignored.
+			if (char !== "g") return true;
+			return this.runVimMotion("documentStart");
+		}
+
+		if (prefix === "r") {
+			this.applyVimReplace(char, this.takeVimCount());
+			return true;
+		}
+
+		const forward = prefix === "f" || prefix === "t";
+		const till = prefix === "t" || prefix === "T";
+		if (this.vimOperator === null) {
+			this.applyVimFind(char, forward, till);
+			return true;
+		}
+		const operator = this.vimOperator;
+		this.vimOperator = null;
+		this.applyVimOperatorFind(operator, char, forward, till);
+		return true;
+	}
+
+	/** Apply a motion, or hand it to the pending operator. */
+	private runVimMotion(motion: VimMotion): boolean {
+		const count = this.takeVimCount();
+		if (this.vimOperator === null) {
+			this.applyVimMotion(motion, count);
+			return true;
+		}
+		const operator = this.vimOperator;
+		this.vimOperator = null;
+		this.applyVimOperatorMotion(operator, motion, count);
+		return true;
+	}
+
+	/** Normal-mode commands that take no motion argument. */
+	private runVimCommand(char: string): boolean {
+		if (this.vimOperator !== null) {
+			// An operator followed by something that is not a motion is cancelled.
+			this.vimOperator = null;
+			return true;
+		}
+		const count = this.takeVimCount();
+		switch (char) {
+			case "i":
+				this.enterVimInsert("cursor");
+				break;
+			case "a":
+				this.enterVimInsert("afterCursor");
+				break;
+			case "I":
+				this.enterVimInsert("firstNonBlank");
+				break;
+			case "A":
+				this.enterVimInsert("lineEnd");
+				break;
+			case "o":
+				this.openVimLine("below");
+				break;
+			case "O":
+				this.openVimLine("above");
+				break;
+			case "x":
+				this.deleteVimCharsForward(count);
+				break;
+			case "X":
+				this.deleteVimCharsBackward(count);
+				break;
+			case "D":
+				this.applyVimOperatorLines("d", count, "toLineEnd");
+				break;
+			case "C":
+				this.applyVimOperatorLines("c", count, "toLineEnd");
+				break;
+			case "s":
+				this.substituteVimChars(count);
+				break;
+			case "S":
+				this.applyVimOperatorLines("c", count);
+				break;
+			case "p":
+				this.putVimText("afterCursor");
+				break;
+			case "P":
+				this.putVimText("beforeCursor");
+				break;
+			case "J":
+				this.joinVimLines(count);
+				break;
+			case "u":
+				this.undo();
+				break;
+			case "~":
+				this.toggleVimCase(count);
+				break;
+		}
+		return true;
+	}
+
+	// -------------------------------------------------------------------------
+	// Motions
+	// -------------------------------------------------------------------------
+
+	private applyVimMotion(motion: VimMotion, count: number): void {
+		this.applyVimMotionRaw(motion, count);
+		this.clampVimCursor();
+		if (this.autocompleteState) this.updateAutocomplete();
+	}
+
+	private applyVimMotionRaw(motion: VimMotion, count: number): void {
+		this.lastAction = null;
+		switch (motion) {
+			case "charLeft":
+				this.moveVimChars(-count);
+				break;
+			case "charRight":
+				this.moveVimChars(count);
+				break;
+			case "lineUp":
+				this.moveVimLines(-count);
+				break;
+			case "lineDown":
+				this.moveVimLines(count);
+				break;
+			case "lineStart":
+				this.moveToLineStart();
+				break;
+			case "firstNonBlank":
+				this.moveToFirstNonBlank();
+				break;
+			case "lineEnd":
+				this.moveToLastChar();
+				break;
+			case "wordForward":
+				for (let i = 0; i < count; i++) this.moveVimWordForward();
+				break;
+			case "wordBackward":
+				for (let i = 0; i < count; i++) this.moveVimWordBackward();
+				break;
+			case "wordEnd":
+				for (let i = 0; i < count; i++) this.moveVimWordEnd();
+				break;
+			case "documentStart":
+				this.moveToDocumentStart(count);
+				break;
+			case "documentEnd":
+				this.moveToDocumentEnd(count);
+				break;
+			case "pageUp":
+				for (let i = 0; i < count; i++) this.pageScroll(-1);
+				break;
+			case "pageDown":
+				for (let i = 0; i < count; i++) this.pageScroll(1);
+				break;
+		}
+	}
+
+	/**
+	 * Keep the cursor on a character of the current line.
+	 *
+	 * Motions are shared with insert mode, where the cursor is allowed past the
+	 * last character (and where `w` runs off the end of the line entirely). In
+	 * normal mode the cursor rests on a character, so anything beyond the last
+	 * one pulls back to it.
+	 */
+	private clampVimCursor(): void {
+		const line = this.state.lines[this.state.cursorLine] || "";
+		const last = this.lastCharCol(line);
+		if (this.state.cursorCol > last) this.setCursorCol(last);
+	}
+
+	/**
+	 * Horizontal move that stops at the line edge.
+	 *
+	 * moveCursor() wraps across line boundaries, which is right for arrows in
+	 * insert mode but wrong for `h`/`l`: in vim the cursor cannot leave the line.
+	 */
+	private moveVimChars(delta: number): void {
+		const direction = delta > 0 ? 1 : -1;
+		for (let step = 0; step < Math.abs(delta); step++) {
+			const line = this.state.lines[this.state.cursorLine] || "";
+			const next = this.stepGraphemeCol(line, this.state.cursorCol, direction);
+			if (next === null) break;
+			this.setCursorCol(next);
+		}
+	}
+
+	private stepGraphemeCol(line: string, col: number, direction: 1 | -1): number | null {
+		if (direction > 0) {
+			if (col >= line.length) return null;
+			const next = [...this.segment(line.slice(col), "grapheme")][0];
+			return col + (next ? next.segment.length : 1);
+		}
+		if (col <= 0) return null;
+		const previous = [...this.segment(line.slice(0, col), "grapheme")].pop();
+		return col - (previous ? previous.segment.length : 1);
+	}
+
+	private moveVimLines(delta: number): void {
+		for (let step = 0; step < Math.abs(delta); step++) {
+			const before = this.state.cursorLine;
+			this.moveCursor(delta > 0 ? 1 : -1, 0);
+			if (this.state.cursorLine === before) {
+				// The cursor cannot go that way, so the window takes over. Vim
+				// scrolls the view for j/k when the buffer runs out of lines.
+				// A dry run must not move the view it is about to discard.
+				if (!this.vimResolvingTarget) this.tui.scrollViewport?.(delta > 0 ? 1 : -1);
+				break;
+			}
+		}
+	}
+
+	/**
+	 * Column of the last character of the line, or 0 for an empty line.
+	 *
+	 * Normal mode never rests past the last character (unlike insert mode, where
+	 * the cursor sits between characters), so `$` and friends land on it.
+	 */
+	private lastCharCol(line: string): number {
+		if (line.length === 0) return 0;
+		const last = [...this.segment(line, "grapheme")].pop();
+		return line.length - (last ? last.segment.length : 1);
+	}
+
+	private moveToLastChar(): void {
+		this.setCursorCol(this.lastCharCol(this.state.lines[this.state.cursorLine] || ""));
+	}
+
+	private firstNonBlankCol(line: string): number {
+		let col = 0;
+		while (col < line.length) {
+			const first = [...this.segment(line.slice(col), "grapheme")][0];
+			if (!first) break;
+			if (!isWhitespaceChar(first.segment) && !isPasteMarker(first.segment)) return col;
+			col += first.segment.length;
+		}
+		return Math.min(col, this.lastCharCol(line));
+	}
+
+	private moveToFirstNonBlank(): void {
+		this.setCursorCol(this.firstNonBlankCol(this.state.lines[this.state.cursorLine] || ""));
+	}
+
+	/**
+	 * Character runs of the current line, tagged with vim's word classes.
+	 *
+	 * Vim word motions walk runs of the same class rather than language word
+	 * segments: `w` stops at the first character of the next run, so it can
+	 * land on a space between two words. pi's emacs word motions deliberately
+	 * behave differently, which would make vim keys feel wrong.
+	 */
+	private vimCells(): VimCell[] {
+		const line = this.state.lines[this.state.cursorLine] || "";
+		return [...this.segment(line, "grapheme")].map((segment) => ({
+			index: segment.index,
+			class: vimCharClass(segment.segment[0] ?? ""),
+		}));
+	}
+
+	/** Index into `cells` of the grapheme at or after the cursor, or -1. */
+	private vimCellAtOrAfter(cells: VimCell[], col: number): number {
+		for (let i = 0; i < cells.length; i++) {
+			if (cells[i]!.index >= col) return i;
+		}
+		return -1;
+	}
+
+	/** `w`: forward to the first character of the next run. */
+	private moveVimWordForward(): void {
+		const cells = this.vimCells();
+		let position = this.vimCellAtOrAfter(cells, this.state.cursorCol);
+		if (position < 0) return;
+		const start = cells[position]!.class;
+		while (position + 1 < cells.length && cells[position + 1]!.class === start) position++;
+		while (position + 1 < cells.length && cells[position + 1]!.class === "space") position++;
+		if (position + 1 < cells.length) position++;
+		this.setCursorCol(cells[position]!.index);
+	}
+
+	/** `b`: back to the start of the current run, or of the previous one. */
+	private moveVimWordBackward(): void {
+		const cells = this.vimCells();
+		let position = -1;
+		for (let i = 0; i < cells.length; i++) {
+			if (cells[i]!.index <= this.state.cursorCol) position = i;
+			else break;
+		}
+		if (position <= 0) {
+			this.setCursorCol(0);
+			return;
+		}
+		const start = cells[position]!.class;
+		if (cells[position - 1]!.class === start) {
+			while (position > 0 && cells[position - 1]!.class === start) position--;
+		} else {
+			// Already at the start of a run: cross the gap in front of it.
+			position--;
+			while (position > 0 && cells[position]!.class === "space") position--;
+			const previous = cells[position]!.class;
+			while (position > 0 && cells[position - 1]!.class === previous) position--;
+		}
+		this.setCursorCol(cells[position]!.index);
+	}
+
+	/** `e`: forward to the last character of the current or next run. */
+	private moveVimWordEnd(): void {
+		const cells = this.vimCells();
+		let position = this.vimCellAtOrAfter(cells, this.state.cursorCol);
+		if (position < 0) return;
+		// Standing on the first character of a run means that run is behind us.
+		if (
+			position > 0 &&
+			cells[position]!.index === this.state.cursorCol &&
+			cells[position - 1]!.class !== cells[position]!.class
+		) {
+			position++;
+		}
+		while (position < cells.length && cells[position]!.class === "space") position++;
+		if (position >= cells.length) return;
+		const start = cells[position]!.class;
+		while (position + 1 < cells.length && cells[position + 1]!.class === start) position++;
+		this.setCursorCol(cells[position]!.index);
+	}
+
+	private moveToDocumentStart(count: number): void {
+		const lineIndex = Math.max(0, Math.min(this.state.lines.length - 1, count - 1));
+		this.state.cursorLine = lineIndex;
+		this.setCursorCol(this.firstNonBlankCol(this.state.lines[lineIndex] || ""));
+		this.preferredVisualCol = null;
+	}
+
+	private moveToDocumentEnd(count: number): void {
+		const lastLine = this.state.lines.length - 1;
+		const lineIndex = count > 1 ? Math.max(0, Math.min(lastLine, count - 1)) : lastLine;
+		this.state.cursorLine = lineIndex;
+		this.setCursorCol(this.firstNonBlankCol(this.state.lines[lineIndex] || ""));
+		this.preferredVisualCol = null;
+	}
+
+	private applyVimFind(char: string, forward: boolean, till: boolean): void {
+		this.lastAction = null;
+		this.jumpToChar(char, forward ? "forward" : "backward");
+		if (!till) return;
+		// `t` stops just before the target, like a cursor that refuses to jump
+		// onto the character it searched for.
+		if (forward) this.moveVimChars(-1);
+		else this.moveVimChars(1);
+	}
+
+	/**
+	 * Resolve a motion to a position by running it and rolling the cursor back.
+	 *
+	 * Motions have side effects (sticky columns, autocomplete refreshes) that a
+	 * dry run would trigger, so the flags that reach outward are suppressed and
+	 * restored together with the cursor. `reachedLineEnd` reports that the
+	 * unclamped target landed on the last character of its line — the case where
+	 * vim turns an operator into its inclusive form, so `dw` on the last word
+	 * behaves like `de` instead of deleting nothing.
+	 */
+	private resolveVimTarget(motion: VimMotion, count: number): { position: VimPosition; reachedLineEnd: boolean } {
+		const savedState = structuredClone(this.state);
+		const savedPreferred = this.preferredVisualCol;
+		const savedSnapped = this.snappedFromCursorCol;
+		const savedLastAction = this.lastAction;
+		this.vimResolvingTarget = true;
+		this.applyVimMotionRaw(motion, count);
+		const rawCol = this.state.cursorCol;
+		const last = this.lastCharCol(this.state.lines[this.state.cursorLine] || "");
+		if (rawCol > last) this.setCursorCol(last);
+		const position = { line: this.state.cursorLine, col: this.state.cursorCol };
+		this.vimResolvingTarget = false;
+		this.state = savedState;
+		this.preferredVisualCol = savedPreferred;
+		this.snappedFromCursorCol = savedSnapped;
+		this.lastAction = savedLastAction;
+		return { position, reachedLineEnd: rawCol >= last };
+	}
+
+	// -------------------------------------------------------------------------
+	// Operators
+	// -------------------------------------------------------------------------
+
+	private applyVimOperatorMotion(operator: VimOperator, motion: VimMotion, count: number): void {
+		if (VIM_LINEWISE_MOTIONS.has(motion)) {
+			this.applyVimOperatorLines(operator, count);
+			return;
+		}
+		const start = { line: this.state.cursorLine, col: this.state.cursorCol };
+		const target = this.resolveVimTarget(motion, count);
+		const inclusive = VIM_INCLUSIVE_MOTIONS.has(motion) || target.reachedLineEnd;
+		const range = this.makeVimRange(start, target.position, inclusive);
+		if (range.endLine === range.startLine && range.endCol <= range.startCol) return;
+		this.applyVimOperatorRange(operator, range);
+	}
+
+	private applyVimOperatorFind(operator: VimOperator, char: string, forward: boolean, till: boolean): void {
+		const start = { line: this.state.cursorLine, col: this.state.cursorCol };
+		const savedState = structuredClone(this.state);
+		const savedPreferred = this.preferredVisualCol;
+		this.vimResolvingTarget = true;
+		this.applyVimFind(char, forward, till);
+		this.vimResolvingTarget = false;
+		const target = { line: this.state.cursorLine, col: this.state.cursorCol };
+		this.state = savedState;
+		this.preferredVisualCol = savedPreferred;
+		// A forward find owns the character it lands on; a backward find stops
+		// before it.
+		const range = this.makeVimRange(start, target, forward);
+		if (range.endLine === range.startLine && range.endCol <= range.startCol) return;
+		this.applyVimOperatorRange(operator, range);
+	}
+
+	/** Build a half-open text range from a motion, honouring vim's inclusivity rules. */
+	private makeVimRange(start: VimPosition, target: VimPosition, inclusive: boolean): VimRange {
+		const forward = target.line > start.line || (target.line === start.line && target.col > start.col);
+		if (forward) {
+			const line = this.state.lines[target.line] || "";
+			const lastInRange = [...this.segment(line.slice(0, target.col), "grapheme")].pop();
+			const endCol = inclusive ? target.col + (lastInRange ? lastInRange.segment.length : 1) : target.col;
+			return { startLine: start.line, startCol: start.col, endLine: target.line, endCol };
+		}
+		return { startLine: target.line, startCol: target.col, endLine: start.line, endCol: start.col };
+	}
+
+	private applyVimOperatorLines(operator: VimOperator, count: number, extent: "full" | "toLineEnd" = "full"): void {
+		const lastLine = this.state.lines.length - 1;
+		const startLine = this.state.cursorLine;
+
+		if (extent === "toLineEnd") {
+			const line = this.state.lines[startLine] || "";
+			if (this.state.cursorCol >= line.length) return;
+			this.applyVimOperatorRange(operator, {
+				startLine,
+				startCol: this.state.cursorCol,
+				endLine: startLine,
+				endCol: line.length,
+			});
+			return;
+		}
+
+		const endLine = Math.min(lastLine, startLine + count - 1);
+		const removed = this.state.lines.slice(startLine, endLine + 1).join("\n");
+		const accumulate = this.lastAction === "kill";
+
+		if (operator === "y") {
+			// Yank replaces any kill accumulation: a yank never concatenates.
+			this.killRing.push(removed, { prepend: false, accumulate: false });
+			this.lastAction = null;
+			this.vimYankLinewise = true;
+			return;
+		}
+
+		this.pushUndoSnapshot();
+		this.lastAction = "kill";
+		this.killRing.push(removed, { prepend: false, accumulate });
+		this.vimYankLinewise = operator !== "c";
+
+		if (operator === "c") {
+			// Change empties the lines instead of removing them: the newline
+			// structure the user is editing has to survive the keystrokes that
+			// follow.
+			for (let line = startLine; line <= endLine; line++) this.state.lines[line] = "";
+			this.state.cursorLine = startLine;
+			this.setCursorCol(0);
+		} else if (startLine === 0 && endLine === lastLine) {
+			// Deleting every line leaves one empty line, like an emptied buffer.
+			this.state.lines = [""];
+			this.state.cursorLine = 0;
+			this.setCursorCol(0);
+		} else {
+			this.state.lines.splice(startLine, endLine - startLine + 1);
+			this.state.cursorLine = Math.min(startLine, this.state.lines.length - 1);
+			this.setCursorCol(this.firstNonBlankCol(this.state.lines[this.state.cursorLine] || ""));
+		}
+		if (this.onChange) this.onChange(this.getText());
+		if (operator === "c") this.enterVimInsert("cursor");
+	}
+
+	/** Yank or delete a character range, optionally leaving insert mode after. */
+	private applyVimOperatorRange(operator: VimOperator, range: VimRange): void {
+		const startLineText = this.state.lines[range.startLine] ?? "";
+		const endLineText = this.state.lines[range.endLine] ?? "";
+		const sameLine = range.startLine === range.endLine;
+		const killed = sameLine
+			? startLineText.slice(range.startCol, range.endCol)
+			: startLineText.slice(range.startCol) +
+				"\n".repeat(range.endLine - range.startLine) +
+				endLineText.slice(0, range.endCol);
+		if (!killed) return;
+
+		if (operator === "y") {
+			// Yank replaces any kill accumulation: a yank never concatenates.
+			this.killRing.push(killed, { prepend: false, accumulate: false });
+			this.lastAction = null;
+			this.vimYankLinewise = false;
+			return;
+		}
+
+		this.pushUndoSnapshot();
+		this.lastAction = "kill";
+		this.vimYankLinewise = false;
+		this.killRing.push(killed, { prepend: false, accumulate: false });
+		const merged = startLineText.slice(0, range.startCol) + endLineText.slice(range.endCol);
+		this.state.lines.splice(range.startLine, range.endLine - range.startLine + 1, merged);
+		this.state.cursorLine = range.startLine;
+		this.setCursorCol(range.startCol);
+		if (operator !== "c") this.clampVimCursor();
+		if (this.onChange) this.onChange(this.getText());
+		if (operator === "c") this.enterVimInsert("cursor");
+	}
+
+	// -------------------------------------------------------------------------
+	// Editing commands
+	// -------------------------------------------------------------------------
+
+	private enterVimInsert(where: "cursor" | "afterCursor" | "firstNonBlank" | "lineEnd"): void {
+		this.clearVimPending();
+		// Typing breaks the chain of consecutive kills, so the next `p` pastes
+		// inline rather than as a line.
+		this.vimYankLinewise = false;
+		const line = this.state.lines[this.state.cursorLine] || "";
+		if (where === "afterCursor" && this.state.cursorCol < line.length) {
+			this.moveVimChars(1);
+		} else if (where === "firstNonBlank") {
+			this.setCursorCol(this.firstNonBlankCol(line));
+		} else if (where === "lineEnd") {
+			this.setCursorCol(line.length);
+		}
+		this.vimMode = "insert";
+		this.lastAction = null;
+		this.tui.requestRender();
+	}
+
+	private openVimLine(where: "below" | "above"): void {
+		this.cancelAutocomplete();
+		this.exitHistoryBrowsing();
+		this.pushUndoSnapshot();
+		this.lastAction = null;
+		const index = where === "below" ? this.state.cursorLine + 1 : this.state.cursorLine;
+		this.state.lines.splice(index, 0, "");
+		this.state.cursorLine = index;
+		this.setCursorCol(0);
+		if (this.onChange) this.onChange(this.getText());
+		this.clearVimPending();
+		this.vimMode = "insert";
+	}
+
+	/** Column just past `count` graphemes from `startCol`, clamped to the line end. */
+	private graphemeSpanEnd(line: string, startCol: number, count: number): number {
+		const targets = [...this.segment(line.slice(startCol), "grapheme")].slice(0, count);
+		return startCol + targets.reduce((total, seg) => total + seg.segment.length, 0);
+	}
+
+	/** `x`: delete up to `count` characters, never crossing the line end. */
+	private deleteVimCharsForward(count: number): void {
+		const line = this.state.lines[this.state.cursorLine] || "";
+		const startCol = this.state.cursorCol;
+		if (startCol >= line.length) return;
+		this.applyVimOperatorRange("d", {
+			startLine: this.state.cursorLine,
+			startCol,
+			endLine: this.state.cursorLine,
+			endCol: this.graphemeSpanEnd(line, startCol, count),
+		});
+	}
+
+	/** `X`: delete up to `count` characters backward, never crossing the line start. */
+	private deleteVimCharsBackward(count: number): void {
+		const line = this.state.lines[this.state.cursorLine] || "";
+		let startCol = this.state.cursorCol;
+		for (let step = 0; step < count; step++) {
+			const previous = this.stepGraphemeCol(line, startCol, -1);
+			if (previous === null) break;
+			startCol = previous;
+		}
+		if (startCol === this.state.cursorCol) return;
+		this.applyVimOperatorRange("d", {
+			startLine: this.state.cursorLine,
+			startCol,
+			endLine: this.state.cursorLine,
+			endCol: this.state.cursorCol,
+		});
+	}
+
+	/** `s`: delete the characters under the cursor, then insert. */
+	private substituteVimChars(count: number): void {
+		const line = this.state.lines[this.state.cursorLine] || "";
+		const startCol = this.state.cursorCol;
+		if (startCol >= line.length) return;
+		this.applyVimOperatorRange("c", {
+			startLine: this.state.cursorLine,
+			startCol,
+			endLine: this.state.cursorLine,
+			endCol: this.graphemeSpanEnd(line, startCol, count),
+		});
+	}
+
+	private putVimText(where: "afterCursor" | "beforeCursor"): void {
+		const text = this.killRing.peek();
+		if (!text) return;
+		this.pushUndoSnapshot();
+		this.exitHistoryBrowsing();
+		this.lastAction = null;
+
+		if (this.vimYankLinewise) {
+			const at = where === "afterCursor" ? this.state.cursorLine + 1 : this.state.cursorLine;
+			this.state.lines.splice(at, 0, ...text.split("\n"));
+			this.state.cursorLine = at;
+			this.setCursorCol(0);
+		} else {
+			const line = this.state.lines[this.state.cursorLine] || "";
+			const at =
+				where === "afterCursor"
+					? (this.stepGraphemeCol(line, this.state.cursorCol, 1) ?? line.length)
+					: this.state.cursorCol;
+			this.state.lines[this.state.cursorLine] = line.slice(0, at) + text + line.slice(at);
+			// Normal mode rests on the last pasted character.
+			this.setCursorCol(Math.max(at, at + text.length - 1));
+		}
+		if (this.onChange) this.onChange(this.getText());
+	}
+
+	/** `J`: join the following lines onto the current one. */
+	private joinVimLines(count: number): void {
+		let joined = 0;
+		while (joined < count && this.state.cursorLine < this.state.lines.length - 1) {
+			this.pushUndoSnapshot();
+			const current = this.state.lines[this.state.cursorLine] || "";
+			const next = this.state.lines[this.state.cursorLine + 1] || "";
+			const left = current.trimEnd();
+			const right = next.trimStart();
+			const separator = left === "" || right === "" ? "" : " ";
+			this.state.lines[this.state.cursorLine] = left + separator + right;
+			this.state.lines.splice(this.state.cursorLine + 1, 1);
+			this.setCursorCol(left.length + separator.length);
+			joined++;
+		}
+		if (joined === 0) return;
+		this.lastAction = "kill";
+		if (this.onChange) this.onChange(this.getText());
+	}
+
+	/** `r{char}`: replace up to `count` characters with `char`. */
+	private applyVimReplace(char: string, count: number): void {
+		const line = this.state.lines[this.state.cursorLine] || "";
+		const startCol = this.state.cursorCol;
+		const targets = [...this.segment(line.slice(startCol), "grapheme")].slice(0, count);
+		if (targets.length === 0) return;
+		const endCol = startCol + targets.reduce((total, seg) => total + seg.segment.length, 0);
+		this.pushUndoSnapshot();
+		this.lastAction = null;
+		this.state.lines[this.state.cursorLine] =
+			line.slice(0, startCol) + char.repeat(targets.length) + line.slice(endCol);
+		this.setCursorCol(startCol);
+		if (this.onChange) this.onChange(this.getText());
+	}
+
+	/** `~`: swap the case of the characters under the cursor and step right. */
+	private toggleVimCase(count: number): void {
+		const line = this.state.lines[this.state.cursorLine] || "";
+		const startCol = this.state.cursorCol;
+		const targets = [...this.segment(line.slice(startCol), "grapheme")].slice(0, count);
+		if (targets.length === 0) return;
+		const endCol = startCol + targets.reduce((total, seg) => total + seg.segment.length, 0);
+		const swapped = targets.map((seg) => swapCase(seg.segment)).join("");
+		const merged = line.slice(0, startCol) + swapped + line.slice(endCol);
+		this.pushUndoSnapshot();
+		this.lastAction = null;
+		this.state.lines[this.state.cursorLine] = merged;
+		// ~ steps right onto the next character, stopping on the last one.
+		this.setCursorCol(Math.min(endCol, this.lastCharCol(merged)));
+		if (this.onChange) this.onChange(this.getText());
+	}
+
+	/**
+	 * Navigation for an open autocomplete picker while in normal mode.
+	 *
+	 * Returns false for anything else, which closes the picker and lets the key
+	 * run as a normal-mode command — a stale picker over a changed cursor is
+	 * worse than no picker.
+	 */
+	private handleVimAutocompleteInput(data: string): boolean {
+		if (matchesKey(data, "j") || matchesKey(data, "ctrl+n")) {
+			this.autocompleteList?.moveSelection(1);
+			return true;
+		}
+		if (matchesKey(data, "k") || matchesKey(data, "ctrl+p")) {
+			this.autocompleteList?.moveSelection(-1);
+			return true;
+		}
+		if (matchesKey(data, "tab") || matchesKey(data, "enter")) {
+			this.acceptVimAutocomplete();
+			return true;
+		}
+		this.cancelAutocomplete();
+		return false;
+	}
+
+	private acceptVimAutocomplete(): void {
+		const selected = this.autocompleteList?.getSelectedItem();
+		if (!selected || !this.autocompleteProvider) {
+			this.cancelAutocomplete();
+			return;
+		}
+		this.pushUndoSnapshot();
+		this.lastAction = null;
+		const result = this.autocompleteProvider.applyCompletion(
+			this.state.lines,
+			this.state.cursorLine,
+			this.state.cursorCol,
+			selected,
+			this.autocompletePrefix,
+		);
+		this.state.lines = result.lines;
+		this.state.cursorLine = result.cursorLine;
+		this.setCursorCol(result.cursorCol);
+		this.cancelAutocomplete();
+		if (this.onChange) this.onChange(this.getText());
 	}
 }

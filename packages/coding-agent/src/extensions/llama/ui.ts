@@ -4,6 +4,7 @@ import {
 	type Focusable,
 	fuzzyFilter,
 	Input,
+	matchesVimListNav,
 	type SelectItem,
 	SelectList,
 	Spacer,
@@ -241,14 +242,15 @@ class HuggingFaceSearch extends Container implements Focusable {
 	}
 
 	handleInput(data: string): void {
-		if (this.keybindings.matches(data, "tui.select.up")) {
+		const filterQuery = this.input.getValue();
+		if (this.keybindings.matches(data, "tui.select.up") || matchesVimListNav(data, "up", filterQuery)) {
 			if (this.filteredResults.length > 0) {
 				this.selectedIndex = this.selectedIndex === 0 ? this.filteredResults.length - 1 : this.selectedIndex - 1;
 				this.updateResults();
 			}
 			return;
 		}
-		if (this.keybindings.matches(data, "tui.select.down")) {
+		if (this.keybindings.matches(data, "tui.select.down") || matchesVimListNav(data, "down", filterQuery)) {
 			if (this.filteredResults.length > 0) {
 				this.selectedIndex = this.selectedIndex === this.filteredResults.length - 1 ? 0 : this.selectedIndex + 1;
 				this.updateResults();

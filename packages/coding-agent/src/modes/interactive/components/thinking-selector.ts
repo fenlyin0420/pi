@@ -5,6 +5,7 @@ import {
 	fuzzyFilter,
 	getKeybindings,
 	Input,
+	matchesVimListNav,
 	type SelectItem,
 	SelectList,
 	type SelectListLayoutOptions,
@@ -135,9 +136,12 @@ export class ThinkingSelectorComponent extends Container implements Focusable {
 			return;
 		}
 
+		const filterQuery = this.searchInput.getValue();
 		const isNav =
 			kb.matches(keyData, "tui.select.up") ||
 			kb.matches(keyData, "tui.select.down") ||
+			matchesVimListNav(keyData, "up", filterQuery) ||
+			matchesVimListNav(keyData, "down", filterQuery) ||
 			kb.matches(keyData, "tui.select.confirm") ||
 			kb.matches(keyData, "tui.select.cancel");
 		if (isNav) {

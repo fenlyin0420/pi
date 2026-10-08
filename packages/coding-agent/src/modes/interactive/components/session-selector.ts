@@ -8,6 +8,7 @@ import {
 	type Focusable,
 	getKeybindings,
 	Input,
+	matchesVimListNav,
 	Spacer,
 	Text,
 	truncateToWidth,
@@ -609,12 +610,13 @@ class SessionList implements Component, Focusable {
 		}
 
 		this.selectionTouched = true;
+		const filterQuery = this.searchInput.getValue();
 		// Up arrow
-		if (kb.matches(keyData, "tui.select.up")) {
+		if (kb.matches(keyData, "tui.select.up") || matchesVimListNav(keyData, "up", filterQuery)) {
 			this.selectedIndex = Math.max(0, this.selectedIndex - 1);
 		}
 		// Down arrow
-		else if (kb.matches(keyData, "tui.select.down")) {
+		else if (kb.matches(keyData, "tui.select.down") || matchesVimListNav(keyData, "down", filterQuery)) {
 			this.selectedIndex = Math.min(this.filteredSessions.length - 1, this.selectedIndex + 1);
 		}
 		// Page up - jump up by maxVisible items

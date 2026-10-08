@@ -192,5 +192,6 @@ bug 我到底有没有拿到"，也无从判断某段分叉代码能不能删。
 | 移除所有内置 OAuth 登录 | 减性 | 13 个流实现、`bun-oauth.ts`、9 个 provider 的 `oauth:` 块、OAuth 登录 UI 与命令表分支全部删除；`/login` 保留但只支持 API key；类型面与 `auth.json` 的 oauth 解析保留。`openai-codex` 是纯 OAuth provider，一并删除 |
 | 保留 MCP 自身的 OAuth | — | 服务于 MCP 服务器鉴权，与模型供应商登录无关 |
 | `/model` 只列 `enabledModels` scope | 减性 | 删掉选择器的 "all" 页签与 Tab 切换；列表唯一来源是 scope，空列表提示去配 `enabledModels`。`enabledModels` 设置、`/scoped-models` 面板、Ctrl+P 循环、`--models` flag 全部保留 |
+| vim mode | 加性 | `editorMode` 设置（默认 `emacs`）。`packages/tui/src/vim-mode.ts` 放全局开关与 `j`/`k` 别名，`components/editor.ts` 内置 normal/insert 模态状态机，`tui-alt-screen.ts` 接转录滚动，各选择器显式 opt-in `j`/`k`。vim 键**不走** keybindings 注册表（`j` 在编辑器里是 motion、在搜索框里是字符），见 `docs/vim-mode.md` |
 
 细节与上游漂移记录见 `.agents/memory/`；本地构建与运行步骤见 `BUILD.md`。

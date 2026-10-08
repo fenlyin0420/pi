@@ -42,6 +42,7 @@ import {
 	Spacer,
 	setCapabilityOverrides,
 	setKeybindings,
+	setVimModeEnabled,
 	type Terminal,
 	Text,
 	TruncatedText,
@@ -110,7 +111,7 @@ import {
 	sessionEntryToContextMessages,
 	type UsageEntry,
 } from "../../core/session-manager.ts";
-import type { FullscreenExitOutput, TuiMode } from "../../core/settings-manager.ts";
+import type { EditorMode, FullscreenExitOutput, TuiMode } from "../../core/settings-manager.ts";
 import { BUILTIN_SLASH_COMMANDS } from "../../core/slash-commands.ts";
 import type { SourceInfo } from "../../core/source-info.ts";
 import { isInstallTelemetryEnabled } from "../../core/telemetry.ts";
@@ -591,6 +592,7 @@ export class InteractiveMode {
 		this.runtimeHost = runtimeHost;
 		setCapabilityOverrides(this.settingsManager.getTerminalCapabilityOverrides());
 		const tuiMode = options.tuiMode ?? this.settingsManager.getTuiMode();
+		setVimModeEnabled(this.settingsManager.getEditorMode() === "vim");
 		this.options = { ...options, tuiMode };
 		this.autoTrustOnReloadCwd = options.autoTrustOnReloadCwd;
 		this.runtimeHost.setBeforeSessionInvalidate(() => {
@@ -867,6 +869,20 @@ export class InteractiveMode {
 			this.renderer.renderNow();
 		}
 		this.ui.stop({ preserveScreen: this.renderer.mode === "fullscreen" });
+	}
+
+	/**
+	 * Persist and apply the editor mode.
+	 *
+	 * The vim flag lives in the tui package as global state, so the change takes
+	 * effect on the next keypress without rebuilding the editor — including for
+	 * editors an extension installed via setEditorComponent().
+	 */
+	private applyEditorMode(mode: EditorMode): void {
+		this.settingsManager.setEditorMode(mode);
+		setVimModeEnabled(mode === "vim");
+		if (!this.activeStatusIndicator) this.statusContainer.clear();
+		this.showStatus(`Editor mode: ${mode}`);
 	}
 
 	private switchTuiMode(mode: TuiMode, restoreProgress = true, startRenderer = true): boolean {
@@ -4868,6 +4884,7 @@ export class InteractiveMode {
 					clearOnShrink: this.settingsManager.getClearOnShrink(),
 					showTerminalProgress: this.settingsManager.getShowTerminalProgress(),
 					tuiMode: this.ui.mode,
+					editorMode: this.settingsManager.getEditorMode(),
 					fullscreenExitOutput: this.settingsManager.getFullscreenExitOutput(),
 					fullscreenScrollbar: this.settingsManager.getFullscreenScrollbar(),
 					fullscreenCopyOnSelect: this.settingsManager.getFullscreenCopyOnSelect(),
@@ -5040,6 +5057,9 @@ export class InteractiveMode {
 						this.settingsManager.setTuiMode(mode);
 						if (!this.activeStatusIndicator) this.statusContainer.clear();
 						this.showStatus(`TUI mode: ${mode}`);
+					},
+					onEditorModeChange: (mode) => {
+						this.applyEditorMode(mode);
 					},
 					onFullscreenExitOutputChange: (output) => {
 						this.settingsManager.setFullscreenExitOutput(output);

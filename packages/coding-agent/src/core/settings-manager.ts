@@ -52,6 +52,7 @@ export interface RetrySettings {
 }
 
 export type TuiMode = RendererTuiMode;
+export type EditorMode = "emacs" | "vim";
 export type FullscreenExitOutput = "transcript" | "resume-hint";
 
 export interface TerminalSettings {
@@ -184,6 +185,7 @@ export interface Settings {
 	cacheWarming?: CacheWarmingMode; // default: "streaming"; global only because each refresh costs money
 	websocketConnectTimeoutMs?: number; // WebSocket connect/open handshake timeout in milliseconds; 0 disables it
 	tuiMode?: TuiMode; // default: "fullscreen"
+	editorMode?: EditorMode; // default: "emacs"
 	fullscreenExitOutput?: FullscreenExitOutput; // default: "transcript"; no effect in regular TUI mode
 	fullscreenScrollbar?: ScrollViewScrollbar; // default: "auto"; no effect in regular TUI mode
 	fullscreenCopyOnSelect?: boolean; // default: true; no effect in regular TUI mode
@@ -1362,6 +1364,16 @@ export class SettingsManager {
 	setTuiMode(mode: TuiMode): void {
 		this.globalSettings.tuiMode = mode;
 		this.markModified("tuiMode");
+		this.save();
+	}
+
+	getEditorMode(): EditorMode {
+		return this.settings.editorMode === "vim" ? "vim" : "emacs";
+	}
+
+	setEditorMode(mode: EditorMode): void {
+		this.globalSettings.editorMode = mode;
+		this.markModified("editorMode");
 		this.save();
 	}
 

@@ -189,4 +189,11 @@ export {
 	visibleWidth,
 	wrapTextWithAnsi,
 } from "./utils.ts";
+// Vim mode
+export {
+	isVimModeEnabled,
+	matchesVimListNav,
+	setVimModeEnabled,
+	type VimEditorMode,
+} from "./vim-mode.ts";
 export type { WheelScrollLines } from "./wheel-scroll.ts";

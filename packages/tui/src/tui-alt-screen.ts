@@ -495,6 +495,11 @@ export class TuiAltScreen extends TuiBase implements ViewportTUI {
 		this.requestRender();
 	}
 
+	/** Scroll the transcript by `lines`, negative to scroll back. */
+	scrollViewport(lines: number): void {
+		this.scrollBy(lines);
+	}
+
 	private scrollToPrompt(direction: -1 | 1): void {
 		if (!this.currentLayout) return;
 		const scrollView = this.getPrimaryScrollView();

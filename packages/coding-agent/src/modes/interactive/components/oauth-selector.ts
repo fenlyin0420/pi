@@ -5,6 +5,7 @@ import {
 	fuzzyFilter,
 	getKeybindings,
 	Input,
+	matchesVimListNav,
 	Spacer,
 	TruncatedText,
 } from "@earendil-works/pi-tui";
@@ -192,14 +193,15 @@ export class OAuthSelectorComponent extends Container implements Focusable {
 
 	handleInput(keyData: string): void {
 		const kb = getKeybindings();
+		const filterQuery = this.searchInput.getValue();
 		// Up arrow
-		if (kb.matches(keyData, "tui.select.up")) {
+		if (kb.matches(keyData, "tui.select.up") || matchesVimListNav(keyData, "up", filterQuery)) {
 			if (this.filteredProviders.length === 0) return;
 			this.selectedIndex = Math.max(0, this.selectedIndex - 1);
 			this.updateList();
 		}
 		// Down arrow
-		else if (kb.matches(keyData, "tui.select.down")) {
+		else if (kb.matches(keyData, "tui.select.down") || matchesVimListNav(keyData, "down", filterQuery)) {
 			if (this.filteredProviders.length === 0) return;
 			this.selectedIndex = Math.min(this.filteredProviders.length - 1, this.selectedIndex + 1);
 			this.updateList();

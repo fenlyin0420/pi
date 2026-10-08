@@ -2,6 +2,7 @@ import { fuzzyFilter } from "../fuzzy.ts";
 import { getKeybindings } from "../keybindings.ts";
 import type { Component, TuiMouseEvent, TuiMouseEventResult } from "../tui.ts";
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "../utils.ts";
+import { matchesVimListNav } from "../vim-mode.ts";
 import { Input } from "./input.ts";
 
 export interface SettingItem {
@@ -230,10 +231,11 @@ export class SettingsList implements Component {
 		// Main list input handling
 		const kb = getKeybindings();
 		const displayItems = this.getDisplayItems();
-		if (kb.matches(data, "tui.select.up")) {
+		const filterQuery = this.searchInput?.getValue() ?? "";
+		if (kb.matches(data, "tui.select.up") || matchesVimListNav(data, "up", filterQuery)) {
 			if (displayItems.length === 0) return;
 			this.selectedIndex = this.selectedIndex === 0 ? displayItems.length - 1 : this.selectedIndex - 1;
-		} else if (kb.matches(data, "tui.select.down")) {
+		} else if (kb.matches(data, "tui.select.down") || matchesVimListNav(data, "down", filterQuery)) {
 			if (displayItems.length === 0) return;
 			this.selectedIndex = this.selectedIndex === displayItems.length - 1 ? 0 : this.selectedIndex + 1;
 		} else if (

@@ -101,6 +101,12 @@ export class CustomEditor extends Editor {
 
 		// Escape/interrupt - only if autocomplete is NOT active
 		if (this.keybindings.matches(data, "app.interrupt")) {
+			// Vim mode owns Escape: it leaves insert mode, and is a no-op in
+			// normal mode. Aborting stays reachable on its own key (Ctrl+C).
+			if (this.isVimEditing()) {
+				super.handleInput(data);
+				return;
+			}
 			if (!this.isShowingAutocomplete()) {
 				// Use dynamic onEscape if set, otherwise registered handler
 				const handler = this.onEscape ?? this.actionHandlers.get("app.interrupt");

@@ -7,6 +7,7 @@ import {
 	Input,
 	Key,
 	matchesKey,
+	matchesVimListNav,
 	Spacer,
 	Text,
 } from "@earendil-works/pi-tui";
@@ -279,15 +280,16 @@ export class ScopedModelsSelectorComponent extends Container implements Focusabl
 
 	handleInput(data: string): void {
 		const kb = getKeybindings();
+		const filterQuery = this.searchInput.getValue();
 
 		// Navigation
-		if (kb.matches(data, "tui.select.up")) {
+		if (kb.matches(data, "tui.select.up") || matchesVimListNav(data, "up", filterQuery)) {
 			if (this.filteredItems.length === 0) return;
 			this.selectedIndex = this.selectedIndex === 0 ? this.filteredItems.length - 1 : this.selectedIndex - 1;
 			this.updateList();
 			return;
 		}
-		if (kb.matches(data, "tui.select.down")) {
+		if (kb.matches(data, "tui.select.down") || matchesVimListNav(data, "down", filterQuery)) {
 			if (this.filteredItems.length === 0) return;
 			this.selectedIndex = this.selectedIndex === this.filteredItems.length - 1 ? 0 : this.selectedIndex + 1;
 			this.updateList();

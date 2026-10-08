@@ -5,6 +5,7 @@ import {
 	getKeybindings,
 	Input,
 	type Keybinding,
+	matchesVimListNav,
 	Spacer,
 	sliceByColumn,
 	Text,
@@ -1003,9 +1004,9 @@ class TreeList implements Component {
 
 	handleInput(keyData: string): void {
 		const kb = getKeybindings();
-		if (kb.matches(keyData, "tui.select.up")) {
+		if (kb.matches(keyData, "tui.select.up") || matchesVimListNav(keyData, "up")) {
 			this.selectedIndex = this.selectedIndex === 0 ? this.filteredNodes.length - 1 : this.selectedIndex - 1;
-		} else if (kb.matches(keyData, "tui.select.down")) {
+		} else if (kb.matches(keyData, "tui.select.down") || matchesVimListNav(keyData, "down")) {
 			this.selectedIndex = this.selectedIndex === this.filteredNodes.length - 1 ? 0 : this.selectedIndex + 1;
 		} else if (kb.matches(keyData, "app.tree.foldOrUp")) {
 			const currentId = this.filteredNodes[this.selectedIndex]?.node.entry.id;

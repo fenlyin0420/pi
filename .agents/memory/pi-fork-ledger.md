@@ -16,6 +16,17 @@ metadata:
 |---|---|---|---|---|
 | — | 按任务复杂度自动选 reasoning effort（含 KV-cache 稳定性修正） | `packages/ai/src/auto-thinking.ts` + `agent-session.ts` 接线；稳定性：`isThinkingLevelEmbeddedInPrompt`（`models.ts`）判定档位是否经 `chatTemplateKwargs/Args` 的 `thinking.effort` 绑进 prompt 文本——是则档位**会话级锁定**（改档会重写 prompt 前缀、炸掉 KV cache）；否则按 **user turn** 缓存（heuristic 结果也缓存，原实现只缓存 classifier 结果，tool-loop 深度信号会让档位在一轮内漂移） | 上游 `auto` 是单一静态档位；要的是按每次请求的复杂度解析；且用户本地 Qwen（llama.cpp/vLLM，`thinkingFormat: chat-template` + `reasoning_effort: { $var: thinking.effort }`）的模板把档位渲染进 system prompt，逐请求变档=全量 re-prefill | 待观察 |
 
+## C 类 · 纯新增（上游没有这个特性，不需要跟随）
+
+| 特性 | 落点 | 同步上游时的注意点 |
+|---|---|---|
+| vim mode（`editorMode` 设置，默认 `emacs`） | `packages/tui/src/vim-mode.ts`（全局开关 + `matchesVimListNav`）、`components/editor.ts`（normal/insert 模态状态机）、`tui-alt-screen.ts`（转录滚动）、各选择器显式 opt-in `j`/`k` | `Editor.handleInput` 顶部是 vim 拦截点；`CustomEditor.handleInput` 让 Escape 归 vim 管。改 `Editor` 的 private 成员或 `renderBottomBorder` 时留意这层 |
+
+**为什么 vim 键不进 keybindings 注册表**：`j` 在编辑器里是 motion、在选择器搜索框里是字符，
+注册表里一条 `tui.select.down` 没法同时表达两种含义。所以 `matchesVimListNav(data, dir, filterQuery)`
+让各选择器显式 opt-in，并把「搜索框已有内容时交还给搜索框」编码进函数签名。
+`extension-selector` / `trust-selector` / `first-time-setup` 上游本来就无条件接受 `j`/`k`，保持原样。
+
 ## B 类 · 删除的上游功能
 
 | 目标 | 删除方式 | 量化依据 | 复核日期 |
