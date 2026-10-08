@@ -54,6 +54,7 @@ import {
 	isContextOverflow,
 	isRecoverableLength,
 	isRetryableAssistantError,
+	isThinkingLevelEmbeddedInPrompt,
 	modelsAreEqual,
 	type RetryCallbacks,
 	resetApiProviders,
@@ -450,9 +451,14 @@ export class AgentSession {
 	private _modelRuntime: ModelRuntime;
 	private _cacheWarmer?: Pick<CacheWarmer, "cancel" | "status" | "onAgentSettled" | "onModeChanged" | "onWarmed">;
 
-	// Cache for classifier-resolved "auto" thinking levels, one per user turn.
+	// Cache for resolved "auto" thinking levels, one per user turn.
 	private _autoResolvedLevel: ThinkingLevel | undefined;
 	private _autoResolvedForUserCount: number | undefined;
+	// Session-sticky "auto" level for models whose thinking level is rendered into
+	// the prompt text: any level change there rewrites the prompt prefix and
+	// invalidates the provider's KV cache, so the level is pinned for the session.
+	private _autoStickyLevel: ThinkingLevel | undefined;
+	private _autoStickyForModelId: string | undefined;
 
 	// Tool registry for extension getTools/setTools
 	private _toolRegistry: Map<string, AgentTool> = new Map();
@@ -1263,6 +1269,8 @@ export class AgentSession {
 			return;
 		}
 
+		// SAFETY: `target` is a JSON value narrowed by the caller; the plain
+		// Record view is only used to enumerate and delete its own keys.
 		const targetRecord = target as unknown as Record<string, unknown>;
 		for (const key of Object.keys(targetRecord)) {
 			delete targetRecord[key];
@@ -2603,6 +2611,13 @@ export class AgentSession {
 		}
 
 		if (isChanging) {
+			// Drop cached "auto" resolutions: the previous level no longer applies, and
+			// a later switch back to "auto" should resolve fresh instead of reusing a
+			// level from the prior mode.
+			this._autoResolvedLevel = undefined;
+			this._autoResolvedForUserCount = undefined;
+			this._autoStickyLevel = undefined;
+			this._autoStickyForModelId = undefined;
 			this.sessionManager.appendThinkingLevelChange(effectiveLevel);
 			this._emit({ type: "thinking_level_changed", level: effectiveLevel });
 			void this._extensionRunner.emit({
@@ -2614,16 +2629,37 @@ export class AgentSession {
 	}
 
 	private async _resolveAutoThinkingLevel(model: Model<any>, signal?: AbortSignal): Promise<ThinkingLevel> {
+		if (isThinkingLevelEmbeddedInPrompt(model)) {
+			// Changing the level rewrites the prompt prefix on these models and
+			// invalidates the whole KV cache, so the level is pinned for the session.
+			if (this._autoStickyLevel && this._autoStickyForModelId === model.id) {
+				if (process.env.PI_DEBUG_AUTO_THINKING) {
+					console.error(`[auto-thinking] reusing ${this._autoStickyLevel} (sticky for the session)`);
+				}
+				return this._autoStickyLevel;
+			}
+			const level = await this._resolveAutoThinkingLevelFresh(model, signal);
+			this._autoStickyLevel = level;
+			this._autoStickyForModelId = model.id;
+			return level;
+		}
+
 		const messages = this.sessionManager.buildSessionProjection().messages;
 		const userCount = messages.filter((message) => message.role === "user").length;
 		if (userCount === this._autoResolvedForUserCount && this._autoResolvedLevel) {
 			if (process.env.PI_DEBUG_AUTO_THINKING) {
-				console.error(
-					`[auto-thinking] reusing ${this._autoResolvedLevel} (source: classifier, cached for user turn)`,
-				);
+				console.error(`[auto-thinking] reusing ${this._autoResolvedLevel} (cached for user turn)`);
 			}
 			return this._autoResolvedLevel;
 		}
+		const level = await this._resolveAutoThinkingLevelFresh(model, signal);
+		this._autoResolvedLevel = level;
+		this._autoResolvedForUserCount = userCount;
+		return level;
+	}
+
+	private async _resolveAutoThinkingLevelFresh(model: Model<any>, signal?: AbortSignal): Promise<ThinkingLevel> {
+		const messages = this.sessionManager.buildSessionProjection().messages;
 		const classifier = await this._buildAutoThinkingClassifier(signal);
 		const result = await resolveAutoThinkingLevel({
 			model,
@@ -2631,10 +2667,6 @@ export class AgentSession {
 			classifier,
 			signal,
 		});
-		if (classifier && result.source === "classifier") {
-			this._autoResolvedLevel = result.level;
-			this._autoResolvedForUserCount = userCount;
-		}
 		if (process.env.PI_DEBUG_AUTO_THINKING) {
 			console.error(`[auto-thinking] resolved ${result.level} (source: ${result.source})`);
 		}

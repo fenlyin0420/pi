@@ -14,7 +14,7 @@ metadata:
 
 | 上游 commit | 特性 | 我的实现位置 | 为什么不合 | 上游后续是否跟进 |
 |---|---|---|---|---|
-| — | 按任务复杂度自动选 reasoning effort | `packages/ai/src/auto-thinking.ts` + `agent-session.ts` 接线 | 上游 `auto` 是单一静态档位；要的是按每次请求的复杂度解析 | 待观察 |
+| — | 按任务复杂度自动选 reasoning effort（含 KV-cache 稳定性修正） | `packages/ai/src/auto-thinking.ts` + `agent-session.ts` 接线；稳定性：`isThinkingLevelEmbeddedInPrompt`（`models.ts`）判定档位是否经 `chatTemplateKwargs/Args` 的 `thinking.effort` 绑进 prompt 文本——是则档位**会话级锁定**（改档会重写 prompt 前缀、炸掉 KV cache）；否则按 **user turn** 缓存（heuristic 结果也缓存，原实现只缓存 classifier 结果，tool-loop 深度信号会让档位在一轮内漂移） | 上游 `auto` 是单一静态档位；要的是按每次请求的复杂度解析；且用户本地 Qwen（llama.cpp/vLLM，`thinkingFormat: chat-template` + `reasoning_effort: { $var: thinking.effort }`）的模板把档位渲染进 system prompt，逐请求变档=全量 re-prefill | 待观察 |
 
 ## B 类 · 删除的上游功能
 

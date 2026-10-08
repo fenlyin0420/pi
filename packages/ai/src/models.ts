@@ -1220,6 +1220,25 @@ export function hasNativeAutoThinking<TApi extends Api>(model: Model<TApi>): boo
 	return model.reasoning === true && model.thinkingLevelMap?.auto !== undefined;
 }
 
+/**
+ * Whether the model's thinking level is rendered into the prompt text by the
+ * server (chat-template kwargs or baseten chat-template args bound to
+ * `thinking.effort`) instead of being sent as a separate wire parameter.
+ * Changing the level on such a model rewrites the prompt prefix, invalidating
+ * the provider's KV/prompt cache.
+ */
+export function isThinkingLevelEmbeddedInPrompt<TApi extends Api>(model: Model<TApi>): boolean {
+	// Only openai-completions compat carries chat template kwargs/args; on every
+	// other API both fields are absent, so the cast is safe.
+	const compat = (model as Model<"openai-completions">).compat;
+	if (!compat) return false;
+	const values = [
+		...(compat.chatTemplateKwargs ? Object.values(compat.chatTemplateKwargs) : []),
+		...(compat.chatTemplateArgs ? Object.values(compat.chatTemplateArgs) : []),
+	];
+	return values.some((value) => typeof value === "object" && value !== null && value.$var === "thinking.effort");
+}
+
 export function getSupportedThinkingLevels<TApi extends Api>(model: Model<TApi>): ModelThinkingLevel[] {
 	if (!model.reasoning) return ["off"];
 
