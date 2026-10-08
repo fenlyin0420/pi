@@ -49,6 +49,20 @@
 - If `packages/coding-agent/install-lock/` needs regen, run `node scripts/generate-coding-agent-install-lock.mjs` (verify with `--check` or `npm run check`). New deps with lifecycle scripts require review and an explicit allowlist entry in that script; never add one silently.
 - Pre-commit blocks lockfile commits unless `PI_ALLOW_LOCKFILE_CHANGE=1`. Don't bypass unless the user wants the lockfile change committed.
 
+## Fork Customization
+
+This repo is a fork of `upstream` (`earendil-works/pi`). `main` mirrors upstream and must stay
+code-free; custom work lands on `dev`. Upstream source files are never modified, never deleted,
+never moved — so `git merge upstream/main` never conflicts.
+
+- Additive customization (new features): commit on `dev` / `feat/xxx` branches, normally as new files.
+- Subtractive customization ("I don't want this upstream feature"): never delete or edit upstream
+  source to express it. It goes in the `fork/` carrier, which transforms `dist`/`bundle` at build
+  time only. Read `fork/AGENTS.md` in full before touching anything under `fork/`; decisions and
+  drift behavior are recorded in `fork/manifest.md`.
+- Build the distributable with `node fork/build.fork.mjs` (never plain `npm run build:offline` — that
+  yields untrimmed output). Global convention: `~/.agents/skills/git-fork-upstream-sync/SKILL.md`.
+
 ## Git
 
 Multiple pi sessions may be running in this cwd at the same time, each modifying different files. Git operations that touch unstaged, staged, or untracked files outside your own changes will stomp on other sessions' work. Follow these rules:
