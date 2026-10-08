@@ -11,12 +11,15 @@
 |------|-----|
 | 是什么 | `pi` 交互式 coding agent CLI，交互模式就是终端 TUI（`packages/coding-agent/src/modes/interactive`） |
 | 版本 | 0.87.1（`packages/*/package.json` 统一版本） |
-| 主产物 | `packages/coding-agent/dist/bundle/cli.js`（59 个文件，8.5 MiB） |
+| 主产物 | `packages/coding-agent/dist/bundle/cli.js`（65 个文件，8.49 MiB，`build.fork.mjs` 裁剪后） |
 | 运行方式 | `./pi-built.sh`（等价于 `node packages/coding-agent/dist/bundle/cli.js`） |
 | 交互式入口 | 无参数直接启动就是 TUI；`--tui-mode fullscreen` 切全屏布局 |
 | 依赖运行时 | Node.js >= 22.19（本仓库用 TypeScript 7 / tsgo 编译，要求较新的 Node） |
 
-`pi-built.sh` 是本次新增的启动脚本（未纳入 git），内容就是定位 bundle 后 `exec node`。
+上表的文件数与体积是 **1.0.1 + fork 裁剪后**的实测值。第 9 节记录的是 0.87.1 时代未裁剪
+构建的实测数据（59 个文件 / 8.5 MiB），两者不可直接比较。
+
+`pi-built.sh` 是启动脚本，内容就是定位 bundle 后 `exec node`。
 如果你清理掉了它，直接用 `node packages/coding-agent/dist/bundle/cli.js` 也能跑。
 
 两种运行方式的区别：
@@ -50,8 +53,16 @@
 ```bash
 npm install --ignore-scripts        # 1. 安装依赖
 npm run hydrate:model-data          # 2. 生成模型目录数据（每个新 clone 只需一次）
-npm run build:offline               # 3. 编译全部包 + 打包 CLI
+node fork/build.fork.mjs            # 3. 编译全部包 + 打包 CLI + 应用 fork 裁剪
 ```
+
+第 3 步必须是 `node fork/build.fork.mjs`，**不要**直接用 `npm run build:offline`。
+本仓库是 upstream 的 fork，`fork/` 载体在构建产物层裁掉 OAuth 登录（见 `fork/AGENTS.md`）；
+`build.fork.mjs` 内部第一步就是 `build:offline`，然后接着做替换汇聚点、AST 重写、剪枝、断言。
+直接跑 `build:offline` 得到的 dist/bundle 是**未裁剪**的，OAuth 流还在里面。
+
+什么时候可以用 `build:offline`：只在纯开发迭代、不需要产物语义时（例如跑 `npm run check`
+或做类型对账）。凡是要产出可分发/可运行的 bundle，都走 `build.fork.mjs`。
 
 实测耗时（本机）：`build:offline` 6.2s，`hydrate:model-data` 2.3s，`npm install` 在已有
 `node_modules` 时是 375ms 的增量安装。**全新 clone 从零安装依赖的耗时本机未实测**，
@@ -68,6 +79,7 @@ npm run build:offline               # 3. 编译全部包 + 打包 CLI
 | `npm install --ignore-scripts` | 能，但没意义 | 在子包里跑，npm 依然会安装整个 workspace 到根目录，实测 `package-lock.json` 一个字节没变，等于在根目录跑 |
 | `npm run hydrate:model-data` | 只能在根目录 | 子包里的脚本名是 `hydrate-model-data`（连字符，不是冒号）。在 `packages/ai` 里跑根目录那个名字会报 `npm error ... try: npm run --workspace=@earendil-works/pi-ai` |
 | `npm run build:offline` | 只能在根目录 | 只有根 `package.json` 定义了这个 11 包构建顺序 |
+| `node fork/build.fork.mjs` | 只能在根目录 | 里面的 `build:offline` 只能在根目录跑 |
 
 只构建 `packages/coding-agent` 本身是可以的，两种写法实测都通过：
 
@@ -85,7 +97,7 @@ src/cli/auth-check.ts(1,38): error TS2307: Cannot find module '@earendil-works/p
 src/cli/args.ts(5,36): error TS2307: Cannot find module '@earendil-works/pi-agent-core' or its corresponding type declarations.
 ```
 
-所以：
+所以（下面两条是**纯开发迭代**的快捷路径，产出的 bundle 未裁剪；要可分发产物回看第 2 节）：
 
 - 首次构建 / 每次 `npm run clean` 之后：用根目录的 `npm run build:offline`（推荐，6 秒，没必要优化）
 - 之后只改了 `packages/coding-agent` 或 TUI 的代码：在子包里 `npm run build` 就够，迭代更快
@@ -145,7 +157,10 @@ Model data is missing or stale. Run `npm run hydrate:model-data` from the reposi
 `packages/ai/src/models.generated.ts` 与 `src/providers/*.models.ts`**。
 只有在你真的想更新模型数据时才用，否则会污染工作区（本仓库可能有多个 pi session 同时在跑）。
 
-### 3.3 `npm run build:offline`
+### 3.3 `npm run build:offline`（`build.fork.mjs` 的第 1 步）
+
+这一步是纯上游构建，产出的 dist/bundle 尚未裁剪。`build.fork.mjs` 在它之后接着做
+替换汇聚点 → AST 重写 → 重打包 → 剪枝 → 断言（见 `fork/build.fork.mjs` 头部注释）。
 
 按依赖顺序编译 11 个包，然后打包 CLI：
 
@@ -249,7 +264,10 @@ cd /path/to/your/project
 
 - 用户级配置目录 `~/.pi/agent`（`auth.json` 也在里面）
 - 项目级配置 `~/project/.pi/`：`settings.json`、`SYSTEM.md`、`extensions/`、`skills/`、`prompts/`、`themes/`
-- 交互界面里 `/login` 选 provider 登录，`/model` 选模型；也支持环境变量（`ANTHROPIC_API_KEY` 等）
+- 交互界面里 `/model` 选模型；也支持环境变量（`ANTHROPIC_API_KEY` 等）
+- **`/login`、`/logout` 在 fork 构建里不存在**（OAuth 登录被裁掉了，见 `fork/manifest.md`）。
+  认证只能走环境变量或 `~/.pi/agent/auth.json` 里的 API key。若这段描述与你的构建产物不符，
+  说明 bundle 是 `npm run build:offline` 直接产出的未裁剪版本，重跑 `node fork/build.fork.mjs`
 - 常用开关：`--offline`（关掉启动期联网）、`--no-session`（不落盘会话）、`--approve/--no-approve`（项目文件信任）、
   `--no-extensions/--no-skills/--no-prompt-templates/--no-themes`（按类关掉资源发现）
 
@@ -305,6 +323,9 @@ npm install -g bun                       # 或 curl -fsSL https://bun.sh/install
 要点：
 
 - 脚本会先 `npm ci --ignore-scripts` + `npm run build:offline`，想跳过就加 `--skip-install --skip-build`
+- **这条路径不经过 `fork/build.fork.mjs`**，所以单文件二进制是未裁剪的（带 OAuth 登录）。
+  本机没装 bun，这条路径未验证，也未验证如何在二进制里应用裁剪 —— 需要的话得先给
+  `build-binaries.sh` 加一段 fork 载体调用
 - `--offline-model-data` 用仓库里已有的模型数据，不联网刷新；不加则走 `npm run build`
   （注意它仍然要求 `packages/ai/src/providers/data/` 已存在——完全无网络的环境要用 GitHub release 的
   `pi-<version>-source.tar.gz`，那个源码包自带模型数据和原生 prebuilds；或者从一台已经 hydrate 过的
@@ -324,8 +345,11 @@ npm install -g bun                       # 或 curl -fsSL https://bun.sh/install
 | 现象 | 原因 | 处理 |
 |------|------|------|
 | `Model data is missing or stale. Run 'npm run hydrate:model-data'` | `packages/ai/src/providers/data/` 是 gitignore 的生成物，新 clone 没有 | 跑 `npm run hydrate:model-data`（需要网络） |
-| `Cannot find module '.../packages/tui/dist/index.js'` 之类 | 只构建了 `coding-agent`，上游包没编译 | 走 `npm run build:offline`（它按依赖顺序构建全部包）；不要在子包里单独 `npm run build` |
+| `Cannot find module '.../packages/tui/dist/index.js'` 之类 | 只构建了 `coding-agent`，上游包没编译 | 走 `node fork/build.fork.mjs`（它内部按依赖顺序构建全部包）；不要在子包里单独 `npm run build` |
 | `No workspaces found: --workspace=chord` | `--workspace` 只能写目录路径 | 写 `--workspace=packages/chord`，别写包名 |
+| `OAuth flow "xxx" is lazily imported but has no lazy bundle entry`（`build.fork.mjs` 抛的） | 上游新增了一个 OAuth 流，但 `fork/prune.txt` 里没有对应规则 | 在 `fork/prune.txt` 补一行 `packages/ai/dist/auth/oauth/<flow>.*` 再重跑构建。**不要放宽规则**，报错是设计行为 |
+| `汇聚点失效：... 不存在`（`build.fork.mjs` 抛的） | 上游重命名/移动了 `auth/oauth/load.ts`、`bun-oauth.ts` 或 `slash-commands.ts` | 同步上游后更新 `fork/hinge/`、`fork/wrapper/` 里的落点 |
+| TUI 里找不到 `/login` | 预期行为：fork 裁掉了所有 OAuth 登录 | 改用环境变量（`ANTHROPIC_API_KEY` 等）或 `~/.pi/agent/auth.json` 里的 API key；见 `fork/manifest.md` 第 1 节 |
 | `build:offline` 卡在 `ai` 的 `check:model-data` | 模型数据过期 | 重新 `npm run hydrate:model-data` |
 | `EBADENGINE autoevals ... please-use-pnpm` | 无关的 devDependency 引擎声明 | 忽略 |
 | `pi --version` 还是旧版本 | PATH 里 nvm 的全局 bin 优先于你新建的软链 | 用绝对路径 `./pi-built.sh`，或 `hash -r` / 调整 PATH |
@@ -337,11 +361,13 @@ npm install -g bun                       # 或 curl -fsSL https://bun.sh/install
 
 ---
 
-## 9. 本次构建实测记录
+## 9. 构建实测记录
+
+### 9.1 未裁剪基线（0.87.1，历史记录）
 
 环境：Ubuntu / kernel 6.8.0-142 / x86_64，Node v25.9.0，npm 11.12.1，git `main` @ `2b0a123de`。
-构建过程没有产生任何 git 改动（构建前后 `git status --porcelain` 均为空）；本手册 `BUILD.md`
-和启动脚本 `pi-built.sh` 是本次新增的未跟踪文件。
+这份记录是**未裁剪**基线，用 `npm run build:offline` 产出，OAuth 登录完整保留。
+后续版本请追加 9.2，不要改写本节。
 
 执行的命令序列：
 
@@ -379,10 +405,25 @@ npm run build:offline                      # 6.2s 墙钟（clean + 全量编译�
 额外实测（子包构建，见 2.1）：9 包链（跳过 `durable`、`sqlite-node`）产出的 bundle 与完整构建一致，
 `--version` = 0.87.1、`--list-models` 20 行、TUI 渲染正常；随后已恢复成完整 `npm run build:offline` 状态。
 
+### 9.2 fork 裁剪后（1.0.1）
+
+产物由 `node fork/build.fork.mjs` 生成（版本 `1.0.1`，`dev` @ `c566db4d0`）：
+
+| 项 | 值 |
+|----|-----|
+| `dist/bundle` | 65 个文件 / 8 907 962 B（8.49 MiB） |
+| 裁掉的 | dist 48 个文件（12 个 OAuth 流实现的 `.js`/`.d.ts`/两个 `.map`）、bundle 9 个 lazy chunk |
+| 裁剪前的 bundle | 8828.4 KiB → 8699.2 KiB（−129.2 KiB） |
+| `packages/ai/dist/auth/oauth/` | 只剩 `load.js`（替身）、`load.orig.js`、`load.d.ts` 及其 map |
+
+验证结果：`fork/assertions.mjs` 全部通过（9 条断言），`dist/bundle/cli.js --version` 可正常输出。
+裁剪的逐项决策与收益归因见 `fork/manifest.md`。
+
 ---
 
 ## 10. 相关文档
 
+- fork 裁剪规范：`fork/AGENTS.md`（为什么必须用 `build.fork.mjs`）、`fork/manifest.md`（逐项决策与实测数据）
 - 仓库开发说明：`README.md` 的 Development 一节、`AGENTS.md`
 - pi 使用文档：`packages/coding-agent/docs/`（`quickstart.md`、`usage.md`、`tui.md`、`keybindings.md`、
   `configuration.md`、`models.md`、`providers.md`、`sessions.md`、`extensions.md`、`skills.md`）
