@@ -51,17 +51,19 @@
 
 ## Fork Customization
 
-This repo is a fork of `upstream` (`earendil-works/pi`). `main` mirrors upstream and must stay
-code-free; custom work lands on `dev`. Upstream source files are never modified, never deleted,
-never moved — so `git merge upstream/main` never conflicts.
+This repo is a fork of `upstream` (`earendil-works/pi`). `main` mirrors upstream verbatim and must stay
+code-free; all custom work lands on `dev`, single-purpose work on `feat/xxx`.
 
-- Additive customization (new features): commit on `dev` / `feat/xxx` branches, normally as new files.
-- Subtractive customization ("I don't want this upstream feature"): never delete or edit upstream
-  source to express it. It goes in the `fork/` carrier, which transforms `dist`/`bundle` at build
-  time only. Read `fork/AGENTS.md` in full before touching anything under `fork/`; decisions and
-  drift behavior are recorded in `fork/manifest.md`.
-- Build the distributable with `node fork/build.fork.mjs` (never plain `npm run build:offline` — that
-  yields untrimmed output). Global convention: `~/.agents/skills/git-fork-upstream-sync/SKILL.md`.
+- Upstream source files are never left in a modified state to express "I don't want this feature" —
+  unwanted features are **deleted outright**, along with their entry points. Read `FORKING.md` in full
+  before touching anything: it defines the branch model, the delete-don't-hide boundary (implementations
+  and entry points go, type surface and on-disk credential formats stay), how to measure whether an edit
+  site is safe, and the upstream-sync procedure.
+- Keep the fork ledger (`.agents/memory/`) current: every upstream feature you re-implement rather than
+  merge gets a row, every deletion gets its measured cost and a re-check date.
+- Global convention: `~/.agents/skills/git-fork-upstream-sync/SKILL.md`. Where it conflicts with
+  `FORKING.md`, `FORKING.md` wins — this repo settled on source deletion instead of the skill's
+  dist-layer carrier.
 
 ## Git
 

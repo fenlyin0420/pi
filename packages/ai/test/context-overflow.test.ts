@@ -22,7 +22,7 @@ import { hasBedrockCredentials } from "./bedrock-utils.ts";
 import { resolveApiKey } from "./oauth.ts";
 
 // Resolve OAuth tokens at module level (async, runs before tests)
-const oauthTokens = await Promise.all([resolveApiKey("github-copilot"), resolveApiKey("openai-codex")]);
+const oauthTokens = await Promise.all([resolveApiKey("github-copilot"), resolveApiKey("openai")]);
 const [githubCopilotToken, openaiCodexToken] = oauthTokens;
 
 // Lorem ipsum paragraph for realistic token estimation
@@ -230,7 +230,7 @@ describe("Context overflow error handling", () => {
 		it.skipIf(!openaiCodexToken)(
 			"gpt-5.5 - should detect overflow via isContextOverflow",
 			async () => {
-				const model = getModel("openai-codex", "gpt-5.5");
+				const model = getModel("openai", "gpt-5.5");
 				const result = await testContextOverflow(model, openaiCodexToken!);
 				logResult(result);
 

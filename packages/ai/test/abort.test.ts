@@ -9,7 +9,7 @@ import { hasBedrockCredentials } from "./bedrock-utils.ts";
 import { resolveApiKey } from "./oauth.ts";
 
 // Resolve OAuth tokens at module level (async, runs before tests)
-const [openaiCodexToken] = await Promise.all([resolveApiKey("openai-codex")]);
+const [openaiCodexToken] = await Promise.all([resolveApiKey("openai")]);
 
 async function testAbortSignal<TApi extends Api>(llm: Model<TApi>, options: StreamOptionsWithExtras = {}) {
 	const context: Context = {
@@ -323,12 +323,12 @@ describe("AI Providers Abort Tests", () => {
 
 	describe("OpenAI Codex Provider Abort", () => {
 		it.skipIf(!openaiCodexToken)("should abort mid-stream", { retry: 3 }, async () => {
-			const llm = getModel("openai-codex", "gpt-5.5");
+			const llm = getModel("openai", "gpt-5.5");
 			await testAbortSignal(llm, { apiKey: openaiCodexToken });
 		});
 
 		it.skipIf(!openaiCodexToken)("should handle immediate abort", { retry: 3 }, async () => {
-			const llm = getModel("openai-codex", "gpt-5.5");
+			const llm = getModel("openai", "gpt-5.5");
 			await testImmediateAbort(llm, { apiKey: openaiCodexToken });
 		});
 	});

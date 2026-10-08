@@ -425,7 +425,7 @@ describe("InteractiveMode.createBaseAutocompleteProvider", () => {
 		).prototype.createBaseAutocompleteProvider;
 		const models = [
 			{ id: "gpt-5.2-codex", provider: "github-copilot", name: "GPT-5.2 Codex" },
-			{ id: "gpt-5.5", provider: "openai-codex", name: "GPT-5.5" },
+			{ id: "gpt-5.5-codex", provider: "openai", name: "GPT-5.5 Codex" },
 		];
 		const fakeThis: FakeInteractiveMode = {
 			session: {
@@ -448,7 +448,7 @@ describe("InteractiveMode.createBaseAutocompleteProvider", () => {
 		});
 
 		expect(suggestions?.items.map((item) => item.value)).toEqual([
-			"openai-codex/gpt-5.5",
+			"openai/gpt-5.5-codex",
 			"github-copilot/gpt-5.2-codex",
 		]);
 	});
@@ -487,15 +487,14 @@ describe("InteractiveMode.createBaseAutocompleteProvider", () => {
 			sessionManager: { getCwd: () => "/tmp" },
 			fdPath: null,
 			getLoginProviderOptions: () => [
-				{ id: "anthropic", name: "Anthropic", authType: "oauth", subscription: true },
-				{ id: "anthropic", name: "Anthropic", authType: "api_key", subscription: true },
+				{ id: "anthropic", name: "Anthropic", authType: "api_key" },
 				{ id: "openai", name: "OpenAI", authType: "api_key" },
-				{ id: "radius", name: "Radius", authType: "oauth", subscription: false },
+				{ id: "radius", name: "Radius", authType: "api_key" },
 			],
 		};
 
 		const provider = createBaseAutocompleteProvider.call(fakeThis);
-		const line = "/login subscription anthrop";
+		const line = "/login anthrop";
 		const suggestions = await provider.getSuggestions([line], 0, line.length, {
 			signal: new AbortController().signal,
 		});
@@ -504,16 +503,15 @@ describe("InteractiveMode.createBaseAutocompleteProvider", () => {
 			{
 				value: "anthropic",
 				label: "anthropic",
-				description: "Anthropic · subscription/API key",
+				description: "Anthropic · API key",
 			},
 		]);
 
-		// OAuth sign-in without a subscription, such as Radius, is an account.
 		const radiusLine = "/login radius";
 		const radiusSuggestions = await provider.getSuggestions([radiusLine], 0, radiusLine.length, {
 			signal: new AbortController().signal,
 		});
-		expect(radiusSuggestions?.items).toEqual([{ value: "radius", label: "radius", description: "Radius · account" }]);
+		expect(radiusSuggestions?.items).toEqual([{ value: "radius", label: "radius", description: "Radius · API key" }]);
 	});
 });
 describe("InteractiveMode.showLoadedResources", () => {

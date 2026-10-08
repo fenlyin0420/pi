@@ -22,7 +22,7 @@
 import type { Message } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext, ModelRoute, ModelRouteRequest } from "@earendil-works/pi-coding-agent";
 
-const PROVIDER = "openai-codex";
+const PROVIDER = "openai";
 const SOL = "gpt-5.6-sol";
 const TERRA = "gpt-5.6-terra";
 const LUNA = "gpt-5.6-luna";

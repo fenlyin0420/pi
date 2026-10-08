@@ -13,7 +13,7 @@ import { resolveApiKey } from "./oauth.ts";
 const oauthTokens = await Promise.all([
 	resolveApiKey("anthropic"),
 	resolveApiKey("github-copilot"),
-	resolveApiKey("openai-codex"),
+	resolveApiKey("openai"),
 ]);
 const [anthropicOAuthToken, githubCopilotToken, openaiCodexToken] = oauthTokens;
 
@@ -787,7 +787,7 @@ describe("AI Providers Empty Message Tests", () => {
 			"gpt-5.5 - should handle empty content array",
 			{ retry: 3, timeout: 30000 },
 			async () => {
-				const llm = getModel("openai-codex", "gpt-5.5");
+				const llm = getModel("openai", "gpt-5.5");
 				await testEmptyMessage(llm, { apiKey: openaiCodexToken });
 			},
 		);
@@ -796,7 +796,7 @@ describe("AI Providers Empty Message Tests", () => {
 			"gpt-5.5 - should handle empty string content",
 			{ retry: 3, timeout: 30000 },
 			async () => {
-				const llm = getModel("openai-codex", "gpt-5.5");
+				const llm = getModel("openai", "gpt-5.5");
 				await testEmptyStringMessage(llm, { apiKey: openaiCodexToken });
 			},
 		);
@@ -805,7 +805,7 @@ describe("AI Providers Empty Message Tests", () => {
 			"gpt-5.5 - should handle whitespace-only content",
 			{ retry: 3, timeout: 30000 },
 			async () => {
-				const llm = getModel("openai-codex", "gpt-5.5");
+				const llm = getModel("openai", "gpt-5.5");
 				await testWhitespaceOnlyMessage(llm, { apiKey: openaiCodexToken });
 			},
 		);
@@ -814,7 +814,7 @@ describe("AI Providers Empty Message Tests", () => {
 			"gpt-5.5 - should handle empty assistant message in conversation",
 			{ retry: 3, timeout: 30000 },
 			async () => {
-				const llm = getModel("openai-codex", "gpt-5.5");
+				const llm = getModel("openai", "gpt-5.5");
 				await testEmptyAssistantMessage(llm, { apiKey: openaiCodexToken });
 			},
 		);

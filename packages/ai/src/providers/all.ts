@@ -26,7 +26,6 @@ import { moonshotaiProvider } from "./moonshotai.ts";
 import { moonshotaiCnProvider } from "./moonshotai-cn.ts";
 import { nvidiaProvider } from "./nvidia.ts";
 import { openaiProvider } from "./openai.ts";
-import { openaiCodexProvider } from "./openai-codex.ts";
 import { opencodeProvider } from "./opencode.ts";
 import { opencodeGoProvider } from "./opencode-go.ts";
 import { openrouterProvider } from "./openrouter.ts";
@@ -159,7 +158,6 @@ export function builtinProviders(): Provider[] {
 		moonshotaiCnProvider(),
 		nvidiaProvider(),
 		openaiProvider(),
-		openaiCodexProvider(),
 		opencodeProvider(),
 		opencodeGoProvider(),
 		openrouterProvider(),

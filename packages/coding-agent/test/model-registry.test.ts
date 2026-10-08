@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { normalizeContext } from "@earendil-works/pi-ai";
 import type { AnthropicMessagesCompat, Api, Model, OpenAICompletionsCompat } from "@earendil-works/pi-ai/compat";
-import { getApiProvider, getModels, getSupportedThinkingLevels } from "@earendil-works/pi-ai/compat";
+import { getApiProvider, getSupportedThinkingLevels } from "@earendil-works/pi-ai/compat";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { AuthStorage } from "../src/core/auth-storage.ts";
 import type { ModelsJsonProvider } from "../src/core/model-config.ts";
@@ -1992,28 +1992,6 @@ describe("ModelRegistry", () => {
 				expect(available.some((m) => m.provider === "custom-provider")).toBe(true);
 				const count = parseInt(readFileSync(counterFile, "utf-8").trim(), 10);
 				expect(count).toBe(0);
-			});
-
-			test("getAvailable filters GitHub Copilot OAuth models to account picker availability", async () => {
-				const copilotModel = getModels("github-copilot")[0];
-				if (!copilotModel) throw new Error("Expected at least one GitHub Copilot model");
-
-				await authStorage.modify("github-copilot", async () => ({
-					type: "oauth",
-					refresh: "github-access-token",
-					access: "tid=test;exp=9999999999;proxy-ep=proxy.individual.githubcopilot.com;",
-					expires: Date.now() + 60_000,
-					availableModelIds: [copilotModel.id],
-				}));
-
-				const registry = await createModelRegistry(authStorage, modelsJsonPath);
-
-				expect(
-					registry
-						.getAvailable()
-						.filter((m) => m.provider === "github-copilot")
-						.map((m) => m.id),
-				).toEqual([copilotModel.id]);
 			});
 
 			test("getApiKeyAndHeaders resolves authHeader on every request", async () => {

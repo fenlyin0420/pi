@@ -14,7 +14,7 @@ import { resolveApiKey } from "./oauth.ts";
 const oauthTokens = await Promise.all([
 	resolveApiKey("anthropic"),
 	resolveApiKey("github-copilot"),
-	resolveApiKey("openai-codex"),
+	resolveApiKey("openai"),
 ]);
 const [anthropicOAuthToken, githubCopilotToken, openaiCodexToken] = oauthTokens;
 
@@ -351,7 +351,7 @@ describe("Tool Call Without Result Tests", () => {
 			"gpt-5.5 - should filter out tool calls without corresponding tool results",
 			{ retry: 3, timeout: 30000 },
 			async () => {
-				const model = getModel("openai-codex", "gpt-5.5");
+				const model = getModel("openai", "gpt-5.5");
 				await testToolCallWithoutResult(model, { apiKey: openaiCodexToken });
 			},
 		);

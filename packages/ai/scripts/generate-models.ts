@@ -374,15 +374,6 @@ const OPENAI_TOOL_SEARCH_MODEL_IDS = new Set([
 ]);
 const OPENAI_ADDITIONAL_TOOLS_MODEL_IDS = OPENAI_TOOL_SEARCH_MODEL_IDS;
 const OPENAI_MID_CONVO_SYSTEM_MESSAGE_MODEL_IDS = OPENAI_TOOL_SEARCH_MODEL_IDS;
-const OPENAI_CODEX_ADDITIONAL_TOOLS_MODEL_IDS = new Set([
-	"gpt-5.6-sol",
-	"gpt-5.6-terra",
-	"gpt-5.6-luna",
-	"gpt-6-astra",
-	"gpt-6-sol",
-	"gpt-6-luna",
-	"gpt-6.1-sol",
-]);
 const OPENAI_LONG_CONTEXT_INPUT_THRESHOLD = 272000;
 const OPENAI_SHORT_CONTEXT_CAPPED_MODEL_IDS = new Set([
 	"gpt-5.4",
@@ -869,7 +860,6 @@ function applyStrictToolCompatMetadata(model: Model<Api>): void {
 // for pre-GPT-5 models (gpt-4.x, gpt-4o, o-series).
 const OPENAI_GRAMMAR_TOOL_PROVIDERS = new Set([
 	"openai",
-	"openai-codex",
 	"azure-openai-responses",
 	"github-copilot",
 	"opencode",
@@ -890,11 +880,8 @@ function applyOpenAIGrammarToolCompatMetadata(model: Model<Api>): void {
 
 function applyOpenAIToolSearchMetadata(model: Model<Api>): void {
 	const isOpenAIResponses = model.provider === "openai" && model.api === "openai-responses";
-	const isOpenAICodex = model.provider === "openai-codex" && model.api === "openai-codex-responses";
-	if (!(isOpenAIResponses || isOpenAICodex) || !OPENAI_TOOL_SEARCH_MODEL_IDS.has(model.id)) return;
-	const supportsAdditionalTools =
-		(isOpenAIResponses && OPENAI_ADDITIONAL_TOOLS_MODEL_IDS.has(model.id)) ||
-		(isOpenAICodex && OPENAI_CODEX_ADDITIONAL_TOOLS_MODEL_IDS.has(model.id));
+	if (!isOpenAIResponses || !OPENAI_TOOL_SEARCH_MODEL_IDS.has(model.id)) return;
+	const supportsAdditionalTools = OPENAI_ADDITIONAL_TOOLS_MODEL_IDS.has(model.id);
 	model.compat = {
 		...(model.compat as OpenAIResponsesCompat | undefined),
 		...(supportsAdditionalTools ? { supportsAdditionalTools: true } : {}),
@@ -939,11 +926,10 @@ const OPENAI_RESPONSES_PROXY_PROVIDERS = new Set(["opencode", "opencode-go", "gi
 
 function applyOpenAIResponsesTranscriptMetadata(model: Model<Api>): void {
 	const isOpenAIResponses = model.provider === "openai" && model.api === "openai-responses";
-	const isOpenAICodex = model.provider === "openai-codex" && model.api === "openai-codex-responses";
 	const isProxiedResponses =
 		OPENAI_RESPONSES_PROXY_PROVIDERS.has(model.provider) && model.api === "openai-responses";
 	if (
-		!(isOpenAIResponses || isOpenAICodex || isProxiedResponses) ||
+		!(isOpenAIResponses || isProxiedResponses) ||
 		!OPENAI_MID_CONVO_SYSTEM_MESSAGE_MODEL_IDS.has(model.id)
 	) {
 		return;
@@ -1129,9 +1115,6 @@ function applyThinkingLevelMetadata(model: Model<any>): void {
 	}
 	if (model.provider === "groq" && model.id === "qwen/qwen3.6-27b") {
 		mergeThinkingLevelMap(model, { minimal: null, low: null, medium: null, high: "default" });
-	}
-	if (model.provider === "openai-codex" && supportsOpenAiXhigh(model.id)) {
-		mergeThinkingLevelMap(model, { minimal: "low" });
 	}
 	if (
 		(model.provider === "moonshotai" || model.provider === "moonshotai-cn") &&
@@ -3221,126 +3204,6 @@ async function generateModels() {
 			allModels.splice(i, 1);
 		}
 	}
-
-	// OpenAI Codex (ChatGPT OAuth) models
-	// NOTE: These are not fetched from models.dev; we keep a small, explicit list to avoid aliases.
-	// Older model limits are based on observed server behavior; GPT-5.6 and GPT-6 use Codex's 272k default catalog limit.
-	const CODEX_BASE_URL = "https://chatgpt.com/backend-api";
-	const CODEX_CONTEXT = 272000;
-	const CODEX_GPT_56_CONTEXT = 272000;
-	const CODEX_SPARK_CONTEXT = 128000;
-	const CODEX_MAX_TOKENS = 128000;
-	const codexModels: Model<"openai-codex-responses">[] = [
-		{
-			id: "gpt-6.1-sol",
-			name: "GPT-6.1 Sol",
-			api: "openai-codex-responses",
-			provider: "openai-codex",
-			baseUrl: CODEX_BASE_URL,
-			reasoning: true,
-			input: ["text", "image"],
-			cost: withOpenAiLongContextPricing(OPENAI_STANDARD_COSTS["gpt-6.1-sol"]),
-			contextWindow: CODEX_CONTEXT,
-			maxTokens: CODEX_MAX_TOKENS,
-		},
-		{
-			id: "gpt-6-astra",
-			name: "GPT-6 Astra",
-			api: "openai-codex-responses",
-			provider: "openai-codex",
-			baseUrl: CODEX_BASE_URL,
-			reasoning: true,
-			input: ["text", "image"],
-			cost: withOpenAiLongContextPricing(OPENAI_STANDARD_COSTS["gpt-6-astra"]),
-			contextWindow: CODEX_CONTEXT,
-			maxTokens: CODEX_MAX_TOKENS,
-		},
-		{
-			id: "gpt-6-sol",
-			name: "GPT-6 Sol",
-			api: "openai-codex-responses",
-			provider: "openai-codex",
-			baseUrl: CODEX_BASE_URL,
-			reasoning: true,
-			input: ["text", "image"],
-			cost: withOpenAiLongContextPricing(OPENAI_STANDARD_COSTS["gpt-6-sol"]),
-			contextWindow: CODEX_CONTEXT,
-			maxTokens: CODEX_MAX_TOKENS,
-		},
-		{
-			id: "gpt-6-luna",
-			name: "GPT-6 Luna",
-			api: "openai-codex-responses",
-			provider: "openai-codex",
-			baseUrl: CODEX_BASE_URL,
-			reasoning: true,
-			input: ["text", "image"],
-			cost: withOpenAiLongContextPricing(OPENAI_STANDARD_COSTS["gpt-6-luna"]),
-			contextWindow: CODEX_CONTEXT,
-			maxTokens: CODEX_MAX_TOKENS,
-		},
-		{
-			id: "gpt-5.3-codex-spark",
-			name: "GPT-5.3 Codex Spark",
-			api: "openai-codex-responses",
-			provider: "openai-codex",
-			baseUrl: CODEX_BASE_URL,
-			reasoning: true,
-			input: ["text"],
-			cost: { input: 1.75, output: 14, cacheRead: 0.175, cacheWrite: 0 },
-			contextWindow: CODEX_SPARK_CONTEXT,
-			maxTokens: CODEX_MAX_TOKENS,
-		},
-		{
-			id: "gpt-5.5",
-			name: "GPT-5.5",
-			api: "openai-codex-responses",
-			provider: "openai-codex",
-			baseUrl: CODEX_BASE_URL,
-			reasoning: true,
-			input: ["text", "image"],
-			cost: withOpenAiLongContextPricing({ input: 5, output: 30, cacheRead: 0.5, cacheWrite: 0 }),
-			contextWindow: CODEX_CONTEXT,
-			maxTokens: CODEX_MAX_TOKENS,
-		},
-		{
-			id: "gpt-5.6-luna",
-			name: "GPT-5.6 Luna",
-			api: "openai-codex-responses",
-			provider: "openai-codex",
-			baseUrl: CODEX_BASE_URL,
-			reasoning: true,
-			input: ["text", "image"],
-			cost: withOpenAiLongContextPricing(OPENAI_STANDARD_COSTS["gpt-5.6-luna"]),
-			contextWindow: CODEX_GPT_56_CONTEXT,
-			maxTokens: CODEX_MAX_TOKENS,
-		},
-		{
-			id: "gpt-5.6-sol",
-			name: "GPT-5.6 Sol",
-			api: "openai-codex-responses",
-			provider: "openai-codex",
-			baseUrl: CODEX_BASE_URL,
-			reasoning: true,
-			input: ["text", "image"],
-			cost: withOpenAiLongContextPricing(OPENAI_STANDARD_COSTS["gpt-5.6-sol"]),
-			contextWindow: CODEX_GPT_56_CONTEXT,
-			maxTokens: CODEX_MAX_TOKENS,
-		},
-		{
-			id: "gpt-5.6-terra",
-			name: "GPT-5.6 Terra",
-			api: "openai-codex-responses",
-			provider: "openai-codex",
-			baseUrl: CODEX_BASE_URL,
-			reasoning: true,
-			input: ["text", "image"],
-			cost: withOpenAiLongContextPricing(OPENAI_STANDARD_COSTS["gpt-5.6-terra"]),
-			contextWindow: CODEX_GPT_56_CONTEXT,
-			maxTokens: CODEX_MAX_TOKENS,
-		},
-	];
-	allModels.push(...codexModels);
 
 	// Add missing Mistral Medium 3.5 model until models.dev includes it
 	if (!allModels.some(m => m.provider === "mistral" && m.id === "mistral-medium-3.5")) {

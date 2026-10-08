@@ -10,7 +10,6 @@ const complete = Reflect.get(InteractiveMode.prototype, "completeProviderAuthent
 	this: object,
 	providerId: string,
 	providerName: string,
-	authType: "oauth" | "api_key",
 	previousModel: Model<Api>,
 ) => Promise<void>;
 
@@ -110,7 +109,7 @@ describe("issues #7027 and #7113 credential refresh hang", () => {
 			maybeWarnAboutAnthropicSubscriptionAuth: vi.fn(),
 			ui: { requestRender: vi.fn() },
 		};
-		await complete.call(context, dynamicModel.provider, "Stalled Login", "api_key", harness.getModel());
+		await complete.call(context, dynamicModel.provider, "Stalled Login", harness.getModel());
 		expect(runtime.refresh).toHaveBeenCalledWith({
 			providers: [dynamicModel.provider],
 			signal: expect.any(AbortSignal),
@@ -162,7 +161,7 @@ describe("post-login model discovery", () => {
 			maybeWarnAboutAnthropicSubscriptionAuth: vi.fn(),
 			ui: { requestRender: vi.fn() },
 		};
-		await complete.call(context, "radius", "Radius", "oauth", unknownModel);
+		await complete.call(context, "radius", "Radius", unknownModel);
 		expect(context.showStatus).toHaveBeenCalledWith(expect.stringContaining("Credentials saved"));
 		expect(context.showError).not.toHaveBeenCalled();
 		expect(setModel).not.toHaveBeenCalled();

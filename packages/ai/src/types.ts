@@ -44,7 +44,6 @@ export type KnownProvider =
 	| "google-vertex"
 	| "openai"
 	| "azure-openai-responses"
-	| "openai-codex"
 	| "radius"
 	| "typesafe"
 	| "nvidia"

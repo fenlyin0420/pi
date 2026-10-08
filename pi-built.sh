@@ -6,10 +6,7 @@
 # Build first from the repository root:
 #   npm install --ignore-scripts
 #   npm run hydrate:model-data     # only needed once per clone / after wiping src/providers/data
-#   node fork/build.fork.mjs       # NOT `npm run build:offline` — see fork/AGENTS.md
-#
-# build.fork.mjs runs build:offline itself, then applies the fork carrier
-# (OAuth trim). Plain build:offline leaves the OAuth flows in the bundle.
+#   npm run build:offline
 #
 # Usage:
 #   ./pi-built.sh                 # interactive TUI
@@ -23,7 +20,7 @@ BUNDLE="$SCRIPT_DIR/packages/coding-agent/dist/bundle/cli.js"
 
 if [[ ! -f "$BUNDLE" ]]; then
 	echo "pi is not built: $BUNDLE not found" >&2
-	echo "run: npm install --ignore-scripts && npm run hydrate:model-data && node fork/build.fork.mjs" >&2
+	echo "run: npm install --ignore-scripts && npm run hydrate:model-data && npm run build:offline" >&2
 	exit 1
 fi
 

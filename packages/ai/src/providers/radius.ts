@@ -1,12 +1,10 @@
 import { piMessagesApi } from "../api/pi-messages.lazy.ts";
-import { envApiKeyAuth, lazyOAuth } from "../auth/helpers.ts";
-import { loadRadiusOAuth } from "../auth/oauth/load.ts";
+import { envApiKeyAuth } from "../auth/helpers.ts";
 import type { Provider } from "../models.ts";
 import type { Model } from "../types.ts";
 import { RADIUS_MODELS } from "./radius.models.ts";
 import {
 	DEFAULT_RADIUS_GATEWAY,
-	getRadiusModels,
 	getRadiusModelsFromConfig,
 	loadRadiusGatewayConfig,
 	normalizeRadiusGatewayUrl,
@@ -27,7 +25,7 @@ export function radiusProvider(options: RadiusProviderOptions = {}): Provider<"p
 		gateway === normalizeRadiusGatewayUrl(DEFAULT_RADIUS_GATEWAY)
 			? Object.values(RADIUS_MODELS).map((model) => ({ ...model, provider: id }))
 			: [];
-	let dynamicModels = getRadiusModels(id, undefined);
+	let dynamicModels: Model<"pi-messages">[] = [];
 	const streams = piMessagesApi();
 
 	return {
@@ -35,7 +33,6 @@ export function radiusProvider(options: RadiusProviderOptions = {}): Provider<"p
 		name,
 		auth: {
 			apiKey: envApiKeyAuth("Radius API key", ["RADIUS_API_KEY"]),
-			oauth: lazyOAuth({ name, load: () => loadRadiusOAuth({ name, gateway }) }),
 		},
 		getModels: () => {
 			const merged = [...baselineModels];
@@ -61,25 +58,8 @@ export function radiusProvider(options: RadiusProviderOptions = {}): Provider<"p
 				}
 			}
 
-			// Import catalogs cached by the pre-ModelsStore Radius implementation.
-			if (!stored && context.credential?.type === "oauth") {
-				const legacy = getRadiusModels(id, context.credential);
-				if (legacy.length > 0) {
-					if (
-						!(await context.publish({
-							persist: { models: legacy, checkedAt: Date.now() },
-							update: () => {
-								dynamicModels = legacy;
-							},
-						}))
-					) {
-						return;
-					}
-				}
-			}
-
 			if (!context.allowNetwork || context.signal.aborted) return;
-			const apiKey = context.credential?.type === "oauth" ? context.credential.access : context.credential?.key;
+			const apiKey = context.credential?.type === "api_key" ? context.credential.key : undefined;
 			const config = await loadRadiusGatewayConfig(gateway, apiKey, context.signal);
 			if (context.signal.aborted) return;
 			const refreshed = getRadiusModelsFromConfig(id, config);

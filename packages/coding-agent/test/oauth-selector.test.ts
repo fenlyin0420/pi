@@ -21,7 +21,6 @@ describe("OAuthSelectorComponent", () => {
 				prototype: {
 					getLoginProviderOptions(
 						this: object,
-						authType?: "oauth" | "api_key",
 					): Array<{ id: string; name: string; authType: string; method?: { name: string; login?: unknown } }>;
 				};
 			}
@@ -31,7 +30,6 @@ describe("OAuthSelectorComponent", () => {
 				id: "anthropic",
 				name: "Anthropic",
 				auth: {
-					oauth: { name: "Anthropic (Claude Pro/Max)", login: async () => ({}) },
 					apiKey: { name: "Anthropic API key", login: async () => ({}) },
 				},
 			},
@@ -46,12 +44,11 @@ describe("OAuthSelectorComponent", () => {
 				modelRuntime: {
 					getProviders: () => providers,
 					getProviderAuthStatus: () => ({ configured: false }),
-					isUsingOAuth: () => false,
 				},
 			},
 		};
 
-		const apiKeyOptions = getLoginProviderOptions.call(fakeThis, "api_key");
+		const apiKeyOptions = getLoginProviderOptions.call(fakeThis);
 		expect(apiKeyOptions).toMatchObject([
 			{
 				id: "anthropic",
@@ -65,9 +62,6 @@ describe("OAuthSelectorComponent", () => {
 				authType: "api_key",
 				method: { name: "Google Cloud credentials" },
 			},
-		]);
-		expect(getLoginProviderOptions.call(fakeThis, "oauth")).toMatchObject([
-			{ id: "anthropic", name: "Anthropic", authType: "oauth" },
 		]);
 	});
 

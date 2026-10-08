@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { isBuiltin } from "node:module";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -149,7 +149,6 @@ for (const entry of [
 	join(codingAgentDistDir, "utils", "image-resize-worker.js"),
 	join(codingAgentDistDir, "extensions", "codemode", "worker.js"),
 	join(aiDistDir, "api", "bedrock-converse-stream.js"),
-	join(aiDistDir, "auth", "oauth", "anthropic.js"),
 ]) {
 	if (!existsSync(entry)) {
 		throw new Error(`Bundle input is missing: ${relative(repoRoot, entry)}. Build the workspace packages first.`);
@@ -173,39 +172,17 @@ const mainResult = await build({
 });
 
 const bedrockLoaderOutput = findContainingOutput(mainResult.metafile, "packages/ai/dist/api/bedrock-converse-stream.lazy.js");
-const oauthLoaderOutput = findContainingOutput(mainResult.metafile, "packages/ai/dist/auth/oauth/load.js");
 const imageResizeOutput = findContainingOutput(mainResult.metafile, "packages/coding-agent/dist/utils/image-resize.js");
 const configOutput = findContainingOutput(mainResult.metafile, "packages/coding-agent/dist/config.js");
-if (dirname(bedrockLoaderOutput) !== dirname(oauthLoaderOutput)) {
-	throw new Error("Bedrock and OAuth lazy loaders were emitted into different directories");
-}
 
 // These implementations are reached through variable-specifier imports or a
 // worker URL, so the main bundle cannot follow them. Emit one self-contained
 // file per implementation beside the code that resolves it.
 const lazyEntryPoints = {
-	anthropic: join(aiDistDir, "auth", "oauth", "anthropic.js"),
 	"bedrock-converse-stream": join(aiDistDir, "api", "bedrock-converse-stream.js"),
 	"codemode-worker": join(codingAgentDistDir, "extensions", "codemode", "worker.js"),
-	"github-copilot": join(aiDistDir, "auth", "oauth", "github-copilot.js"),
 	"image-resize-worker": join(codingAgentDistDir, "utils", "image-resize-worker.js"),
-	"kimi-coding": join(aiDistDir, "auth", "oauth", "kimi-coding.js"),
-	meta: join(aiDistDir, "auth", "oauth", "meta.js"),
-	"openai-chatgpt": join(aiDistDir, "auth", "oauth", "openai-chatgpt.js"),
-	"openai-codex": join(aiDistDir, "auth", "oauth", "openai-codex.js"),
-	openrouter: join(aiDistDir, "auth", "oauth", "openrouter.js"),
-	radius: join(aiDistDir, "auth", "oauth", "radius.js"),
-	xai: join(aiDistDir, "auth", "oauth", "xai.js"),
 };
-
-// Every OAuth flow loaded through importOAuthModule() must have a lazy entry,
-// otherwise the flow fails at runtime with a missing module error.
-const oauthLoadSource = readFileSync(join(repoRoot, "packages", "ai", "src", "auth", "oauth", "load.ts"), "utf8");
-for (const match of oauthLoadSource.matchAll(/importOAuthModule\("\.\/([^"]+)\.ts"\)/g)) {
-	if (!(match[1] in lazyEntryPoints)) {
-		throw new Error(`OAuth flow "${match[1]}" is lazily imported but has no lazy bundle entry`);
-	}
-}
 
 const lazyResult = await build({
 	...commonBuildOptions(),
