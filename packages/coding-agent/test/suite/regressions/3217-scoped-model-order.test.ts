@@ -62,7 +62,7 @@ describe("issue #3217 scoped model ordering", () => {
 		expect(changes).toEqual([[orderedIds[1], orderedIds[0], orderedIds[2]]]);
 	});
 
-	it("preserves scoped model order in the /model scoped tab", async () => {
+	it("preserves scoped model order in /model", async () => {
 		const harness = await createHarness({
 			models: [
 				{ id: "faux-1", name: "One", reasoning: true },
@@ -93,11 +93,11 @@ describe("issue #3217 scoped model ordering", () => {
 		const renderedLines = stripAnsi(selector.render(120).join("\n"))
 			.split("\n")
 			.filter((line) => line.includes(`[${modelOne.provider}]`));
-		const orderedIds = renderedLines.slice(0, 3).map((line) => {
-			const [modelId] = line.trim().replace(/^→\s*/, "").split(" [");
-			return modelId?.replace(/^✓\s*/, "").trim() ?? "";
+		const orderedLabels = renderedLines.slice(0, 3).map((line) => {
+			const [label] = line.trim().replace(/^→\s*/, "").split(" [");
+			return label?.replace(/^✓\s*/, "").trim() ?? "";
 		});
 
-		expect(orderedIds).toEqual([modelTwo.id, modelOne.id, modelThree.id]);
+		expect(orderedLabels).toEqual([modelTwo.name, modelOne.name, modelThree.name]);
 	});
 });

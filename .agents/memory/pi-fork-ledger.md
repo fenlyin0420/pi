@@ -24,11 +24,15 @@ metadata:
 | `openai-codex` provider（纯 OAuth，无其它认证途径） | 连 provider 工厂 + 预定义模型一起删；保留 `openai-codex-responses` **API**（公共 api id，扩展仍可用） | 该 provider 删掉 OAuth 后 `auth: {}`，模型永不可达 | 2026-10-08 |
 | GitHub Copilot 的 OAuth 模型过滤 | 删 `filterModels` 的 oauth 分支 | 无 provider 注册 oauth 后不可达 | 2026-10-08 |
 | Radius 的凭据内目录缓存 | 删 `radius-config.ts` 的 `getRadiusModels` / `getRadiusCredentialConfig` 及 `radius.ts` 的 legacy 分支 | 同上；Radius 现在只用 `RADIUS_API_KEY` | 2026-10-08 |
+| `/model` 选择器的 "all" 页签（看全量可用目录） | 删 `ModelScope` 类型、`allModels`/`activeModels`/`scopedModelItems`/`scope`/`scopeText`/`scopeHintText` 字段、`sortModels()`、`getScopeText()`、`getScopeHintText()`、`setScope()`、`handleInput` 的 Tab 分支、构造函数的 `scopedModels` 合并逻辑；`ModelItem` 接口一并删（只服务于该页签）。列表只剩 scope 一个来源，空列表改为提示去配 `enabledModels` | `git log -L` 实测 `upstream/main` 近一年：35 行 1 次、53–71 行 12 次、94–112 行 9 次、161–182 行 13 次、267–277 行 6 次、364–373 行 3 次 → 全部在低频区（§2.2 阈值 ≤10 直接删、>40 换落点） | 2026-10-08 |
 
 **保留的**：OAuth 类型面（`OAuthAuth`/`OAuthCredential`/`AuthType`/`Credential` 的 oauth 分支）、
 `auth.json` 的 oauth 条目解析、扩展 `defineProvider` 的 `oauth?:` 字段、MCP 自身的 OAuth
 （`packages/mcp/src/oauth/`）、`@pi-ai/oauth` barrel。理由：类型擦除为 0 字节，删了不省体积，
 却会破坏第三方扩展编译并让旧凭据文件变非法。
+
+`tui.input.tab` 这个 keybinding 本身**保留**：删页签只删 `model-selector.ts` 里的消费点，
+`config-selector.ts`、`session-selector.ts`、`tui/components/editor.ts`（补全）还在用。
 
 ## 已知的既有失败（与定制无关）
 
@@ -38,6 +42,10 @@ metadata:
 - `tools.test.ts` 的 grep/find 与 `3302`/`3303` 回归 —— `fd`/`rg` 子进程测试在 `./test.sh`
   全并行下抖动；单独跑全绿。
 - `auth-storage.test.ts` 的 reload 合并 —— 同样是并行下的偶发。
+- `package-command-paths.test.ts` 的 "toggles built-in extensions in config global mode" 与
+  "cycles project built-in extension overrides in config local mode" —— `/config` 内置扩展
+  toggle 后 `settingsManager.get*Settings().extensions` 仍是 `undefined`。已用 `git worktree`
+  在 HEAD 上复现同样失败，与模型选择器无关。
 
 ## 关联
 

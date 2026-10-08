@@ -26,7 +26,7 @@ Keep `auth.json` and any credential commands private. Project settings and exten
 
 ## Select a model
 
-Run `/model` to search available models. The picker shows models whose providers have usable authentication. Press `Ctrl+S` on a model to save it as the default for new sessions.
+Run `/model` to search the configured model scope. The picker lists exactly the models matched by [`enabledModels`](settings.md#model-and-thinking); without that setting the list is empty. Every listed model also has usable credentials for its provider. Press `Ctrl+S` on a model to save it as the default for new sessions.
 
 Run `/thinking` to select the thinking level for the current model. Press `Ctrl+S` there to save the startup level. Pi limits the choices to levels supported by the selected model, plus `auto`. With `auto`, Pi resolves the concrete level for each request: an optional cheap classifier model (see [`autoThinkingClassifier`](settings.md#model-and-thinking)) classifies the task when configured, and a deterministic task-complexity heuristic takes over when it is unset, times out, or answers unparsably.
 
@@ -164,7 +164,7 @@ Use an extension when the provider needs custom streaming, model discovery, or a
 
 ### A model does not appear
 
-Confirm that its provider has usable authentication. Custom models can load from `models.json` but remain unavailable in `/model` until Pi can resolve credentials. For llama.cpp, only models currently loaded by the router appear.
+Confirm two things: its provider has usable authentication, and an [`enabledModels`](settings.md#model-and-thinking) pattern matches it. `/model` lists the configured scope only, so a model that loads and authenticates still stays hidden until a pattern selects it. For llama.cpp, only models currently loaded by the router appear.
 
 ### Authentication works in one shell only
 

@@ -17,6 +17,7 @@ type AssistantUsage = {
 function createSession(options: {
 	sessionName: string;
 	modelId?: string;
+	modelName?: string;
 	provider?: string;
 	reasoning?: boolean;
 	thinkingLevel?: string;
@@ -25,7 +26,7 @@ function createSession(options: {
 	compactionUsage?: AssistantUsage;
 	toolUsage?: AssistantUsage;
 	usingSubscription?: boolean;
-	routedModel?: { model: { id: string }; thinkingLevel?: string };
+	routedModel?: { model: { id: string; name?: string }; thinkingLevel?: string };
 }): AgentSession {
 	const usage = options.usage;
 	const entries: Array<Record<string, unknown>> = [];
@@ -68,6 +69,7 @@ function createSession(options: {
 		state: {
 			model: {
 				id: options.modelId ?? "test-model",
+				name: options.modelName ?? options.modelId ?? "test-model",
 				provider: options.provider ?? "test",
 				contextWindow: 200_000,
 				reasoning: options.reasoning ?? false,
@@ -157,19 +159,29 @@ describe("FooterComponent width handling", () => {
 		}
 	});
 
+	it("shows the model display name instead of its id", () => {
+		const session = createSession({ sessionName: "", modelId: "claude-fable-5", modelName: "Claude Fable 5" });
+		const footer = new FooterComponent(session, createFooterData(1));
+
+		const statsLine = stripAnsi(footer.render(120)[1]);
+
+		expect(statsLine).toContain("Claude Fable 5");
+		expect(statsLine).not.toContain("claude-fable-5");
+	});
+
 	it("shows the physical model a virtual model routed to", () => {
 		const session = createSession({
 			sessionName: "",
 			modelId: "auto",
 			reasoning: true,
 			thinkingLevel: "high",
-			routedModel: { model: { id: "gpt-5.6-luna" }, thinkingLevel: "medium" },
+			routedModel: { model: { id: "gpt-5.6-luna", name: "GPT 5.6 Luna" }, thinkingLevel: "medium" },
 		});
 		const footer = new FooterComponent(session, createFooterData(1));
 
 		const statsLine = stripAnsi(footer.render(120)[1]);
 
-		expect(statsLine).toContain("auto \u2022 high \u2192 gpt-5.6-luna \u2022 medium");
+		expect(statsLine).toContain("auto \u2022 high \u2192 GPT 5.6 Luna \u2022 medium");
 	});
 
 	it("includes summary and tool result usage in the total cost", () => {

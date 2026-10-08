@@ -15,7 +15,7 @@ This reference lists user-configurable settings, their types, defaults, and purp
 | `autoThinkingClassifier` | string | None | `"provider/modelId"` of a cheap model used to classify task complexity for the `"auto"` thinking level. A deterministic heuristic is used when this is unset or the classifier call fails or times out. |
 | `autoThinkingClassifierTimeoutMs` | number | 6000 | Upper bound in milliseconds for the auto thinking classifier call before falling back to the heuristic. |
 | `thinkingBudgets` | object | Built-in budgets | Token budgets for `minimal`, `low`, `medium`, and `high` thinking levels. |
-| `enabledModels` | `string[]` | All available models | Model patterns used for startup selection and model cycling. Uses the same format as `--models`. |
+| `enabledModels` | `string[]` | None | Model patterns that define the model scope: the only models startup selection, model cycling, and `/model` offer. Uses the same format as `--models`. When unset, `/model` is empty. |
 | `hideThinkingBlock` | boolean | `false` | Hide thinking blocks in the transcript. |
 | `showCacheMissNotices` | boolean | `false` | Show notices for significant cache misses, successful cache warming, compaction usage, and provider recovery. |
 | `cacheWarming` | `"off" \| "streaming" \| "idle"` | `"streaming"` | Keep eligible provider prompt caches warm during active runs or, with `"idle"`, between runs. Global setting only. |
