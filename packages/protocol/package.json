@@ -28,11 +28,11 @@
 		"binary",
 		"framing"
 	],
-	"author": "Earendil Works",
+	"author": "fenlyin0420 <fenlyin0420@gmail.com>",
 	"license": "MIT",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/earendil-works/pi.git",
+		"url": "git+https://github.com/fenlyin0420/pi.git",
 		"directory": "packages/protocol"
 	},
 	"engines": {

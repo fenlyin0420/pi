@@ -1,6 +1,6 @@
 ---
 name: pi-fork-ledger
-description: pi fork 的分叉台账与删除记录：auto thinking（加性）、OAuth 登录删除（减性，2026-10-08 实施）；范式正文见仓库根 FORKING.md
+description: pi fork 的分叉台账与删除记录：auto thinking（加性）、OAuth 登录删除、/dementedelves 公告彩蛋删除（均减性）；范式正文见仓库根 FORKING.md
 metadata:
   type: project
 ---
@@ -36,6 +36,7 @@ metadata:
 | GitHub Copilot 的 OAuth 模型过滤 | 删 `filterModels` 的 oauth 分支 | 无 provider 注册 oauth 后不可达 | 2026-10-08 |
 | Radius 的凭据内目录缓存 | 删 `radius-config.ts` 的 `getRadiusModels` / `getRadiusCredentialConfig` 及 `radius.ts` 的 legacy 分支 | 同上；Radius 现在只用 `RADIUS_API_KEY` | 2026-10-08 |
 | `/model` 选择器的 "all" 页签（看全量可用目录） | 删 `ModelScope` 类型、`allModels`/`activeModels`/`scopedModelItems`/`scope`/`scopeText`/`scopeHintText` 字段、`sortModels()`、`getScopeText()`、`getScopeHintText()`、`setScope()`、`handleInput` 的 Tab 分支、构造函数的 `scopedModels` 合并逻辑；`ModelItem` 接口一并删（只服务于该页签）。列表只剩 scope 一个来源，空列表改为提示去配 `enabledModels` | `git log -L` 实测 `upstream/main` 近一年：35 行 1 次、53–71 行 12 次、94–112 行 9 次、161–182 行 13 次、267–277 行 6 次、364–373 行 3 次 → 全部在低频区（§2.2 阈值 ≤10 直接删、>40 换落点） | 2026-10-08 |
+| `/dementedelves` 公告彩蛋（"pi has joined Earendil" + 上游作者博客链接 + 539 KB 内嵌图） | 删 `components/earendil-announcement.ts`、`assets/clankolas.png`、`interactive-mode.ts` 的 import + `/dementedelves` 派发 + `handleDementedDelves`、`config.ts` 的 `getInteractiveAssetsDir`/`getBundledInteractiveAssetPath`（只服务该功能，未在 `index.ts` 导出）、`copy-assets`/`copy-binary-assets` 里的 png 拷贝段、`build-binaries.sh` 的 assets 拷贝段 | `git log -L` 实测：import 行 1 次/年、`/dementedelves` 派发 3 次/年、`handleDementedDelves` 5 次/年、组件文件整体 4 次/年 → 全部 ≤10。例外：`packages/coding-agent/package.json` 的两条 build script 行是 25 次/年（中频区），冲突时按 §2.2 只做减法、不重排 | 2026-10-11 |
 
 **保留的**：OAuth 类型面（`OAuthAuth`/`OAuthCredential`/`AuthType`/`Credential` 的 oauth 分支）、
 `auth.json` 的 oauth 条目解析、扩展 `defineProvider` 的 `oauth?:` 字段、MCP 自身的 OAuth

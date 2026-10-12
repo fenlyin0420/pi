@@ -163,7 +163,7 @@ stdenv.mkDerivation {
 
   meta = {
     description = packageJson.description;
-    homepage = "https://pi.dev";
+    homepage = "https://github.com/fenlyin0420/pi";
     license = lib.licenses.mit;
     mainProgram = "pi";
     platforms = [
