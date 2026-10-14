@@ -434,6 +434,10 @@ export class ProcessTerminal implements Terminal {
 		// Disable bracketed paste mode
 		process.stdout.write("\x1b[?2004l");
 
+		// Restore the terminal's default cursor style: vim mode toggles it
+		// between bar and block (DECSCUSR) and the shell should not inherit it.
+		process.stdout.write("\x1b[0 q");
+
 		const shouldDisableKittyProtocol = this.keyboardProtocolPushed || this._kittyProtocolActive;
 		this.clearKeyboardProtocolNegotiationBuffer();
 

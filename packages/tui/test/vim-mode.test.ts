@@ -295,6 +295,50 @@ describe("Editor vim mode", () => {
 			assert.strictEqual(editor.getText(), "bcd");
 		});
 
+		it("enters insert mode and types slash", () => {
+			setVimModeEnabled(true);
+			const editor = createVimEditor("");
+			toNormal(editor);
+
+			feed(editor, "/");
+
+			assert.strictEqual(editor.getText(), "/");
+			type(editor, "settings");
+			assert.strictEqual(editor.getText(), "/settings");
+		});
+
+		it("draws a bar fake cursor in insert mode and an inverted block in normal mode", () => {
+			setVimModeEnabled(true);
+			const editor = createVimEditor("hello");
+
+			const insertLines = editor.render(60).join("\n");
+			assert.ok(insertLines.includes("\u2502ello"));
+			assert.ok(!insertLines.includes("\x1b[7m"));
+
+			toNormal(editor);
+			const normalLines = editor.render(60).join("\n");
+			assert.ok(normalLines.includes("\x1b[7mh\x1b[0m"));
+			assert.ok(!normalLines.includes("\u2502ello"));
+		});
+
+		it("switches the hardware cursor shape between modes", () => {
+			setVimModeEnabled(true);
+			const written: string[] = [];
+			const tui = {
+				terminal: { write: (d: string) => written.push(d), columns: 80, rows: 24 },
+				requestRender() {},
+			} as unknown as TUI;
+			const editor = new Editor(tui, defaultEditorTheme);
+			editor.focused = true;
+			editor.setText("");
+
+			toNormal(editor);
+			editor.handleInput("i");
+
+			const shapes = written.filter((d) => d.endsWith(" q"));
+			assert.deepStrictEqual(shapes, ["\x1b[6 q", "\x1b[2 q", "\x1b[6 q"]);
+		});
+
 		it("opens a line below with o and above with O", () => {
 			setVimModeEnabled(true);
 			const editor = createVimEditor("one\nthree");
