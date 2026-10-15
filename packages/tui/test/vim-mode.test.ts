@@ -76,11 +76,12 @@ afterEach(() => {
 
 describe("Editor vim mode", () => {
 	describe("mode entry and exit", () => {
-		it("starts in insert mode so a prompt can be typed right away", () => {
+		it("starts in normal mode and enters insert mode with i", () => {
 			setVimModeEnabled(true);
 			const editor = createVimEditor("");
 
 			assert.strictEqual(editor.isVimEditing(), true);
+			feed(editor, "i");
 			type(editor, "hi");
 
 			assert.strictEqual(editor.getText(), "hi");
@@ -93,6 +94,7 @@ describe("Editor vim mode", () => {
 			editor.onSubmit = (text) => {
 				submitted = text;
 			};
+			feed(editor, "i");
 			type(editor, "hello");
 			toNormal(editor);
 			editor.handleInput(ENTER);
@@ -310,6 +312,7 @@ describe("Editor vim mode", () => {
 		it("draws a bar fake cursor in insert mode and an inverted block in normal mode", () => {
 			setVimModeEnabled(true);
 			const editor = createVimEditor("hello");
+			feed(editor, "i");
 
 			const insertLines = editor.render(60).join("\n");
 			assert.ok(insertLines.includes("\u2502ello"));
@@ -336,7 +339,8 @@ describe("Editor vim mode", () => {
 			editor.handleInput("i");
 
 			const shapes = written.filter((d) => d.endsWith(" q"));
-			assert.deepStrictEqual(shapes, ["\x1b[6 q", "\x1b[2 q", "\x1b[6 q"]);
+			// The first keypress latches vim mode in normal; `i` enters insert.
+			assert.deepStrictEqual(shapes, ["\x1b[2 q", "\x1b[6 q"]);
 		});
 
 		it("opens a line below with o and above with O", () => {
@@ -584,6 +588,7 @@ describe("Editor vim mode", () => {
 		it("renders INSERT while typing and NORMAL in normal mode", () => {
 			setVimModeEnabled(true);
 			const editor = createVimEditor("");
+			feed(editor, "i");
 			editor.render(40);
 			assert.match(editor.render(40).at(-1)!, /INSERT/);
 
@@ -633,11 +638,11 @@ describe("Editor vim mode", () => {
 			const editor = createVimEditor("abc");
 			setVimModeEnabled(true);
 
-			// Insert mode still: this keypress only activates the mode, so "!"
-			// lands at the cursor instead of running a command.
+			// Normal mode: this keypress only activates the mode, so "!" runs as
+			// a normal-mode command — an unknown one, so it is a no-op.
 			editor.handleInput("!");
 
-			assert.strictEqual(editor.getText(), "!abc");
+			assert.strictEqual(editor.getText(), "abc");
 			assert.strictEqual(editor.isVimEditing(), true);
 		});
 	});

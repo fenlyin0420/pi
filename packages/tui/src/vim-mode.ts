@@ -20,8 +20,9 @@ import { matchesKey } from "./keys.ts";
  * Modal state of a vim-driven editor.
  *
  * There is no "visual" mode yet; `normal` covers the command state and `insert`
- * the typing state. Vim mode starts in insert because the prompt is a text
- * field, not a file buffer — an agent prompt is typed, not navigated.
+ * the typing state. Vim mode starts in normal, like vim: the first keypress is
+ * a command, and `i` enters the typing state. After a submit the editor resets
+ * to insert (startinsert) so the next prompt can be typed right away.
  */
 export type VimEditorMode = "normal" | "insert";
 

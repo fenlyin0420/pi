@@ -12,7 +12,7 @@ Vim keys are fixed. They are not part of the [keybindings](keybindings.md) regis
 
 ## Editor
 
-Vim mode starts in **insert**: a prompt is typed, not navigated. The mode is shown at the right end of the editor's bottom border.
+Vim mode starts in **normal** mode, like vim: press `i` (or `a`, `I`, `A`) to start typing the prompt. After a submit the editor goes straight back to insert mode, so the next prompt can be typed right away. The mode is shown at the right end of the editor's bottom border.
 
 The editor cursor follows the mode: bar in insert, inverted block in normal. When the `showHardwareCursor` setting is on, the hardware cursor does the same (bar/block via DECSCUSR). Toggling vim mode off restores the terminal's default cursor style.
 
