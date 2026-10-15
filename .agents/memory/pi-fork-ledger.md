@@ -1,13 +1,13 @@
 ---
 name: pi-fork-ledger
-description: pi fork 的分叉台账与删除记录：auto thinking（加性）、OAuth 登录删除、/dementedelves 公告彩蛋删除（均减性）；范式正文见仓库根 FORKING.md
+description: pi fork 的分叉台账与删除记录：auto thinking（加性）、OAuth 登录删除、/dementedelves 公告彩蛋删除（均减性）；范式正文见 dev-workflow 技能附带的 FORKING.md
 metadata:
   type: project
 ---
 
 # pi fork 分叉台账
 
-范式正文在**仓库内** `FORKING.md`（分支模型、删除边界、同步流程）。本文件只记台账。
+范式正文在 `~/.agents/skills/dev-workflow/FORKING.md`（分支模型、删除边界、同步流程）。本文件只记台账。
 `main` 镜像 `upstream/main`，定制全在 `dev`。
 
 ## A 类 · 自己实现的上游特性

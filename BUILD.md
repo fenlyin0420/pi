@@ -56,7 +56,7 @@ npm run hydrate:model-data          # 2. 生成模型目录数据（每个新 cl
 npm run build:offline               # 3. 编译全部包 + 打包 CLI
 ```
 
-本仓库已把 OAuth 登录从**源码**里删掉（见 `FORKING.md`），所以 `build:offline` 直接产出的
+本仓库已把 OAuth 登录从**源码**里删掉（见 `~/.agents/skills/dev-workflow/FORKING.md`），所以 `build:offline` 直接产出的
 就是裁剪后的产物 —— 没有额外的构建步骤。
 
 实测耗时（本机）：`build:offline` 6.2s，`hydrate:model-data` 2.3s，`npm install` 在已有
@@ -335,7 +335,7 @@ npm install -g bun                       # 或 curl -fsSL https://bun.sh/install
 | `Model data is missing or stale. Run 'npm run hydrate:model-data'` | `packages/ai/src/providers/data/` 是 gitignore 的生成物，新 clone 没有 | 跑 `npm run hydrate:model-data`（需要网络） |
 | `Cannot find module '.../packages/tui/dist/index.js'` 之类 | 只构建了 `coding-agent`，上游包没编译 | 走根目录的 `npm run build:offline`（它按依赖顺序构建全部包）；不要在子包里单独 `npm run build` |
 | `No workspaces found: --workspace=chord` | `--workspace` 只能写目录路径 | 写 `--workspace=packages/chord`，别写包名 |
-| `Cannot find module '@earendil-works/pi-ai/bun-oauth'` | 上游重新加回了 OAuth 登录 | 同步上游后按 `FORKING.md` 第 2 节删掉新增的流实现与 provider 的 `oauth:` 块 |
+| `Cannot find module '@earendil-works/pi-ai/bun-oauth'` | 上游重新加回了 OAuth 登录 | 同步上游后按 `~/.agents/skills/dev-workflow/FORKING.md` 第 2 节删掉新增的流实现与 provider 的 `oauth:` 块 |
 | `Cannot find module '.../auth/oauth/...'` | 上游同步后残留了对已删 OAuth 流的引用 | 同上，把新增的引用一并删除 |
 | `build:offline` 卡在 `ai` 的 `check:model-data` | 模型数据过期 | 重新 `npm run hydrate:model-data` |
 | `EBADENGINE autoevals ... please-use-pnpm` | 无关的 devDependency 引擎声明 | 忽略 |
@@ -410,7 +410,7 @@ npm run build:offline                      # 6.2s 墙钟（clean + 全量编译�
 
 ## 10. 相关文档
 
-- 二次开发范式：`FORKING.md`（分支模型、删除边界、同步上游流程、分叉台账）
+- 二次开发范式：dev-workflow 技能 `~/.agents/skills/dev-workflow/`（附 `FORKING.md`：分支模型、删除边界、同步上游流程、分叉台账）
 - 仓库开发说明：`README.md` 的 Development 一节、`AGENTS.md`
 - pi 使用文档：`packages/coding-agent/docs/`（`quickstart.md`、`usage.md`、`tui.md`、`keybindings.md`、
   `configuration.md`、`models.md`、`providers.md`、`sessions.md`、`extensions.md`、`skills.md`）

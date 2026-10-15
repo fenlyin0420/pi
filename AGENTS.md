@@ -55,15 +55,15 @@ This repo is a fork of `upstream` (`earendil-works/pi`). `main` mirrors upstream
 code-free; all custom work lands on `dev`, single-purpose work on `feat/xxx`.
 
 - Upstream source files are never left in a modified state to express "I don't want this feature" —
-  unwanted features are **deleted outright**, along with their entry points. Read `FORKING.md` in full
-  before touching anything: it defines the branch model, the delete-don't-hide boundary (implementations
+  unwanted features are **deleted outright**, along with their entry points. Read the fork convention
+  `~/.agents/skills/dev-workflow/FORKING.md` (bundled with the dev-workflow skill) in full before
+  touching anything: it defines the branch model, the delete-don't-hide boundary (implementations
   and entry points go, type surface and on-disk credential formats stay), how to measure whether an edit
   site is safe, and the upstream-sync procedure.
 - Keep the fork ledger (`.agents/memory/`) current: every upstream feature you re-implement rather than
   merge gets a row, every deletion gets its measured cost and a re-check date.
-- Global convention: `~/.agents/skills/git-fork-upstream-sync/SKILL.md`. Where it conflicts with
-  `FORKING.md`, `FORKING.md` wins — this repo settled on source deletion instead of the skill's
-  dist-layer carrier.
+- Global convention: `~/.agents/skills/dev-workflow/SKILL.md` (fork section plus its bundled
+  `FORKING.md`). This repo settled on source deletion instead of a dist-layer carrier.
 
 ## Git
 
