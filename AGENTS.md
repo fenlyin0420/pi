@@ -60,8 +60,8 @@ code-free; all custom work lands on `dev`, single-purpose work on `feat/xxx`.
   touching anything: it defines the branch model, the delete-don't-hide boundary (implementations
   and entry points go, type surface and on-disk credential formats stay), how to measure whether an edit
   site is safe, and the upstream-sync procedure.
-- Keep the fork ledger (`.agents/memory/`) current: every upstream feature you re-implement rather than
-  merge gets a row, every deletion gets its measured cost and a re-check date.
+- Keep the fork ledger (`.agents/memory/`, local-only) current: every upstream feature you re-implement
+  rather than merge gets a row, every deletion gets its measured cost and a re-check date.
 - Global convention: `~/.agents/skills/dev-workflow/SKILL.md` (fork section plus its bundled
   `FORKING.md`). This repo settled on source deletion instead of a dist-layer carrier.
 
@@ -113,7 +113,7 @@ When closing issues via commit:
 
 ## Testing pi Interactive Mode with tmux
 
-For testing pi's interactive mode, load and follow [.pi/skills/interactive-testing.md](.pi/skills/interactive-testing.md).
+For testing pi's interactive mode, load the `pi-tui-testing` skill.
 
 ## Changelog
 
@@ -134,7 +134,7 @@ Attribution:
 
 ## Releasing
 
-For release preparation, publishing, verification, or recovery, load and follow [.pi/skills/release.md](.pi/skills/release.md).
+For release preparation, publishing, verification, or recovery, load the `pi-release` skill.
 
 ## User Override
 

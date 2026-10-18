@@ -213,7 +213,7 @@ bash /tmp/pi-tui-smoke.sh "$PWD/packages/coding-agent/dist/bundle/cli.js" /tmp/p
   `Enter to select · Ctrl+S to set as default · Escape/Ctrl+C to cancel`
 - 提交 prompt 后状态栏切到 `Working` 并有旋转动画，上下文占用涨到 `9.4%/197k`，说明请求已发出
 
-有 tmux 的机器上直接用仓库自带的方式更方便（见 `.pi/skills/interactive-testing.md`）：
+有 tmux 的机器上直接用仓库自带的方式更方便（见 `pi-tui-testing` 技能）：
 
 ```bash
 tmux new-session -d -s pi-test -x 120 -y 45
@@ -414,5 +414,5 @@ npm run build:offline                      # 6.2s 墙钟（clean + 全量编译�
 - 仓库开发说明：`README.md` 的 Development 一节、`AGENTS.md`
 - pi 使用文档：`packages/coding-agent/docs/`（`quickstart.md`、`usage.md`、`tui.md`、`keybindings.md`、
   `configuration.md`、`models.md`、`providers.md`、`sessions.md`、`extensions.md`、`skills.md`）
-- TUI 交互测试：`.pi/skills/interactive-testing.md`
-- 发布/版本流程：`.pi/skills/release.md`
+- TUI 交互测试：`pi-tui-testing` 技能（`~/.agents/skills/pi-tui-testing/`）
+- 发布/版本流程：`pi-release` 技能（`~/.agents/skills/pi-release/`）
