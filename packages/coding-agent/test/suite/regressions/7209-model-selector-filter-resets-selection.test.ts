@@ -10,13 +10,13 @@ function createFakeTui(): TUI {
 	return { requestRender: () => {} } as unknown as TUI;
 }
 
-/** Return the model id of the highlighted (→) row in the rendered selector. */
-function selectedModelId(rendered: string): string | undefined {
+/** Return the row label of the highlighted (→) row in the rendered selector. */
+function selectedModelLabel(rendered: string): string | undefined {
 	const line = rendered.split("\n").find((l) => l.startsWith("→ "));
 	if (!line) return undefined;
 	const rest = line.replace(/^→\s*/, "");
-	const id = rest.split(" [")[0]?.replace(/^✓\s*/, "");
-	return id?.trim() || undefined;
+	const label = rest.split(" [")[0]?.replace(/^✓\s*/, "");
+	return label?.trim() || undefined;
 }
 
 describe("model selector filter resets selection to top", () => {
@@ -63,23 +63,23 @@ describe("model selector filter resets selection to top", () => {
 		});
 
 		// Current model (alpha-1) is sorted first, so selection starts on row 0.
-		expect(selectedModelId(stripAnsi(selector.render(120).join("\n")))).toBe("alpha-1");
+		expect(selectedModelLabel(stripAnsi(selector.render(120).join("\n")))).toBe("Alpha One");
 
-		// Move selection down two rows to alpha-3.
+		// Move the selection off the top row so the query has something to reset.
+		// (The All tab lists the whole catalog, so the row count is not fixed.)
 		selector.handleInput("\x1b[B");
-		selector.handleInput("\x1b[B");
-		expect(selectedModelId(stripAnsi(selector.render(120).join("\n")))).toBe("alpha-3");
+		expect(selectedModelLabel(stripAnsi(selector.render(120).join("\n")))).not.toBe("Alpha One");
 
 		// Type a query that matches the three alpha models. The selection must
-		// move back to the top row (alpha-1), not stay clamped at index 2.
+		// move back to the top row (alpha-1), not stay clamped below it.
 		for (const char of "alpha") {
 			selector.handleInput(char);
 		}
 
 		const rendered = stripAnsi(selector.render(120).join("\n"));
-		expect(selectedModelId(rendered)).toBe("alpha-1");
+		expect(selectedModelLabel(rendered)).toBe("Alpha One");
 		// Sanity: the filter actually narrowed the list.
-		expect(rendered).not.toContain("beta-1");
+		expect(rendered).not.toContain("Beta One");
 	});
 
 	it("moves selection to the first row in the Scoped tab when typing a query", async () => {
@@ -113,7 +113,7 @@ describe("model selector filter resets selection to top", () => {
 		});
 
 		// Selection starts on the current model (alpha-1), which is row 2 here.
-		expect(selectedModelId(stripAnsi(selector.render(120).join("\n")))).toBe("alpha-1");
+		expect(selectedModelLabel(stripAnsi(selector.render(120).join("\n")))).toBe("Alpha One");
 
 		// Type a query matching all three scoped models. Selection must move to
 		// the top row (alpha-2), not stay clamped at index 2 (alpha-1).
@@ -121,6 +121,6 @@ describe("model selector filter resets selection to top", () => {
 			selector.handleInput(char);
 		}
 
-		expect(selectedModelId(stripAnsi(selector.render(120).join("\n")))).toBe("alpha-2");
+		expect(selectedModelLabel(stripAnsi(selector.render(120).join("\n")))).toBe("Alpha Two");
 	});
 });
