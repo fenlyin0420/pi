@@ -466,7 +466,7 @@ export class Editor implements Component, Focusable {
 
 	// Vim mode: modal command state, only consulted while vim mode is enabled.
 	private vimActive = false;
-	private vimMode: VimEditorMode = "insert";
+	private vimMode: VimEditorMode = "normal";
 	private vimCount = 0;
 	private vimOperator: VimOperator | null = null;
 	private vimPrefix: VimPrefix | null = null;
@@ -849,7 +849,7 @@ export class Editor implements Component, Focusable {
 		if (isVimModeEnabled() && !data.includes("\x1b[200~")) {
 			if (!this.vimActive) {
 				this.vimActive = true;
-				this.vimMode = "insert";
+				this.vimMode = "normal";
 				this.setVimCursorStyle();
 			}
 			if (this.handleVimInput(data)) return;
