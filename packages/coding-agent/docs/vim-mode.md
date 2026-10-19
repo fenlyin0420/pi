@@ -14,6 +14,8 @@ Vim keys are fixed. They are not part of the [keybindings](keybindings.md) regis
 
 Vim mode starts in **insert**: a prompt is typed, not navigated. The mode is shown at the right end of the editor's bottom border.
 
+The editor cursor follows the mode: bar in insert, inverted block in normal. When the `showHardwareCursor` setting is on, the hardware cursor does the same (bar/block via DECSCUSR). Toggling vim mode off restores the terminal's default cursor style.
+
 **Escape** leaves insert mode for normal mode. While vim mode is on, Escape is a mode key, so it no longer triggers the abort action bound to `app.interrupt` (Escape by default). Use **Ctrl+C** to clear the editor and stop the agent. Escape is a no-op in normal mode.
 
 Ctrl+D keeps its Pi meaning of "exit when the editor is empty", so it only scrolls the editor once there is text in it.
@@ -58,6 +60,7 @@ Deleting forward with a motion owns the character it lands on, backward motions 
 | `i` `a` | Insert before / after the character under the cursor |
 | `I` `A` | Insert at the first non-blank character / end of the line |
 | `o` `O` | Open a line below / above and insert |
+| `/` | Enter insert mode and type `/`; at a message start this opens the slash command menu |
 | `x` `X` | Delete `{count}` characters forward / backward, never across a line |
 | `D` `C` | Delete / change to the end of the line |
 | `s` `S` | Substitute the character under the cursor / clear the line, then insert |
@@ -89,4 +92,4 @@ Transcript search keeps every printable key while it is open.
 
 ## Not included
 
-Visual mode, named registers, macros, `.` to repeat a change, `/` search, and `n`/`N`. Use the transcript search (**Ctrl+F**) to search the conversation, and Ctrl+Z in insert mode to undo.
+Visual mode, named registers, macros, `.` to repeat a change, and `n`/`N` search. The `/` key opens the slash command menu instead, since the editor is a prompt field rather than a file buffer. Use the transcript search (**Ctrl+F**) to search the conversation, and Ctrl+Z in insert mode to undo.

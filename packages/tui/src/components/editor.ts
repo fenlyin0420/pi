@@ -298,6 +298,10 @@ const VIM_MOTION_KEYS: Record<string, VimMotion> = {
 const VIM_PREFIX_KEYS = new Set<string>(["g", "f", "F", "t", "T", "r"]);
 const VIM_OPERATOR_KEYS = new Set<string>(["d", "c", "y"]);
 
+/** DECSCUSR shapes for the vim mode cursor: bar in insert, block in normal. */
+const VIM_CURSOR_INSERT = "\x1b[6 q";
+const VIM_CURSOR_NORMAL = "\x1b[2 q";
+
 /**
  * Motions that operate on whole lines when combined with an operator: `dj`
  * deletes two lines, not two characters. Character-wise motions instead make
@@ -721,6 +725,12 @@ export class Editor implements Component, Focusable {
 
 				// Hardware cursor marker (zero-width, emitted before fake cursor for IME positioning)
 				const marker = emitCursorMarker ? CURSOR_MARKER : "";
+				// Vim insert mode draws a plain bar cursor like vim's, with no
+				// inverted cell (that would read as a block with a bar in it);
+				// every other state keeps the inverted-block fake cursor. The bar
+				// is a box-drawing vertical line, one column wide in terminals
+				// with narrow ambiguous-width (the Ghostty/iTerm2/kitty default).
+				const barCursor = this.vimActive && this.vimMode === "insert" ? "\u2502" : undefined;
 
 				if (after.length > 0) {
 					// Cursor is on a character (grapheme) - replace it with highlighted version
@@ -728,12 +738,12 @@ export class Editor implements Component, Focusable {
 					const afterGraphemes = [...this.segment(after, "grapheme")];
 					const firstGrapheme = afterGraphemes[0]?.segment || "";
 					const restAfter = after.slice(firstGrapheme.length);
-					const cursor = renderFakeCursor(firstGrapheme);
+					const cursor = barCursor ?? renderFakeCursor(firstGrapheme);
 					displayText = before + marker + cursor + restAfter;
 					// lineVisibleWidth stays the same - we're replacing, not adding
 				} else {
 					// Cursor is at the end - add highlighted space
-					const cursor = renderFakeCursor(" ");
+					const cursor = barCursor ?? renderFakeCursor(" ");
 					displayText = before + marker + cursor;
 					lineVisibleWidth = lineVisibleWidth + 1;
 					// If cursor overflows content width into the padding, flag it
@@ -840,8 +850,16 @@ export class Editor implements Component, Focusable {
 			if (!this.vimActive) {
 				this.vimActive = true;
 				this.vimMode = "insert";
+				this.setVimCursorStyle();
 			}
 			if (this.handleVimInput(data)) return;
+		} else if (!isVimModeEnabled() && this.vimActive && !data.includes("\x1b[200~")) {
+			// Vim mode was toggled off while this editor was active: drop back
+			// to plain handling and restore the terminal's default cursor style.
+			this.vimActive = false;
+			this.vimMode = "insert";
+			this.clearVimPending();
+			this.tui.terminal.write("\x1b[0 q");
 		}
 
 		const kb = getKeybindings();
@@ -2647,6 +2665,17 @@ export class Editor implements Component, Focusable {
 		this.vimActive = isVimModeEnabled();
 		this.vimMode = "insert";
 		this.clearVimPending();
+		if (this.vimActive) this.setVimCursorStyle();
+	}
+
+	/**
+	 * Keep the hardware cursor shape in step with the vim mode: bar in insert,
+	 * block in normal. Ignored outside vim mode, which uses the terminal's
+	 * default shape.
+	 */
+	private setVimCursorStyle(): void {
+		if (!this.vimActive) return;
+		this.tui.terminal.write(this.vimMode === "insert" ? VIM_CURSOR_INSERT : VIM_CURSOR_NORMAL);
 	}
 
 	private clearVimPending(): void {
@@ -2668,6 +2697,7 @@ export class Editor implements Component, Focusable {
 				// The picker stays open: normal mode can still walk it, accept it
 				// with Tab, or dismiss it with Escape.
 				this.vimMode = "normal";
+				this.setVimCursorStyle();
 				this.clearVimPending();
 				this.lastAction = null;
 				this.tui.requestRender();
@@ -2843,6 +2873,12 @@ export class Editor implements Component, Focusable {
 				break;
 			case "A":
 				this.enterVimInsert("lineEnd");
+				break;
+			case "/":
+				// The prompt has no buffer search; '/' behaves like typing it in
+				// insert mode, which opens the slash command menu at a message start.
+				this.enterVimInsert("cursor");
+				this.insertCharacter("/");
 				break;
 			case "o":
 				this.openVimLine("below");
@@ -3317,6 +3353,7 @@ export class Editor implements Component, Focusable {
 			this.setCursorCol(line.length);
 		}
 		this.vimMode = "insert";
+		this.setVimCursorStyle();
 		this.lastAction = null;
 		this.tui.requestRender();
 	}
@@ -3333,6 +3370,7 @@ export class Editor implements Component, Focusable {
 		if (this.onChange) this.onChange(this.getText());
 		this.clearVimPending();
 		this.vimMode = "insert";
+		this.setVimCursorStyle();
 	}
 
 	/** Column just past `count` graphemes from `startCol`, clamped to the line end. */
