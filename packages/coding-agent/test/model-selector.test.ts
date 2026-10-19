@@ -1,3 +1,4 @@
+import type { Model } from "@earendil-works/pi-ai";
 import { setKeybindings, type TUI } from "@earendil-works/pi-tui";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { KeybindingsManager } from "../src/core/keybindings.ts";
@@ -38,21 +39,39 @@ describe("model selector", () => {
 			createFakeTui(),
 			currentModel,
 			harness.session.modelRuntime,
-			[],
+			[{ model: currentModel }, { model: harness.getModel("browsed-model")! }],
 			() => {},
 			() => {},
 		);
 
-		const getModelRow = (id: string): string | undefined =>
+		const getModelRow = (name: string): string | undefined =>
 			stripAnsi(selector.render(120).join("\n"))
 				.split("\n")
-				.find((line) => line.includes(`${id} [`))
+				.find((line) => line.includes(`${name} [`))
 				?.trimEnd();
 
-		expect(getModelRow("current-model")).toBe(`→ ✓ current-model [${currentModel.provider}]`);
+		expect(getModelRow("Current Model")).toBe(`→ ✓ Current Model [${currentModel.provider}]`);
 		selector.handleInput("\x1b[B");
-		expect(getModelRow("current-model")).toBe(`  ✓ current-model [${currentModel.provider}]`);
-		expect(getModelRow("browsed-model")).toBe(`→   browsed-model [${currentModel.provider}]`);
+		expect(getModelRow("Current Model")).toBe(`  ✓ Current Model [${currentModel.provider}]`);
+		expect(getModelRow("Browsed Model")).toBe(`→   Browsed Model [${currentModel.provider}]`);
+		selector.dispose();
+	});
+
+	it("lists display names and keeps the id in the detail line", async () => {
+		harness = await createHarness({ models: [{ id: "claude-fable-5", name: "Claude Fable 5" }] });
+		const currentModel = harness.getModel("claude-fable-5")!;
+		const selector = new ModelSelectorComponent(
+			createFakeTui(),
+			currentModel,
+			harness.session.modelRuntime,
+			[{ model: currentModel }],
+			() => {},
+			() => {},
+		);
+
+		const rendered = stripAnsi(selector.render(120).join("\n"));
+		expect(rendered).toContain(`Claude Fable 5 [${currentModel.provider}]`);
+		expect(rendered).toContain("Model ID: claude-fable-5");
 		selector.dispose();
 	});
 
@@ -65,7 +84,7 @@ describe("model selector", () => {
 			createFakeTui(),
 			currentModel,
 			harness.session.modelRuntime,
-			[],
+			[{ model: currentModel }],
 			() => {},
 			() => {},
 			undefined,
@@ -81,6 +100,7 @@ describe("model selector", () => {
 
 	it("lists every catalog that failed to refresh", async () => {
 		harness = await createHarness();
+		const currentModel = harness.getModel() as Model<string>;
 		vi.spyOn(harness.session.modelRuntime, "refresh").mockResolvedValue({
 			aborted: false,
 			errors: new Map([
@@ -91,9 +111,9 @@ describe("model selector", () => {
 
 		const selector = new ModelSelectorComponent(
 			createFakeTui(),
-			harness.getModel(),
+			currentModel,
 			harness.session.modelRuntime,
-			[],
+			[{ model: currentModel }],
 			() => {},
 			() => {},
 		);
