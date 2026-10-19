@@ -18,6 +18,7 @@ import {
 	CACHE_WARMING_MODES,
 	type CacheWarmingMode,
 	type DefaultProjectTrust,
+	type EditorMode,
 	type FullscreenExitOutput,
 	type MermaidRenderingMode,
 	type QuietStartup,
@@ -93,6 +94,7 @@ export interface SettingsConfig {
 	autocompleteMaxVisible: number;
 	quietStartup: QuietStartup;
 	defaultProjectTrust: DefaultProjectTrust;
+	editorMode: EditorMode;
 	clearOnShrink: boolean;
 	showTerminalProgress: boolean;
 	tuiMode: TuiMode;
@@ -133,6 +135,7 @@ export interface SettingsCallbacks {
 	onAutocompleteMaxVisibleChange: (maxVisible: number) => void;
 	onQuietStartupChange: (quiet: QuietStartup) => void;
 	onDefaultProjectTrustChange: (defaultProjectTrust: DefaultProjectTrust) => void;
+	onEditorModeChange: (mode: EditorMode) => void;
 	onClearOnShrinkChange: (enabled: boolean) => void;
 	onShowTerminalProgressChange: (enabled: boolean) => void;
 	onTuiModeChange: (mode: TuiMode) => void;
@@ -723,6 +726,13 @@ export class SettingsSelectorComponent extends Container {
 				values: ["regular", "fullscreen"],
 			},
 			{
+				id: "editor-mode",
+				label: "Editor mode",
+				description: "Vim keys in the input editor and j/k in pickers; Escape changes mode instead of aborting",
+				currentValue: config.editorMode,
+				values: ["emacs", "vim"],
+			},
+			{
 				id: "fullscreen-exit-output",
 				label: "Fullscreen exit output",
 				description: "Print the transcript or only a session resume hint when exiting fullscreen mode",
@@ -977,6 +987,9 @@ export class SettingsSelectorComponent extends Container {
 						break;
 					case "tui-mode":
 						callbacks.onTuiModeChange(newValue as TuiMode);
+						break;
+					case "editor-mode":
+						callbacks.onEditorModeChange(newValue as EditorMode);
 						break;
 					case "fullscreen-exit-output":
 						callbacks.onFullscreenExitOutputChange(newValue as FullscreenExitOutput);

@@ -14,6 +14,7 @@ import type {
 	CacheWarmingMode,
 	CompactionModelOverride,
 	DefaultProjectTrust,
+	EditorMode,
 	FullscreenExitOutput,
 	MermaidRenderingMode,
 	PackageSource,
@@ -34,6 +35,7 @@ export type {
 	CompactionModelOverride,
 	CompactionSettings,
 	DefaultProjectTrust,
+	EditorMode,
 	FullscreenExitOutput,
 	ImageSettings,
 	MarkdownSettings,
@@ -1260,6 +1262,16 @@ export class SettingsManager {
 	setTuiMode(mode: TuiMode): void {
 		this.globalSettings.tuiMode = mode;
 		this.markModified("tuiMode");
+		this.save();
+	}
+
+	getEditorMode(): EditorMode {
+		return this.settings.editorMode === "vim" ? "vim" : "emacs";
+	}
+
+	setEditorMode(mode: EditorMode): void {
+		this.globalSettings.editorMode = mode;
+		this.markModified("editorMode");
 		this.save();
 	}
 

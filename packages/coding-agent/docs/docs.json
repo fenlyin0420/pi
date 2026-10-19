@@ -165,6 +165,10 @@
           "path": "keybindings.md"
         },
         {
+          "title": "Vim Mode",
+          "path": "vim-mode.md"
+        },
+        {
           "title": "Providers",
           "path": "providers.md"
         },

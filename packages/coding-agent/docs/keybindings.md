@@ -26,6 +26,8 @@ A configured value replaces the default for that action. Use an empty list to di
 }
 ```
 
+Vim mode has its own fixed keys that are not part of this registry. See [Vim Mode](vim-mode.md).
+
 After editing the file, run `/reload` to apply the changes to the active session.
 
 ## Key syntax

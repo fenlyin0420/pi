@@ -4,6 +4,7 @@ import {
 	fuzzyFilter,
 	getKeybindings,
 	Input,
+	matchesVimListNav,
 	type SelectItem,
 	SelectList,
 	type SelectListLayoutOptions,
@@ -120,9 +121,12 @@ export class SelectSubmenu extends Container {
 	handleInput(data: string): void {
 		if (this.searchInput) {
 			const kb = getKeybindings();
+			const filterQuery = this.searchInput.getValue();
 			const isNav =
 				kb.matches(data, "tui.select.up") ||
 				kb.matches(data, "tui.select.down") ||
+				matchesVimListNav(data, "up", filterQuery) ||
+				matchesVimListNav(data, "down", filterQuery) ||
 				kb.matches(data, "tui.select.confirm") ||
 				kb.matches(data, "tui.select.cancel");
 			if (isNav) {

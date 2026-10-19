@@ -11,6 +11,7 @@ import {
 	getKeybindings,
 	Input,
 	matchesKey,
+	matchesVimListNav,
 	Spacer,
 	truncateToWidth,
 	visibleWidth,
@@ -459,12 +460,13 @@ class ResourceList implements Component, Focusable {
 
 	handleInput(data: string): void {
 		const kb = getKeybindings();
+		const filterQuery = this.searchInput.getValue();
 
-		if (kb.matches(data, "tui.select.up")) {
+		if (kb.matches(data, "tui.select.up") || matchesVimListNav(data, "up", filterQuery)) {
 			this.selectedIndex = this.findNextItem(this.selectedIndex, -1);
 			return;
 		}
-		if (kb.matches(data, "tui.select.down")) {
+		if (kb.matches(data, "tui.select.down") || matchesVimListNav(data, "down", filterQuery)) {
 			this.selectedIndex = this.findNextItem(this.selectedIndex, 1);
 			return;
 		}

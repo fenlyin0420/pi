@@ -5,6 +5,7 @@ import {
 	fuzzyFilter,
 	getKeybindings,
 	Input,
+	matchesVimListNav,
 	Spacer,
 	Text,
 	type TUI,
@@ -371,14 +372,15 @@ export class ModelSelectorComponent extends Container implements Focusable {
 			}
 			return;
 		}
+		const filterQuery = this.searchInput.getValue();
 		// Up arrow - wrap to bottom when at top
-		if (kb.matches(keyData, "tui.select.up")) {
+		if (kb.matches(keyData, "tui.select.up") || matchesVimListNav(keyData, "up", filterQuery)) {
 			if (this.filteredModels.length === 0) return;
 			this.selectedIndex = this.selectedIndex === 0 ? this.filteredModels.length - 1 : this.selectedIndex - 1;
 			this.updateList();
 		}
 		// Down arrow - wrap to top when at bottom
-		else if (kb.matches(keyData, "tui.select.down")) {
+		else if (kb.matches(keyData, "tui.select.down") || matchesVimListNav(keyData, "down", filterQuery)) {
 			if (this.filteredModels.length === 0) return;
 			this.selectedIndex = this.selectedIndex === this.filteredModels.length - 1 ? 0 : this.selectedIndex + 1;
 			this.updateList();

@@ -21,6 +21,7 @@ import {
 	type TerminalColorMode,
 	type TerminalColors,
 	type TextAttributes,
+	type VimEditorMode,
 } from "@earendil-works/pi-tui";
 import chalk from "chalk";
 import { getCustomThemesDir, getThemesDir } from "../../../config.ts";
@@ -1071,6 +1072,7 @@ export function getSelectListTheme(): SelectListTheme {
 export function getEditorTheme(): EditorTheme {
 	return {
 		borderColor: (text: string) => theme.fg("borderMuted", text),
+		vimModeLabel: (text: string, mode: VimEditorMode) => theme.fg(mode === "insert" ? "accent" : "warning", text),
 		selectList: getSelectListTheme(),
 	};
 }
