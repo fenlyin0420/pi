@@ -10,14 +10,13 @@
 | 项目 | 值 |
 |------|-----|
 | 是什么 | `pi` 交互式 coding agent CLI，交互模式就是终端 TUI（`packages/coding-agent/src/modes/interactive`） |
-| 版本 | 0.87.1（`packages/*/package.json` 统一版本） |
-| 主产物 | `packages/coding-agent/dist/bundle/cli.js`（65 个文件，8.49 MiB） |
+| 版本 | 1.3.0（`packages/coding-agent/package.json`；根 `package.json` 是工作区占位版本 0.0.3） |
+| 主产物 | `packages/coding-agent/dist/bundle/cli.js`（80 个文件，8.8 MiB） |
 | 运行方式 | `./pi-built.sh`（等价于 `node packages/coding-agent/dist/bundle/cli.js`） |
 | 交互式入口 | 无参数直接启动就是 TUI；`--tui-mode fullscreen` 切全屏布局 |
 | 依赖运行时 | Node.js >= 22.19（本仓库用 TypeScript 7 / tsgo 编译，要求较新的 Node） |
 
-上表的文件数与体积是 1.0.1 的实测值。第 9 节记录的是 0.87.1 时代的实测数据
-（59 个文件 / 8.5 MiB），两者不可直接比较。
+上表的文件数与体积是第 9.2 节（1.3.0）的实测值；第 9.1 节是 0.87.1 时代的历史记录，两者不可直接比较。
 
 `pi-built.sh` 是启动脚本，内容就是定位 bundle 后 `exec node`。
 如果你清理掉了它，直接用 `node packages/coding-agent/dist/bundle/cli.js` 也能跑。
@@ -56,11 +55,11 @@ npm run hydrate:model-data          # 2. 生成模型目录数据（每个新 cl
 npm run build:offline               # 3. 编译全部包 + 打包 CLI
 ```
 
-本仓库已把 OAuth 登录从**源码**里删掉（见 `~/.agents/skills/dev-workflow/FORKING.md`），所以 `build:offline` 直接产出的
-就是裁剪后的产物 —— 没有额外的构建步骤。
+本仓库是 `earendil-works/pi` 的 fork：`dev` = 上游 + 一层薄加性定制（不裁剪上游源码，见
+`~/.agents/skills/dev-workflow/FORKING.md`），所以 `build:offline` 直接产出的就是分叉产物 —— 没有额外的构建步骤。
 
-实测耗时（本机）：`build:offline` 6.2s，`hydrate:model-data` 2.3s，`npm install` 在已有
-`node_modules` 时是 375ms 的增量安装。**全新 clone 从零安装依赖的耗时本机未实测**，
+实测耗时（本机）：`build:offline` 5.6s，`hydrate:model-data` 3.7s，`npm install` 在已有
+`node_modules` 时是秒级的增量安装。**全新 clone 从零安装依赖的耗时本机未实测**，
 按仓库规模（1000+ 依赖）估计 1-3 分钟，是整个流程里唯一的大头。
 
 第 2 步只在这些情况下需要跑：`packages/ai/src/providers/data/` 不存在或过期时。
@@ -256,8 +255,7 @@ cd /path/to/your/project
 - 用户级配置目录 `~/.pi/agent`（`auth.json` 也在里面）
 - 项目级配置 `~/project/.pi/`：`settings.json`、`SYSTEM.md`、`extensions/`、`skills/`、`prompts/`、`themes/`
 - 交互界面里 `/model` 选模型、`/login` 输入 API key；也支持环境变量（`ANTHROPIC_API_KEY` 等）
-- **没有 OAuth 登录**：`/login` 只接受 API key，订阅制账号登录（ChatGPT Plus、Claude Pro 等）
-  不可用。`/logout` 只能删除存储的凭据
+- 登录与上游一致：`/login` 支持 API key 与订阅制 OAuth，`/logout` 删除存储的凭据
 - 常用开关：`--offline`（关掉启动期联网）、`--no-session`（不落盘会话）、`--approve/--no-approve`（项目文件信任）、
   `--no-extensions/--no-skills/--no-prompt-templates/--no-themes`（按类关掉资源发现）
 
@@ -335,8 +333,6 @@ npm install -g bun                       # 或 curl -fsSL https://bun.sh/install
 | `Model data is missing or stale. Run 'npm run hydrate:model-data'` | `packages/ai/src/providers/data/` 是 gitignore 的生成物，新 clone 没有 | 跑 `npm run hydrate:model-data`（需要网络） |
 | `Cannot find module '.../packages/tui/dist/index.js'` 之类 | 只构建了 `coding-agent`，上游包没编译 | 走根目录的 `npm run build:offline`（它按依赖顺序构建全部包）；不要在子包里单独 `npm run build` |
 | `No workspaces found: --workspace=chord` | `--workspace` 只能写目录路径 | 写 `--workspace=packages/chord`，别写包名 |
-| `Cannot find module '@earendil-works/pi-ai/bun-oauth'` | 上游重新加回了 OAuth 登录 | 同步上游后按 `~/.agents/skills/dev-workflow/FORKING.md` 第 2 节删掉新增的流实现与 provider 的 `oauth:` 块 |
-| `Cannot find module '.../auth/oauth/...'` | 上游同步后残留了对已删 OAuth 流的引用 | 同上，把新增的引用一并删除 |
 | `build:offline` 卡在 `ai` 的 `check:model-data` | 模型数据过期 | 重新 `npm run hydrate:model-data` |
 | `EBADENGINE autoevals ... please-use-pnpm` | 无关的 devDependency 引擎声明 | 忽略 |
 | `pi --version` 还是旧版本 | PATH 里 nvm 的全局 bin 优先于你新建的软链 | 用绝对路径 `./pi-built.sh`，或 `hash -r` / 调整 PATH |
@@ -353,8 +349,8 @@ npm install -g bun                       # 或 curl -fsSL https://bun.sh/install
 ### 9.1 未裁剪基线（0.87.1，历史记录）
 
 环境：Ubuntu / kernel 6.8.0-142 / x86_64，Node v25.9.0，npm 11.12.1，git `main` @ `2b0a123de`。
-这份记录是**未裁剪**基线，用 `npm run build:offline` 产出，OAuth 登录完整保留。
-后续版本请追加 9.2，不要改写本节。
+这份记录是 0.87.1 时代的基线，用 `npm run build:offline` 产出。
+后续版本请追加新的一节，不要改写本节。
 
 执行的命令序列：
 
@@ -392,25 +388,36 @@ npm run build:offline                      # 6.2s 墙钟（clean + 全量编译�
 额外实测（子包构建，见 2.1）：9 包链（跳过 `durable`、`sqlite-node`）产出的 bundle 与完整构建一致，
 `--version` = 0.87.1、`--list-models` 20 行、TUI 渲染正常；随后已恢复成完整 `npm run build:offline` 状态。
 
-### 9.2 删除 OAuth 登录后（1.0.1）
+### 9.2 全量还原上游后（1.3.0）
 
-版本 `1.0.1`，源码层删除（不再需要任何额外构建步骤）：
+`dev` = `upstream/main` + 一层加性定制（auto thinking、vim mode、模型显示名等），不再有源码删除，
+所以 `build:offline` 产出的就是分叉产物，没有任何额外构建步骤。
+
+环境同 9.1（Node v25.9.0 / npm 11.12.1），工作区为 `dev` 合并上游之后的代码。
+
+```bash
+npm run clean                 # 清掉所有 packages/*/dist
+npm install --ignore-scripts  # 已有 node_modules，增量安装
+npm run hydrate:model-data    # 3.7s
+npm run build:offline         # 5.6s（全量编译 + 打包 bundle）
+```
 
 | 项 | 值 |
 |----|-----|
-| `dist/bundle` | 65 个文件 / 8 908 509 B（8.49 MiB） |
-| 删除的 | 13 个 OAuth 流实现 + `bun-oauth.ts` + `openai-codex` 全部预定义模型 |
-| 对照 | 删除前的产物层裁剪方案为 8 907 962 B，差 547 B（可忽略） |
-| `packages/ai/dist/auth/` | 只剩 `context` / `credential-store` / `helpers` / `resolve` / `types` |
+| `dist/bundle` | 80 个文件 / 9 238 540 B（8.8 MiB） |
+| `packages/coding-agent/dist` | 1092 个文件 / 21 MiB |
+| `node packages/coding-agent/dist/bundle/cli.js --version` | `1.3.0` |
 
-验证结果：`npm run check` 全绿；`./test.sh` 与删除前一致的失败项为 0（残留 17 项为
-`fd`/`rg` 子进程测试在并行下的既有抖动，以及模型目录定价漂移，均与本次删除无关）。
+验证结果：`npm run check` 全绿；vim mode 与 auto thinking 相关测试全部通过
+（`packages/tui` 的 `vim-mode`、`packages/ai` 的 `auto-thinking`、
+`packages/coding-agent` 的 `model-selector` / `footer-width` / `custom-editor-vim-escape` /
+`agent-session-auto-thinking` / `config-schemas`）。
 
 ---
 
 ## 10. 相关文档
 
-- 二次开发范式：dev-workflow 技能 `~/.agents/skills/dev-workflow/`（附 `FORKING.md`：分支模型、删除边界、同步上游流程、分叉台账）
+- 二次开发范式：dev-workflow 技能 `~/.agents/skills/dev-workflow/`（附 `FORKING.md`：分支模型、加性定制规则、同步上游流程、分叉台账）
 - 仓库开发说明：`README.md` 的 Development 一节、`AGENTS.md`
 - pi 使用文档：`packages/coding-agent/docs/`（`quickstart.md`、`usage.md`、`tui.md`、`keybindings.md`、
   `configuration.md`、`models.md`、`providers.md`、`sessions.md`、`extensions.md`、`skills.md`）

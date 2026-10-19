@@ -4,6 +4,7 @@ import { Editor } from "../src/components/editor.ts";
 import { SelectList } from "../src/components/select-list.ts";
 import { SettingsList, type SettingsListTheme } from "../src/components/settings-list.ts";
 import type { TUI } from "../src/tui.ts";
+import { renderFakeCursor } from "../src/tui.ts";
 import { TuiMainScreen } from "../src/tui-main-screen.ts";
 import { matchesVimListNav, setVimModeEnabled } from "../src/vim-mode.ts";
 import { defaultEditorTheme, defaultSelectListTheme } from "./test-themes.ts";
@@ -320,7 +321,7 @@ describe("Editor vim mode", () => {
 
 			toNormal(editor);
 			const normalLines = editor.render(60).join("\n");
-			assert.ok(normalLines.includes("\x1b[7mh\x1b[0m"));
+			assert.ok(normalLines.includes(renderFakeCursor("h")));
 			assert.ok(!normalLines.includes("\u2502ello"));
 		});
 

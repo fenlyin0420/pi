@@ -49,6 +49,25 @@
 - If `packages/coding-agent/install-lock/` needs regen, run `node scripts/generate-coding-agent-install-lock.mjs` (verify with `--check` or `npm run check`). New deps with lifecycle scripts require review and an explicit allowlist entry in that script; never add one silently.
 - Pre-commit blocks lockfile commits unless `PI_ALLOW_LOCKFILE_CHANGE=1`. Don't bypass unless the user wants the lockfile change committed.
 
+## Fork Customization
+
+This repo is a fork of `upstream` (`earendil-works/pi`). `main` mirrors upstream verbatim and must stay
+code-free; `dev` carries every customization as a thin additive layer on top of it.
+
+- Never trim upstream code to express "I don't want this feature": no deleted implementations or entry
+  points, no build-artifact overlays, no runtime switch that pretends a feature is gone. "Not on by
+  default" is a configuration default, not a deletion.
+- Change upstream files additively (a new field, a new branch, a new file). Behavior changes live in
+  their own local module with minimal wiring at the call site.
+- Read the fork convention `~/.agents/skills/dev-workflow/FORKING.md` (bundled with the dev-workflow
+  skill) in full before touching anything: branch model, the additive-only rule, the upstream sync
+  procedure, and the ledger.
+- Sync upstream regularly: fast-forward `main` to `upstream/main`, then merge `main` into `dev` and
+  resolve conflicts case by case. After every sync, `git diff --stat main dev` must show no deletions
+  and every remaining delta must have a row in the fork ledger (`.agents/memory/`, local-only).
+- Upstream metadata (package `author`/`repository`, security contact, contribution and template links)
+  stays upstream's; describe the fork in this repo's own files instead.
+
 ## Git
 
 Multiple pi sessions may be running in this cwd at the same time, each modifying different files. Git operations that touch unstaged, staged, or untracked files outside your own changes will stomp on other sessions' work. Follow these rules:

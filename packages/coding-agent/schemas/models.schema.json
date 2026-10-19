@@ -1183,6 +1183,16 @@
               "type": "null"
             }
           ]
+        },
+        "auto": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     }

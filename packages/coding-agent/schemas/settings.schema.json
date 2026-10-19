@@ -29,6 +29,14 @@
       },
       "description": "Per-model default thinking level overrides keyed by \"provider/modelId\"."
     },
+    "autoThinkingClassifier": {
+      "type": "string",
+      "description": "\"provider/modelId\" of a cheap model used to classify task complexity for the \"auto\" thinking level. The deterministic complexity heuristic is used when unset or the call fails."
+    },
+    "autoThinkingClassifierTimeoutMs": {
+      "type": "number",
+      "description": "Upper bound in milliseconds for the auto thinking classifier call. Default 6000."
+    },
     "transport": {
       "anyOf": [
         {
@@ -696,6 +704,20 @@
       ],
       "default": "fullscreen"
     },
+    "editorMode": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "emacs"
+        },
+        {
+          "type": "string",
+          "const": "vim"
+        }
+      ],
+      "description": "Set to `vim` for modal editing: normal/insert modes in the prompt, j/k navigation in pickers.",
+      "default": "emacs"
+    },
     "fullscreenExitOutput": {
       "anyOf": [
         {
@@ -776,7 +798,8 @@
         "medium",
         "high",
         "xhigh",
-        "max"
+        "max",
+        "auto"
       ]
     }
   }
