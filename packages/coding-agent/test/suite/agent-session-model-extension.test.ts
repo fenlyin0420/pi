@@ -219,10 +219,12 @@ describe("AgentSession model and extension characterization", () => {
 			"high",
 			"xhigh",
 			"max",
+			"auto",
 		]);
 		harness.session.setThinkingLevel("high");
 		expect(harness.session.cycleThinkingLevel()).toBe("xhigh");
 		expect(harness.session.cycleThinkingLevel()).toBe("max");
+		expect(harness.session.cycleThinkingLevel()).toBe("auto");
 		expect(harness.session.cycleThinkingLevel()).toBe("off");
 	});
 

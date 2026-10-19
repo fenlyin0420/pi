@@ -52,6 +52,7 @@ import type {
 	ProviderRequestOptions,
 	ProviderStreams,
 	SimpleStreamOptions,
+	ThinkingLevel,
 	TranscriptContext,
 	Usage,
 } from "./types.ts";
@@ -1241,6 +1242,11 @@ export function calculateCost(model: AnyModel, usage: Usage): Usage["cost"] {
 
 const EXTENDED_THINKING_LEVELS: ModelThinkingLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 
+/** Whether the model's provider accepts a native "auto" thinking level. */
+export function hasNativeAutoThinking<TApi extends Api>(model: Model<TApi>): boolean {
+	return model.reasoning === true && model.thinkingLevelMap?.auto !== undefined;
+}
+
 export function getSupportedThinkingLevels<TApi extends Api>(model: Model<TApi>): ModelThinkingLevel[] {
 	if (!model.reasoning) return ["off"];
 
@@ -1256,6 +1262,19 @@ export function clampThinkingLevel<TApi extends Api>(
 	model: Model<TApi>,
 	level: ModelThinkingLevel,
 ): ModelThinkingLevel {
+	if (level === "auto") {
+		if (!model.reasoning) return "off";
+		if (hasNativeAutoThinking(model)) return "auto";
+		// Fall back to a supported middle-ish level; "medium" may be absent from
+		// a model's thinkingLevelMap, so prefer whichever of these it does support.
+		const available = getSupportedThinkingLevels(model).filter((candidate) => candidate !== "off");
+		const preferred: ThinkingLevel[] = ["medium", "low", "high", "minimal", "xhigh", "max"];
+		for (const candidate of preferred) {
+			if (available.includes(candidate)) return candidate;
+		}
+		return available[0] ?? "off";
+	}
+
 	const availableLevels = getSupportedThinkingLevels(model);
 	if (availableLevels.includes(level)) return level;
 

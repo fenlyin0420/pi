@@ -1184,6 +1184,14 @@ export class SettingsManager {
 		return this.settings.thinkingBudgets;
 	}
 
+	getAutoThinkingClassifier(): string | undefined {
+		return this.settings.autoThinkingClassifier;
+	}
+
+	getAutoThinkingClassifierTimeoutMs(): number | undefined {
+		return this.settings.autoThinkingClassifierTimeoutMs;
+	}
+
 	getTerminalCapabilityOverrides(): Partial<TerminalCapabilities> {
 		const terminal = this.settings.terminal;
 		const images = terminal?.images;

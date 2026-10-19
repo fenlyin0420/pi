@@ -22,6 +22,7 @@ export * from "./auth/context.ts";
 export * from "./auth/credential-store.ts";
 export * from "./auth/helpers.ts";
 export * from "./auth/types.ts";
+export * from "./auto-thinking.ts";
 export type {
 	OAuthAuthInfo,
 	OAuthDeviceCodeInfo,

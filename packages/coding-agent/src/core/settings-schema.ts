@@ -215,6 +215,17 @@ export const SettingsSchema = Type.Object(
 				description: 'Per-model default thinking level overrides keyed by "provider/modelId".',
 			}),
 		),
+		autoThinkingClassifier: Type.Optional(
+			Type.String({
+				description:
+					'"provider/modelId" of a cheap model used to classify task complexity for the "auto" thinking level. The deterministic complexity heuristic is used when unset or the call fails.',
+			}),
+		),
+		autoThinkingClassifierTimeoutMs: Type.Optional(
+			Type.Number({
+				description: "Upper bound in milliseconds for the auto thinking classifier call. Default 6000.",
+			}),
+		),
 		transport: Type.Optional(
 			Type.Union(
 				[Type.Literal("auto"), Type.Literal("sse"), Type.Literal("websocket"), Type.Literal("websocket-cached")],

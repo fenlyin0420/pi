@@ -270,9 +270,13 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 		thinkingLevel = settingsManager.getDefaultThinkingLevel() ?? DEFAULT_THINKING_LEVEL;
 	}
 
-	// Clamp to model capabilities
+	// Clamp to model capabilities. "auto" is a session-level concept resolved per
+	// request by the session, so keep it for reasoning models instead of clamping
+	// it to a concrete level.
 	if (!model) {
 		thinkingLevel = "off";
+	} else if (thinkingLevel === "auto" && model.reasoning) {
+		// keep "auto"
 	} else {
 		thinkingLevel = clampThinkingLevel(model, thinkingLevel) as ThinkingLevel;
 	}
