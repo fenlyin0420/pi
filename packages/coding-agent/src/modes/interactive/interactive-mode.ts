@@ -294,6 +294,9 @@ function isUsageSessionEntry(item: RenderSessionItem): item is Extract<SessionEn
 // ENOTTY: the tty was revoked (macOS) and stdin is no longer a terminal.
 const DEAD_TERMINAL_ERROR_CODES = new Set(["EIO", "EPIPE", "ENOTCONN", "ENOTTY"]);
 
+/** Window in which a second Escape press confirms interrupting a running answer or command. */
+const INTERRUPT_CONFIRM_WINDOW_MS = 1500;
+
 function isDeadTerminalError(error: unknown): boolean {
 	if (!error || typeof error !== "object" || !("code" in error)) {
 		return false;
@@ -491,6 +494,9 @@ export class InteractiveMode {
 
 	private lastSigintTime = 0;
 	private lastEscapeTime = 0;
+	private lastInterruptEscapeTime = 0;
+	private interruptEscapeHintVisible = false;
+	private interruptEscapeHintTimer: ReturnType<typeof setTimeout> | undefined = undefined;
 	private changelogMarkdown: string | undefined = undefined;
 	private startupNoticesShown = false;
 	private anthropicSubscriptionWarningShown = false;
@@ -2940,6 +2946,9 @@ export class InteractiveMode {
 				if (!customEditor.onExtensionShortcut) {
 					customEditor.onExtensionShortcut = (data: string) => this.defaultEditor.onExtensionShortcut?.(data);
 				}
+				if (!customEditor.hasEscapeInterruptTarget) {
+					customEditor.hasEscapeInterruptTarget = () => this.defaultEditor.hasEscapeInterruptTarget?.() ?? false;
+				}
 				// Copy action handlers (clear, suspend, model switching, etc.)
 				for (const [action, handler] of this.defaultEditor.actionHandlers) {
 					(customEditor.actionHandlers as Map<string, () => void>).set(action, handler);
@@ -3085,11 +3094,11 @@ export class InteractiveMode {
 	private setupKeyHandlers(): void {
 		// Set up handlers on defaultEditor - they use this.editor for text access
 		// so they work correctly regardless of which editor is active
-		this.defaultEditor.onEscape = () => {
+		const mainEscapeHandler = () => {
 			if (this.session.isStreaming) {
-				this.restoreQueuedMessagesToEditor({ abort: true });
+				this.confirmInterruptEscape(() => this.restoreQueuedMessagesToEditor({ abort: true }));
 			} else if (this.session.isBashRunning) {
-				this.session.abortBash();
+				this.confirmInterruptEscape(() => this.session.abortBash());
 			} else if (this.isBashMode) {
 				this.editor.setText("");
 				this.isBashMode = false;
@@ -3112,6 +3121,13 @@ export class InteractiveMode {
 				}
 			}
 		};
+		this.defaultEditor.onEscape = mainEscapeHandler;
+		// Vim mode hands Escape to its modal state machine, so Escape only keeps its
+		// interrupt meaning while there is something to interrupt: a streaming run or
+		// bash command, or a temporarily installed escape handler (retry, compaction,
+		// branch summary). Double-escape navigation stays vim-owned.
+		this.defaultEditor.hasEscapeInterruptTarget = () =>
+			this.session.isStreaming || this.session.isBashRunning || this.defaultEditor.onEscape !== mainEscapeHandler;
 
 		// Register app action handlers
 		this.defaultEditor.onAction("app.clear", () => this.handleCtrlC());
@@ -4767,6 +4783,55 @@ export class InteractiveMode {
 			const hintText = theme.fg("dim", `↳ ${dequeueHint} to edit all queued messages`);
 			this.pendingMessagesContainer.addChild(new TruncatedText(hintText, 1, 0));
 		}
+		if (this.interruptEscapeHintVisible) {
+			if (this.pendingMessagesContainer.children.length === 0) {
+				this.pendingMessagesContainer.addChild(new Spacer(1));
+			}
+			const interruptKey = this.getAppKeyDisplay("app.interrupt");
+			const interruptHint = theme.fg("dim", `↳ Press ${interruptKey} again to stop`);
+			this.pendingMessagesContainer.addChild(new TruncatedText(interruptHint, 1, 0));
+		}
+	}
+
+	/**
+	 * Interrupting a running answer or command takes two Escape presses: the first one
+	 * advertises the second, so a stray Escape cannot throw away a response in progress.
+	 * A second press outside the confirm window only advertises again.
+	 */
+	private confirmInterruptEscape(interrupt: () => void): void {
+		if (Date.now() - this.lastInterruptEscapeTime < INTERRUPT_CONFIRM_WINDOW_MS) {
+			// The confirmed press consumes the window, so the next Escape starts over
+			// (vim mode returns to its modal handling once nothing is running).
+			this.lastInterruptEscapeTime = 0;
+			this.clearInterruptEscapeHint();
+			interrupt();
+			return;
+		}
+		this.lastInterruptEscapeTime = Date.now();
+		this.showInterruptEscapeHint();
+	}
+
+	private showInterruptEscapeHint(): void {
+		this.interruptEscapeHintVisible = true;
+		if (this.interruptEscapeHintTimer) clearTimeout(this.interruptEscapeHintTimer);
+		this.interruptEscapeHintTimer = setTimeout(() => {
+			this.interruptEscapeHintTimer = undefined;
+			this.lastInterruptEscapeTime = 0;
+			this.clearInterruptEscapeHint();
+		}, INTERRUPT_CONFIRM_WINDOW_MS);
+		this.updatePendingMessagesDisplay();
+		this.ui.requestRender();
+	}
+
+	private clearInterruptEscapeHint(): void {
+		if (this.interruptEscapeHintTimer) {
+			clearTimeout(this.interruptEscapeHintTimer);
+			this.interruptEscapeHintTimer = undefined;
+		}
+		if (!this.interruptEscapeHintVisible) return;
+		this.interruptEscapeHintVisible = false;
+		this.updatePendingMessagesDisplay();
+		this.ui.requestRender();
 	}
 
 	private restoreQueuedMessagesToEditor(options?: { abort?: boolean; currentText?: string }): number {

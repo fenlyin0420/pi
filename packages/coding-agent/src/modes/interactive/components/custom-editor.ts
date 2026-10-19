@@ -1,4 +1,11 @@
-import { Editor, type EditorOptions, type EditorTheme, type TUI, visibleWidth } from "@earendil-works/pi-tui";
+import {
+	Editor,
+	type EditorOptions,
+	type EditorTheme,
+	isVimModeEnabled,
+	type TUI,
+	visibleWidth,
+} from "@earendil-works/pi-tui";
 import type { AppKeybinding, KeybindingsManager } from "../../../core/keybindings.ts";
 import type { StatusIndicator } from "./status-indicator.ts";
 
@@ -18,6 +25,12 @@ export class CustomEditor extends Editor {
 
 	// Special handlers that can be dynamically replaced
 	public onEscape?: () => void;
+	/**
+	 * Whether Escape currently has an interrupt target (streaming run, bash command,
+	 * retry, compaction, branch summary). Vim mode hands Escape over to its modal
+	 * state machine, but an active operation has no vim meaning to protect.
+	 */
+	public hasEscapeInterruptTarget?: () => boolean;
 	public onCtrlD?: () => void;
 	public onPasteImage?: () => void;
 	/** Handler for extension-registered shortcuts. Returns true if handled. */
@@ -101,19 +114,18 @@ export class CustomEditor extends Editor {
 
 		// Escape/interrupt - only if autocomplete is NOT active
 		if (this.keybindings.matches(data, "app.interrupt")) {
+			// Use dynamic onEscape if set, otherwise registered handler
+			const interruptHandler = this.onEscape ?? this.actionHandlers.get("app.interrupt");
 			// Vim mode owns Escape: it leaves insert mode, and is a no-op in
-			// normal mode. Aborting stays reachable on its own key (Ctrl+C).
-			if (this.isVimEditing()) {
+			// normal mode. It still interrupts an active operation, which has no
+			// vim meaning to protect.
+			if (isVimModeEnabled() && !(interruptHandler && this.hasEscapeInterruptTarget?.())) {
 				super.handleInput(data);
 				return;
 			}
-			if (!this.isShowingAutocomplete()) {
-				// Use dynamic onEscape if set, otherwise registered handler
-				const handler = this.onEscape ?? this.actionHandlers.get("app.interrupt");
-				if (handler) {
-					handler();
-					return;
-				}
+			if (!this.isShowingAutocomplete() && interruptHandler) {
+				interruptHandler();
+				return;
 			}
 			// Let parent handle escape for autocomplete cancellation
 			super.handleInput(data);
