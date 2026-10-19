@@ -87,6 +87,10 @@ describe("ModelRuntime auth options", () => {
 					method: expect.objectContaining({ name: "Google Cloud credentials" }),
 				}),
 				expect.objectContaining({
+					type: "oauth",
+					provider: expect.objectContaining({ id: "anthropic", name: "Anthropic" }),
+				}),
+				expect.objectContaining({
 					type: "api_key",
 					provider: expect.objectContaining({ id: "cloudflare-ai-gateway", name: "Cloudflare AI Gateway" }),
 				}),
@@ -97,21 +101,59 @@ describe("ModelRuntime auth options", () => {
 			]),
 		);
 		expect(authOptions(runtime, "api_key").every((option) => option.type === "api_key")).toBe(true);
-		// No built-in provider ships an OAuth method any more.
-		expect(authOptions(runtime, "oauth")).toEqual([]);
+		expect(authOptions(runtime, "oauth").every((option) => option.type === "oauth")).toBe(true);
+		expect(options.some((option) => option.provider.id === "openai-codex" && option.type === "api_key")).toBe(false);
 	});
 
 	it("attaches the provider's active auth status to every method option", async () => {
 		const runtime = await ModelRuntime.create({
 			credentials: AuthStorage.inMemory({
-				anthropic: { type: "api_key", key: "access" },
+				anthropic: {
+					type: "oauth",
+					access: "access",
+					refresh: "refresh",
+					expires: Date.now() + 60_000,
+				},
 			}),
 			modelsPath: null,
 		});
 
 		const options = authOptions(runtime).filter((option) => option.provider.id === "anthropic");
-		expect(options).toHaveLength(1);
-		expect(await runtime.checkAuth("anthropic")).toMatchObject({ type: "api_key" });
+		expect(options).toHaveLength(2);
+		expect(await runtime.checkAuth("anthropic")).toMatchObject({ type: "oauth" });
+	});
+
+	it("distinguishes subscription OAuth from generic OAuth sign-in", async () => {
+		const runtime = await ModelRuntime.create({
+			credentials: AuthStorage.inMemory({
+				anthropic: {
+					type: "oauth",
+					access: "anthropic-access",
+					refresh: "anthropic-refresh",
+					expires: Date.now() + 60 * 60_000,
+				},
+				openrouter: {
+					type: "oauth",
+					access: "openrouter-key",
+					refresh: "",
+					expires: Number.MAX_SAFE_INTEGER,
+				},
+				radius: {
+					type: "oauth",
+					access: "radius-access",
+					refresh: "radius-refresh",
+					expires: Date.now() + 60 * 60_000,
+				},
+			}),
+			modelsPath: null,
+		});
+
+		expect(runtime.isUsingOAuth("anthropic")).toBe(true);
+		expect(runtime.isUsingSubscription("anthropic")).toBe(true);
+		expect(runtime.isUsingOAuth("openrouter")).toBe(true);
+		expect(runtime.isUsingSubscription("openrouter")).toBe(false);
+		expect(runtime.isUsingOAuth("radius")).toBe(true);
+		expect(runtime.isUsingSubscription("radius")).toBe(false);
 	});
 
 	it("constructs an API key method for an extension API-key provider", async () => {
@@ -221,7 +263,7 @@ describe("ModelRuntime auth options", () => {
 		});
 	});
 
-	it("forwards cancellation to extension OAuth refresh", async () => {
+	it("does not cancel an extension OAuth refresh with the request", async () => {
 		const credentials = AuthStorage.inMemory({
 			"extension-oauth": {
 				type: "oauth",
@@ -253,8 +295,8 @@ describe("ModelRuntime auth options", () => {
 		expect(refreshSignal).toBeInstanceOf(AbortSignal);
 		const reason = new Error("cancelled");
 		controller.abort(reason);
-		expect(refreshSignal?.aborted).toBe(true);
-		expect(refreshSignal?.reason).toBe(reason);
+		// A started refresh may already have rotated the refresh token and must be persisted.
+		expect(refreshSignal?.aborted).toBe(false);
 	});
 
 	it("does not fabricate an API key method for an extension OAuth-only provider", async () => {

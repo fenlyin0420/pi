@@ -2,7 +2,7 @@
 
 A virtual model is a selectable model that picks a physical model for each request. Use one to route by task, cost, or conversation state. For example, a router can send quick questions to a small model and hard problems to a large one, while the user selects a single model.
 
-Register virtual models from an [extension](extensions.md). They appear in `--model`, scoped models, and settings like any other model; to reach them through `/model`, match them with an [`enabledModels`](settings.md#model-and-thinking) pattern. A virtual model can be listed under any provider, including one with physical models, such as `openai/gpt-5.6-sol`.
+Register virtual models from an [extension](extensions.md). They appear in `/model`, `--model`, scoped models, and settings like any other model. A virtual model can be listed under any provider, including one with physical models, such as `openai-codex/auto`.
 
 ## Selection and dispatch
 
@@ -24,7 +24,7 @@ Pi keeps the two pairs apart:
 
 Providers only receive physical models. Assistant messages name the physical model, so replaying a conversation across different physical models works the same as after a manual model switch. Resuming a session restores the virtual selection from its latest `model_change` entry. If the virtual model is no longer registered, Pi falls back to the physical model that answered last.
 
-In interactive mode, the footer shows the routed model next to the selection, for example `Auto • high → GPT 5.6 Luna • medium`. `/session` lists the cost for each physical model.
+In interactive mode, the footer shows the routed model next to the selection, using catalog display names, for example `Auto • high → GPT 5.6 Luna • medium`. `/session` lists the cost for each physical model.
 
 Context usage uses the limits of the physical model that produced the latest response, even if that response came before switching to the virtual model. Without such a response, it uses the limits declared on the virtual model, if any. Compaction checks the same limits, and again the limits of the model each request is routed to. If that model's context window is too small for the conversation, Pi compacts before sending the request; the route stays as the router chose it.
 

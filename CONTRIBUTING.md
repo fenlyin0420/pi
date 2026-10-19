@@ -98,5 +98,5 @@ No. It is a guardrail against burnout and tracker spam. Short, concrete, reprodu
 
 ## Where can I learn about plans?
 
-Upstream Pi uses RFCs to discuss larger changes.  Not all of them are public, but
+Earendil uses RFCs to discuss larger changes.  Not all of them are public, but
 quite a few are.  They can be found at [rfc.earendil.com](https://rfc.earendil.com/keyword/pi/).

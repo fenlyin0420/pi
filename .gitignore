@@ -1,4 +1,4 @@
-node_modules/
+node_modules
 dist/
 .artifacts/
 *.log
@@ -20,8 +20,6 @@ packages/ai/src/providers/.model-generation-*/
 .zed/
 .idea/
 .claude/
-.agents/
-.pi/
 *.swp
 *.swo
 *~
@@ -39,9 +37,13 @@ out.jsonl
 pi-*.html
 out.html
 packages/coding-agent/binaries/
+packages/env/bin/
+packages/env/daemon/target/
 todo.md
 plans/
 .pi/hf-sessions/
 .pi/hf-sessions-backup/
+# Fork-local agent memory (fork ledger, project notes); never tracked.
+.agents/
 collect.sh
 packages/agent/docs/extensions/pi-server-artifact/index.md

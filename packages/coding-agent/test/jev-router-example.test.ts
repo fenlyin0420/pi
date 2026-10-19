@@ -48,7 +48,7 @@ describe("jev-router example", () => {
 	/** Runs the example against a faux OpenAI Codex provider and a scripted Jev complexity rating. */
 	async function setup(complex: number, tools: AgentTool[]) {
 		const codex = fauxProvider({
-			provider: "openai",
+			provider: "openai-codex",
 			models: ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"].map((id) => ({ id, reasoning: true })),
 		});
 		const typesafe = createProvider({

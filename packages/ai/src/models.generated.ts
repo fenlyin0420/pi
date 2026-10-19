@@ -4,7 +4,7 @@
 import { AMAZON_BEDROCK_CLASSIFIER_MODELS, AMAZON_BEDROCK_IMAGE_MODELS, AMAZON_BEDROCK_MODELS } from "./providers/amazon-bedrock.models.ts";
 import { ANT_LING_CLASSIFIER_MODELS, ANT_LING_IMAGE_MODELS, ANT_LING_MODELS } from "./providers/ant-ling.models.ts";
 import { ANTHROPIC_CLASSIFIER_MODELS, ANTHROPIC_IMAGE_MODELS, ANTHROPIC_MODELS } from "./providers/anthropic.models.ts";
-import { AZURE_OPENAI_RESPONSES_CLASSIFIER_MODELS, AZURE_OPENAI_RESPONSES_IMAGE_MODELS, AZURE_OPENAI_RESPONSES_MODELS } from "./providers/azure-openai-responses.models.ts";
+import { AZURE_CLASSIFIER_MODELS, AZURE_IMAGE_MODELS, AZURE_MODELS } from "./providers/azure.models.ts";
 import { BASETEN_CLASSIFIER_MODELS, BASETEN_IMAGE_MODELS, BASETEN_MODELS } from "./providers/baseten.models.ts";
 import { CEREBRAS_CLASSIFIER_MODELS, CEREBRAS_IMAGE_MODELS, CEREBRAS_MODELS } from "./providers/cerebras.models.ts";
 import { CLOUDFLARE_AI_GATEWAY_CLASSIFIER_MODELS, CLOUDFLARE_AI_GATEWAY_IMAGE_MODELS, CLOUDFLARE_AI_GATEWAY_MODELS } from "./providers/cloudflare-ai-gateway.models.ts";
@@ -25,6 +25,7 @@ import { MOONSHOTAI_CLASSIFIER_MODELS, MOONSHOTAI_IMAGE_MODELS, MOONSHOTAI_MODEL
 import { MOONSHOTAI_CN_CLASSIFIER_MODELS, MOONSHOTAI_CN_IMAGE_MODELS, MOONSHOTAI_CN_MODELS } from "./providers/moonshotai-cn.models.ts";
 import { NVIDIA_CLASSIFIER_MODELS, NVIDIA_IMAGE_MODELS, NVIDIA_MODELS } from "./providers/nvidia.models.ts";
 import { OPENAI_CLASSIFIER_MODELS, OPENAI_IMAGE_MODELS, OPENAI_MODELS } from "./providers/openai.models.ts";
+import { OPENAI_CODEX_CLASSIFIER_MODELS, OPENAI_CODEX_IMAGE_MODELS, OPENAI_CODEX_MODELS } from "./providers/openai-codex.models.ts";
 import { OPENCODE_CLASSIFIER_MODELS, OPENCODE_IMAGE_MODELS, OPENCODE_MODELS } from "./providers/opencode.models.ts";
 import { OPENCODE_GO_CLASSIFIER_MODELS, OPENCODE_GO_IMAGE_MODELS, OPENCODE_GO_MODELS } from "./providers/opencode-go.models.ts";
 import { OPENROUTER_CLASSIFIER_MODELS, OPENROUTER_IMAGE_MODELS, OPENROUTER_MODELS } from "./providers/openrouter.models.ts";
@@ -47,7 +48,7 @@ export const MODELS: {
 	readonly "amazon-bedrock": typeof AMAZON_BEDROCK_MODELS;
 	readonly "ant-ling": typeof ANT_LING_MODELS;
 	readonly "anthropic": typeof ANTHROPIC_MODELS;
-	readonly "azure-openai-responses": typeof AZURE_OPENAI_RESPONSES_MODELS;
+	readonly "azure": typeof AZURE_MODELS;
 	readonly "baseten": typeof BASETEN_MODELS;
 	readonly "cerebras": typeof CEREBRAS_MODELS;
 	readonly "cloudflare-ai-gateway": typeof CLOUDFLARE_AI_GATEWAY_MODELS;
@@ -68,6 +69,7 @@ export const MODELS: {
 	readonly "moonshotai-cn": typeof MOONSHOTAI_CN_MODELS;
 	readonly "nvidia": typeof NVIDIA_MODELS;
 	readonly "openai": typeof OPENAI_MODELS;
+	readonly "openai-codex": typeof OPENAI_CODEX_MODELS;
 	readonly "opencode": typeof OPENCODE_MODELS;
 	readonly "opencode-go": typeof OPENCODE_GO_MODELS;
 	readonly "openrouter": typeof OPENROUTER_MODELS;
@@ -89,7 +91,7 @@ export const MODELS: {
 	"amazon-bedrock": AMAZON_BEDROCK_MODELS,
 	"ant-ling": ANT_LING_MODELS,
 	"anthropic": ANTHROPIC_MODELS,
-	"azure-openai-responses": AZURE_OPENAI_RESPONSES_MODELS,
+	"azure": AZURE_MODELS,
 	"baseten": BASETEN_MODELS,
 	"cerebras": CEREBRAS_MODELS,
 	"cloudflare-ai-gateway": CLOUDFLARE_AI_GATEWAY_MODELS,
@@ -110,6 +112,7 @@ export const MODELS: {
 	"moonshotai-cn": MOONSHOTAI_CN_MODELS,
 	"nvidia": NVIDIA_MODELS,
 	"openai": OPENAI_MODELS,
+	"openai-codex": OPENAI_CODEX_MODELS,
 	"opencode": OPENCODE_MODELS,
 	"opencode-go": OPENCODE_GO_MODELS,
 	"openrouter": OPENROUTER_MODELS,
@@ -133,7 +136,7 @@ export const IMAGE_MODELS: {
 	readonly "amazon-bedrock": typeof AMAZON_BEDROCK_IMAGE_MODELS;
 	readonly "ant-ling": typeof ANT_LING_IMAGE_MODELS;
 	readonly "anthropic": typeof ANTHROPIC_IMAGE_MODELS;
-	readonly "azure-openai-responses": typeof AZURE_OPENAI_RESPONSES_IMAGE_MODELS;
+	readonly "azure": typeof AZURE_IMAGE_MODELS;
 	readonly "baseten": typeof BASETEN_IMAGE_MODELS;
 	readonly "cerebras": typeof CEREBRAS_IMAGE_MODELS;
 	readonly "cloudflare-ai-gateway": typeof CLOUDFLARE_AI_GATEWAY_IMAGE_MODELS;
@@ -154,6 +157,7 @@ export const IMAGE_MODELS: {
 	readonly "moonshotai-cn": typeof MOONSHOTAI_CN_IMAGE_MODELS;
 	readonly "nvidia": typeof NVIDIA_IMAGE_MODELS;
 	readonly "openai": typeof OPENAI_IMAGE_MODELS;
+	readonly "openai-codex": typeof OPENAI_CODEX_IMAGE_MODELS;
 	readonly "opencode": typeof OPENCODE_IMAGE_MODELS;
 	readonly "opencode-go": typeof OPENCODE_GO_IMAGE_MODELS;
 	readonly "openrouter": typeof OPENROUTER_IMAGE_MODELS;
@@ -175,7 +179,7 @@ export const IMAGE_MODELS: {
 	"amazon-bedrock": AMAZON_BEDROCK_IMAGE_MODELS,
 	"ant-ling": ANT_LING_IMAGE_MODELS,
 	"anthropic": ANTHROPIC_IMAGE_MODELS,
-	"azure-openai-responses": AZURE_OPENAI_RESPONSES_IMAGE_MODELS,
+	"azure": AZURE_IMAGE_MODELS,
 	"baseten": BASETEN_IMAGE_MODELS,
 	"cerebras": CEREBRAS_IMAGE_MODELS,
 	"cloudflare-ai-gateway": CLOUDFLARE_AI_GATEWAY_IMAGE_MODELS,
@@ -196,6 +200,7 @@ export const IMAGE_MODELS: {
 	"moonshotai-cn": MOONSHOTAI_CN_IMAGE_MODELS,
 	"nvidia": NVIDIA_IMAGE_MODELS,
 	"openai": OPENAI_IMAGE_MODELS,
+	"openai-codex": OPENAI_CODEX_IMAGE_MODELS,
 	"opencode": OPENCODE_IMAGE_MODELS,
 	"opencode-go": OPENCODE_GO_IMAGE_MODELS,
 	"openrouter": OPENROUTER_IMAGE_MODELS,
@@ -219,7 +224,7 @@ export const CLASSIFIER_MODELS: {
 	readonly "amazon-bedrock": typeof AMAZON_BEDROCK_CLASSIFIER_MODELS;
 	readonly "ant-ling": typeof ANT_LING_CLASSIFIER_MODELS;
 	readonly "anthropic": typeof ANTHROPIC_CLASSIFIER_MODELS;
-	readonly "azure-openai-responses": typeof AZURE_OPENAI_RESPONSES_CLASSIFIER_MODELS;
+	readonly "azure": typeof AZURE_CLASSIFIER_MODELS;
 	readonly "baseten": typeof BASETEN_CLASSIFIER_MODELS;
 	readonly "cerebras": typeof CEREBRAS_CLASSIFIER_MODELS;
 	readonly "cloudflare-ai-gateway": typeof CLOUDFLARE_AI_GATEWAY_CLASSIFIER_MODELS;
@@ -240,6 +245,7 @@ export const CLASSIFIER_MODELS: {
 	readonly "moonshotai-cn": typeof MOONSHOTAI_CN_CLASSIFIER_MODELS;
 	readonly "nvidia": typeof NVIDIA_CLASSIFIER_MODELS;
 	readonly "openai": typeof OPENAI_CLASSIFIER_MODELS;
+	readonly "openai-codex": typeof OPENAI_CODEX_CLASSIFIER_MODELS;
 	readonly "opencode": typeof OPENCODE_CLASSIFIER_MODELS;
 	readonly "opencode-go": typeof OPENCODE_GO_CLASSIFIER_MODELS;
 	readonly "openrouter": typeof OPENROUTER_CLASSIFIER_MODELS;
@@ -261,7 +267,7 @@ export const CLASSIFIER_MODELS: {
 	"amazon-bedrock": AMAZON_BEDROCK_CLASSIFIER_MODELS,
 	"ant-ling": ANT_LING_CLASSIFIER_MODELS,
 	"anthropic": ANTHROPIC_CLASSIFIER_MODELS,
-	"azure-openai-responses": AZURE_OPENAI_RESPONSES_CLASSIFIER_MODELS,
+	"azure": AZURE_CLASSIFIER_MODELS,
 	"baseten": BASETEN_CLASSIFIER_MODELS,
 	"cerebras": CEREBRAS_CLASSIFIER_MODELS,
 	"cloudflare-ai-gateway": CLOUDFLARE_AI_GATEWAY_CLASSIFIER_MODELS,
@@ -282,6 +288,7 @@ export const CLASSIFIER_MODELS: {
 	"moonshotai-cn": MOONSHOTAI_CN_CLASSIFIER_MODELS,
 	"nvidia": NVIDIA_CLASSIFIER_MODELS,
 	"openai": OPENAI_CLASSIFIER_MODELS,
+	"openai-codex": OPENAI_CODEX_CLASSIFIER_MODELS,
 	"opencode": OPENCODE_CLASSIFIER_MODELS,
 	"opencode-go": OPENCODE_GO_CLASSIFIER_MODELS,
 	"openrouter": OPENROUTER_CLASSIFIER_MODELS,

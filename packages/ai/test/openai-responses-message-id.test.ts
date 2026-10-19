@@ -15,11 +15,11 @@ const usage: Usage = {
 
 describe("OpenAI Responses message ID conversion", () => {
 	it("generates unique fallback message IDs for multiple text blocks in one assistant turn", () => {
-		const model = getModel("openai", "gpt-5.5");
+		const model = getModel("openai-codex", "gpt-5.5");
 		const assistant: AssistantMessage = {
 			role: "assistant",
 			content: [
-				{ type: "thinking", thinking: "private reasoning" },
+				{ type: "text", text: "first answer" },
 				{ type: "text", text: "visible answer" },
 			],
 			api: "anthropic-messages",
@@ -34,7 +34,7 @@ describe("OpenAI Responses message ID conversion", () => {
 			messages: [{ role: "user", content: "hello", timestamp: Date.now() - 2000 }, assistant],
 		});
 
-		const input = convertResponsesMessages(model, context, new Set(["openai", "openai", "opencode"]));
+		const input = convertResponsesMessages(model, context, new Set(["openai", "openai-codex", "opencode"]));
 		const messageIds = input
 			.filter(
 				(item): item is ResponseOutputMessage =>

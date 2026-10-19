@@ -1,4 +1,6 @@
 import { anthropicMessagesApi } from "../api/anthropic-messages.lazy.ts";
+import { lazyOAuth } from "../auth/helpers.ts";
+import { loadAnthropicOAuth } from "../auth/oauth/load.ts";
 import type { ApiKeyAuth } from "../auth/types.ts";
 import {
 	ANTHROPIC_API_KEY_ENV,
@@ -76,6 +78,11 @@ export function anthropicProvider(): Provider<"anthropic-messages"> {
 		baseUrl: "https://api.anthropic.com",
 		auth: {
 			apiKey: anthropicApiKeyAuth(),
+			oauth: lazyOAuth({
+				name: "Anthropic (Claude Pro/Max)",
+				isSubscription: true,
+				load: loadAnthropicOAuth,
+			}),
 		},
 		models: Object.values(ANTHROPIC_MODELS),
 		api: anthropicMessagesApi(),

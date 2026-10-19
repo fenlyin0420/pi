@@ -42,28 +42,12 @@
 
 ## Dependency and Install Security
 
-- Treat npm dep and lockfile changes as reviewed code. Direct external deps stay pinned to exact versions.
+- Treat npm dep and lockfile changes as reviewed code. Direct registry deps, including internal workspace deps, stay pinned to exact versions.
 - When updating `undici`, you MUST read its changelog/release notes for the target version and evaluate whether any changes may affect functionality before applying the update.
 - Hydrate/update locally with `npm install --ignore-scripts`; clean/CI-style with `npm ci --ignore-scripts`. Don't run lifecycle scripts unless the user asks.
 - If dep metadata changes, refresh `package-lock.json` with `npm install --package-lock-only --ignore-scripts`.
 - If `packages/coding-agent/install-lock/` needs regen, run `node scripts/generate-coding-agent-install-lock.mjs` (verify with `--check` or `npm run check`). New deps with lifecycle scripts require review and an explicit allowlist entry in that script; never add one silently.
 - Pre-commit blocks lockfile commits unless `PI_ALLOW_LOCKFILE_CHANGE=1`. Don't bypass unless the user wants the lockfile change committed.
-
-## Fork Customization
-
-This repo is a fork of `upstream` (`earendil-works/pi`). `main` mirrors upstream verbatim and must stay
-code-free; all custom work lands on `dev`, single-purpose work on `feat/xxx`.
-
-- Upstream source files are never left in a modified state to express "I don't want this feature" —
-  unwanted features are **deleted outright**, along with their entry points. Read the fork convention
-  `~/.agents/skills/dev-workflow/FORKING.md` (bundled with the dev-workflow skill) in full before
-  touching anything: it defines the branch model, the delete-don't-hide boundary (implementations
-  and entry points go, type surface and on-disk credential formats stay), how to measure whether an edit
-  site is safe, and the upstream-sync procedure.
-- Keep the fork ledger (`.agents/memory/`, local-only) current: every upstream feature you re-implement
-  rather than merge gets a row, every deletion gets its measured cost and a re-check date.
-- Global convention: `~/.agents/skills/dev-workflow/SKILL.md` (fork section plus its bundled
-  `FORKING.md`). This repo settled on source deletion instead of a dist-layer carrier.
 
 ## Git
 
@@ -113,7 +97,7 @@ When closing issues via commit:
 
 ## Testing pi Interactive Mode with tmux
 
-For testing pi's interactive mode, load the `pi-tui-testing` skill.
+For testing pi's interactive mode, load and follow [.pi/skills/interactive-testing.md](.pi/skills/interactive-testing.md).
 
 ## Changelog
 
@@ -134,7 +118,7 @@ Attribution:
 
 ## Releasing
 
-For release preparation, publishing, verification, or recovery, load the `pi-release` skill.
+For release preparation, publishing, verification, or recovery, load and follow [.pi/skills/release.md](.pi/skills/release.md).
 
 ## User Override
 

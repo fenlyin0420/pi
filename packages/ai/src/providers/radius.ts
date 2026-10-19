@@ -1,10 +1,12 @@
 import { piMessagesApi } from "../api/pi-messages.lazy.ts";
-import { envApiKeyAuth } from "../auth/helpers.ts";
+import { envApiKeyAuth, lazyOAuth } from "../auth/helpers.ts";
+import { loadRadiusOAuth } from "../auth/oauth/load.ts";
 import type { Provider } from "../models.ts";
 import type { Model } from "../types.ts";
 import { RADIUS_MODELS } from "./radius.models.ts";
 import {
 	DEFAULT_RADIUS_GATEWAY,
+	getRadiusModels,
 	getRadiusModelsFromConfig,
 	loadRadiusGatewayConfig,
 	normalizeRadiusGatewayUrl,
@@ -25,7 +27,9 @@ export function radiusProvider(options: RadiusProviderOptions = {}): Provider<"p
 		gateway === normalizeRadiusGatewayUrl(DEFAULT_RADIUS_GATEWAY)
 			? Object.values(RADIUS_MODELS).map((model) => ({ ...model, provider: id }))
 			: [];
-	let dynamicModels: Model<"pi-messages">[] = [];
+	// Gateway catalog for this account. Radius org owners can disable models, so once known it replaces
+	// the shipped baseline instead of overlaying it. The baseline only covers the time before any catalog exists.
+	let dynamicModels: Model<"pi-messages">[] | undefined;
 	const streams = piMessagesApi();
 
 	return {
@@ -33,20 +37,13 @@ export function radiusProvider(options: RadiusProviderOptions = {}): Provider<"p
 		name,
 		auth: {
 			apiKey: envApiKeyAuth("Radius API key", ["RADIUS_API_KEY"]),
+			oauth: lazyOAuth({ name, load: () => loadRadiusOAuth({ name, gateway }) }),
 		},
-		getModels: () => {
-			const merged = [...baselineModels];
-			for (const model of dynamicModels) {
-				const index = merged.findIndex((entry) => entry.id === model.id);
-				if (index >= 0) merged[index] = model;
-				else merged.push(model);
-			}
-			return merged;
-		},
+		getModels: () => dynamicModels ?? baselineModels,
 		refreshModels: async (context) => {
 			const stored = context.stored;
 			if (stored) {
-				const restored = stored.models.filter((model) => model.provider === id) as typeof dynamicModels;
+				const restored = stored.models.filter((model) => model.provider === id) as Model<"pi-messages">[];
 				if (
 					!(await context.publish({
 						update: () => {
@@ -58,8 +55,25 @@ export function radiusProvider(options: RadiusProviderOptions = {}): Provider<"p
 				}
 			}
 
+			// Import catalogs cached by the pre-ModelsStore Radius implementation.
+			if (!stored && context.credential?.type === "oauth") {
+				const legacy = getRadiusModels(id, context.credential);
+				if (legacy.length > 0) {
+					if (
+						!(await context.publish({
+							persist: { models: legacy, checkedAt: Date.now() },
+							update: () => {
+								dynamicModels = legacy;
+							},
+						}))
+					) {
+						return;
+					}
+				}
+			}
+
 			if (!context.allowNetwork || context.signal.aborted) return;
-			const apiKey = context.credential?.type === "api_key" ? context.credential.key : undefined;
+			const apiKey = context.credential?.type === "oauth" ? context.credential.access : context.credential?.key;
 			const config = await loadRadiusGatewayConfig(gateway, apiKey, context.signal);
 			if (context.signal.aborted) return;
 			const refreshed = getRadiusModelsFromConfig(id, config);

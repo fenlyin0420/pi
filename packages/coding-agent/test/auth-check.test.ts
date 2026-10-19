@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { InMemoryModelsStore } from "@earendil-works/pi-ai";
-import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { parseArgs } from "../src/cli/args.ts";
 import { checkProviderAuth, createAuthCheckModelRuntime, getProviderCredential } from "../src/cli/auth-check.ts";
 import { parseAuthCommand } from "../src/cli/auth-command.ts";
@@ -54,12 +54,49 @@ describe("auth check command", () => {
 		).resolves.toMatchObject({ status: "ready", provider: "openai" });
 	});
 
-	test("reads credentials without refreshing when requested", async () => {
+	test("reads credentials without refreshing OAuth when requested", async () => {
 		const apiCredentials = AuthStorage.inMemory({ openai: { type: "api_key", key: "test-key" } });
 		const apiRuntime = await createRuntime(apiCredentials);
 		await expect(getProviderCredential("openai", apiRuntime, apiCredentials, { refresh: false })).resolves.toBe(
 			"test-key",
 		);
+
+		const credentials = AuthStorage.inMemory({
+			"openai-codex": { type: "oauth", access: "old-token", refresh: "refresh-token", expires: 0 },
+		});
+		const oauthRuntime = await createRuntime(credentials);
+		const oauth = oauthRuntime.getProvider("openai-codex")?.auth.oauth;
+		if (!oauth) throw new Error("OpenAI Codex OAuth provider is not registered");
+		const refresh = vi.fn(oauth.refresh);
+		oauth.refresh = refresh;
+
+		await expect(getProviderCredential("openai-codex", oauthRuntime, credentials, { refresh: false })).resolves.toBe(
+			"old-token",
+		);
+		expect(refresh).not.toHaveBeenCalled();
+	});
+
+	test("refreshes OAuth by default", async () => {
+		const credentials = AuthStorage.inMemory({
+			"openai-codex": { type: "oauth", access: "old-token", refresh: "refresh-token", expires: 0 },
+		});
+		const runtime = await createRuntime(credentials);
+		const oauth = runtime.getProvider("openai-codex")?.auth.oauth;
+		if (!oauth) throw new Error("OpenAI Codex OAuth provider is not registered");
+		const refresh = vi.fn(async () => ({
+			type: "oauth" as const,
+			access: "fresh-token",
+			refresh: "refresh-token",
+			expires: Date.now() + 60 * 60 * 1000,
+		}));
+		oauth.refresh = refresh;
+
+		await expect(
+			checkProviderAuth(parseArgs(["--provider", "openai-codex"]), runtime, { refresh: true }),
+		).resolves.toMatchObject({
+			status: "ready",
+		});
+		expect(refresh).toHaveBeenCalledOnce();
 	});
 
 	test("reports an unknown provider as not ready", async () => {

@@ -1,7 +1,6 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Model } from "@earendil-works/pi-ai";
 import { setKeybindings, type TUI } from "@earendil-works/pi-tui";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { AuthStorage } from "../../../src/core/auth-storage.ts";
@@ -28,22 +27,17 @@ function observeRefreshRender(): { tui: TUI; renderedAfterRefresh: Promise<void>
 	};
 }
 
-function modelsJson(provider: string, model: string, name: string): Record<string, unknown> {
+function modelsJson(provider: string, model: string): Record<string, unknown> {
 	return {
 		providers: {
 			[provider]: {
 				baseUrl: "https://example.test/v1",
 				api: "openai-completions",
 				apiKey: "test-key",
-				models: [{ id: model, name }],
+				models: [{ id: model }],
 			},
 		},
 	};
-}
-
-/** Minimal scope entry; the component re-resolves the real model from the runtime. */
-function scopedEntry(provider: string, id: string): { model: Model<string> } {
-	return { model: { provider, id, name: id } as unknown as Model<string> };
 }
 
 describe("issue #6999 models.json hot reload", () => {
@@ -65,24 +59,24 @@ describe("issue #6999 models.json hot reload", () => {
 	it("reloads models.json when opening /model", async () => {
 		tempDir = mkdtempSync(join(tmpdir(), "pi-models-json-hot-reload-"));
 		const modelsPath = join(tempDir, "models.json");
-		writeFileSync(modelsPath, JSON.stringify(modelsJson("reload-provider", "reload-model", "Old Name")));
+		writeFileSync(modelsPath, JSON.stringify(modelsJson("old-provider", "old-model")));
 		const modelRuntime = getModelRuntime(await createModelRegistry(AuthStorage.inMemory(), modelsPath));
-		expect(modelRuntime.getModel("reload-provider", "reload-model")).toBeDefined();
+		expect(modelRuntime.getModel("old-provider", "old-model")).toBeDefined();
 
-		writeFileSync(modelsPath, JSON.stringify(modelsJson("reload-provider", "reload-model", "New Name")));
+		writeFileSync(modelsPath, JSON.stringify(modelsJson("new-provider", "new-model")));
 		const { tui, renderedAfterRefresh } = observeRefreshRender();
 		const selector = new ModelSelectorComponent(
 			tui,
 			undefined,
 			modelRuntime,
-			[scopedEntry("reload-provider", "reload-model")],
+			[],
 			() => {},
 			() => {},
 		);
 
 		await renderedAfterRefresh;
 		const rendered = stripAnsi(selector.render(120).join("\n"));
-		expect(rendered).toContain("New Name [reload-provider]");
-		expect(rendered).not.toContain("Old Name");
+		expect(rendered).toContain("new-model [new-provider]");
+		expect(rendered).not.toContain("old-model [old-provider]");
 	});
 });

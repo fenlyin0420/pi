@@ -24,12 +24,68 @@ describe("credential print commands", () => {
 		await expect(resolveCredentialForPrint(args, runtime, "api_key")).resolves.toBe("test-api-key");
 	});
 
+	test("resolves --model without --provider only among catalog models of configured providers", async () => {
+		const runtime = await createRuntime(
+			AuthStorage.inMemory({
+				openai: { type: "api_key", key: "openai-test-key" },
+				anthropic: { type: "api_key", key: "anthropic-test-key" },
+			}),
+		);
+
+		// anthropic has no gpt-5.5; an uncatalogued id on a configured provider must not count as a match.
+		await expect(resolveCredentialForPrint(parseArgs(["--model", "gpt-5.5"]), runtime, "api_key")).resolves.toBe(
+			"openai-test-key",
+		);
+	});
+
+	test("prints bearer tokens resolved from an Authorization header", async () => {
+		const runtime = await createRuntime(
+			AuthStorage.inMemory({
+				"kimi-coding": {
+					type: "oauth",
+					access: "header-test-token",
+					refresh: "test-refresh-token",
+					expires: Date.now() + 60 * 60 * 1000,
+				},
+			}),
+		);
+		const args = parseArgs(["--provider", "kimi-coding"]);
+
+		await expect(resolveCredentialForPrint(args, runtime, "bearer_token")).resolves.toBe("header-test-token");
+	});
+
+	test("refreshes an expired OAuth token before printing it", async () => {
+		const storage = AuthStorage.inMemory({
+			"openai-codex": {
+				type: "oauth",
+				access: "old-test-token",
+				refresh: "test-refresh-token",
+				expires: 0,
+			},
+		});
+		const runtime = await createRuntime(storage);
+		const refresh = vi.fn(async () => ({
+			type: "oauth" as const,
+			access: "fresh-test-token",
+			refresh: "test-refresh-token",
+			expires: Date.now() + 60 * 60 * 1000,
+		}));
+		const oauth = runtime.getProvider("openai-codex")?.auth.oauth;
+		if (!oauth) throw new Error("OpenAI Codex OAuth provider is not registered");
+		oauth.refresh = refresh;
+		const args = parseArgs(["--provider", "openai-codex"]);
+
+		await expect(resolveCredentialForPrint(args, runtime, "bearer_token")).resolves.toBe("fresh-test-token");
+		expect(refresh).toHaveBeenCalledOnce();
+		expect(await storage.read("openai-codex")).toMatchObject({ access: "fresh-test-token" });
+	});
+
 	test("reports unknown auth options like package commands", async () => {
 		const originalExitCode = process.exitCode;
 		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 		try {
 			process.exitCode = undefined;
-			await main(["auth", "check", "--provider", "openai", "--credentails"]);
+			await main(["auth", "check", "--provider", "openai-codex", "--credentails"]);
 			const stderr = errorSpy.mock.calls.map(([message]) => String(message)).join("\n");
 			expect(stderr).toContain('Unknown option --credentails for "auth check".');
 			expect(stderr).toContain(
@@ -45,7 +101,7 @@ describe("credential print commands", () => {
 	test("parses credential commands and rejects invalid arguments or credential types", async () => {
 		const runtime = await createRuntime(
 			AuthStorage.inMemory({
-				openai: {
+				"openai-codex": {
 					type: "oauth",
 					access: "test-token-not-to-be-printed",
 					refresh: "test-refresh-token",
@@ -81,8 +137,8 @@ describe("credential print commands", () => {
 		await expect(resolveCredentialForPrint(parseArgs([]), runtime, "api_key")).rejects.toThrow(
 			"requires --provider <provider> or --model <model>",
 		);
-		await expect(resolveCredentialForPrint(parseArgs(["--provider", "openai"]), runtime, "api_key")).rejects.toThrow(
-			"configured with OAuth",
-		);
+		await expect(
+			resolveCredentialForPrint(parseArgs(["--provider", "openai-codex"]), runtime, "api_key"),
+		).rejects.toThrow("configured with OAuth");
 	});
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { streamSimple as streamSimpleOpenAICodexResponses } from "../src/api/openai-codex-responses.ts";
-import { clampThinkingLevel, getSupportedThinkingLevels, normalizeContext } from "../src/compat.ts";
+import { clampThinkingLevel, getModel, getSupportedThinkingLevels, normalizeContext } from "../src/compat.ts";
 import type { Model } from "../src/types.ts";
 
 function mockToken(): string {
@@ -30,6 +30,24 @@ describe("max thinking level", () => {
 		expect(clampThinkingLevel(model, "max")).toBe("high");
 	});
 
+	it.each(["gpt-5.6-luna", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-6-luna", "gpt-6-sol"] as const)(
+		"exposes xhigh and max for openai-codex/%s",
+		(modelId) => {
+			const model = getModel("openai-codex", modelId);
+			expect(model).toBeDefined();
+			expect(model?.thinkingLevelMap).toMatchObject({ xhigh: "xhigh", max: "max" });
+			expect(getSupportedThinkingLevels(model!)).toEqual([
+				"off",
+				"minimal",
+				"low",
+				"medium",
+				"high",
+				"xhigh",
+				"max",
+			]);
+		},
+	);
+
 	it("supports a hole between high and max", () => {
 		const model: Model<"openai-completions"> = {
 			id: "high-and-max",
@@ -52,29 +70,7 @@ describe("max thinking level", () => {
 	it.each(["gpt-5.6-sol", "gpt-6-astra", "gpt-6-sol", "gpt-6-luna", "gpt-6.1-sol"] as const)(
 		"sends max to the Codex Responses API for %s",
 		async (modelId) => {
-			// The openai-codex provider is gone, so the Codex Responses API is
-			// exercised through an inline model rather than a catalog lookup.
-			const model: Model<"openai-codex-responses"> = {
-				id: modelId,
-				name: modelId,
-				api: "openai-codex-responses",
-				provider: "openai-codex",
-				baseUrl: "https://chatgpt.com/backend-api",
-				reasoning: true,
-				thinkingLevelMap: {
-					off: "none",
-					minimal: null,
-					low: "low",
-					medium: "medium",
-					high: "high",
-					xhigh: "xhigh",
-					max: "max",
-				},
-				input: ["text", "image"],
-				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-				contextWindow: 272000,
-				maxTokens: 128000,
-			};
+			const model = getModel("openai-codex", modelId)!;
 			const context = normalizeContext({
 				systemPrompt: "You are a helpful assistant.",
 				messages: [{ role: "user", content: "Hello", timestamp: Date.now() }],

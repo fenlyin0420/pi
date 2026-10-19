@@ -13,7 +13,7 @@
  * ```json
  * {
  *   "plan": {
- *     "provider": "openai",
+ *     "provider": "openai-codex",
  *     "model": "gpt-5.2-codex",
  *     "thinkingLevel": "high",
  *     "tools": ["read", "grep", "find", "ls"],

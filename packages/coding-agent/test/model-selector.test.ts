@@ -75,47 +75,6 @@ describe("model selector", () => {
 		selector.dispose();
 	});
 
-	it("lists only the scoped models, never the rest of the catalog", async () => {
-		harness = await createHarness({
-			models: [
-				{ id: "in-scope", name: "In Scope" },
-				{ id: "out-of-scope", name: "Out Of Scope" },
-			],
-		});
-		const inScope = harness.getModel("in-scope")!;
-		const selector = new ModelSelectorComponent(
-			createFakeTui(),
-			inScope,
-			harness.session.modelRuntime,
-			[{ model: inScope }],
-			() => {},
-			() => {},
-		);
-
-		const rendered = stripAnsi(selector.render(120).join("\n"));
-		expect(rendered).toContain("In Scope [");
-		expect(rendered).not.toContain("Out Of Scope");
-		selector.dispose();
-	});
-
-	it("points at enabledModels instead of listing the catalog when the scope is empty", async () => {
-		harness = await createHarness({ models: [{ id: "available", name: "Available" }] });
-		const selector = new ModelSelectorComponent(
-			createFakeTui(),
-			harness.getModel("available"),
-			harness.session.modelRuntime,
-			[],
-			() => {},
-			() => {},
-		);
-
-		const rendered = stripAnsi(selector.render(120).join("\n"));
-		expect(rendered).toContain('Set "enabledModels" in settings.json');
-		expect(rendered).toContain("No models in scope");
-		expect(rendered).not.toContain("Available [");
-		selector.dispose();
-	});
-
 	it("uses the configured save binding", async () => {
 		setKeybindings(new KeybindingsManager({ "app.models.save": "ctrl+r" }));
 		harness = await createHarness();
