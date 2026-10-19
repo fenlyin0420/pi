@@ -12,9 +12,9 @@ Add `"$schema": "https://pi.dev/schemas/settings.schema.json"` to `settings.json
 |---|---|---|---|
 | `defaultProvider` | string | Automatic | Startup AI provider. |
 | `defaultModel` | string | Automatic | Startup model ID. |
-| `defaultThinkingLevel` | `"off" \| "auto" \| "minimal" \| "low" \| "medium" \| "high" \| "xhigh" \| "max"` | `"auto"` | Startup thinking level. `"auto"` lets Pi pick the level per request based on task complexity. |
+| `defaultThinkingLevel` | `"off" \| "auto" \| "minimal" \| "low" \| "medium" \| "high" \| "xhigh" \| "max"` | `"auto"` | Startup thinking level. `"auto"` lets Pi pick a concrete level per user turn based on task complexity. The level is stable within a user turn; for models that render the level into the prompt (chat-template configs with a `thinking.effort` binding) it is pinned for the session, because a level change there rewrites the prompt prefix and invalidates the provider's KV cache. |
 | `modelThinkingLevels` | object | None | Per-model startup thinking levels keyed by exact `provider/modelId`. |
-| `autoThinkingClassifier` | string | None | `"provider/modelId"` of a cheap model used to classify task complexity for the `"auto"` thinking level. A deterministic heuristic is used when this is unset or the classifier call fails or times out. |
+| `autoThinkingClassifier` | string | None | `"provider/modelId"` of a cheap model used to classify task complexity for the `"auto"` thinking level, once per user turn. A deterministic heuristic is used when this is unset or the classifier call fails or times out. |
 | `autoThinkingClassifierTimeoutMs` | number | 6000 | Upper bound in milliseconds for the auto thinking classifier call before falling back to the heuristic. |
 | `thinkingBudgets` | object | Built-in budgets | Token budgets for `minimal`, `low`, `medium`, and `high` thinking levels. |
 | `enabledModels` | `string[]` | All available models | Model patterns used for startup selection and model cycling. Uses the same format as `--models`. |
@@ -102,6 +102,7 @@ See [Compaction Reference](compaction.md) for trigger, summarization, and valida
 | `fullscreenCopyOnSelect` | boolean | `true` | Copy selected text automatically in fullscreen mode. |
 | `fullscreenWheelScrollLines` | `"auto"` \| number | `"auto"` | Lines per mouse-wheel event in fullscreen mode, from 1 to 100. `"auto"` moves one line per event in local macOS terminals, which already accelerate wheel and trackpad input; elsewhere, and over SSH, it speeds up fast wheel spins to at most 6 lines per event. Alt+wheel moves five times as far. |
 | `editorPaddingX` | number | `0` | Horizontal editor padding from 0 to 3 cells. |
+| `editorMode` | `"emacs" \| "vim"` | `"emacs"` | Input editor key mode. `"vim"` runs a normal/insert modal editor and adds `j`/`k` to pickers. See [Vim mode](vim-mode.md). |
 | `outputPad` | `0 \| 1` | `1` | Horizontal transcript padding for messages, tool output, `!` command output, and summary blocks. |
 | `autocompleteMaxVisible` | number | `5` | Visible autocomplete entries, from 3 to 20. |
 | `showHardwareCursor` | boolean | `false` | Use the terminal cursor instead of Pi's drawn cursor. Pi still positions it for input methods. |

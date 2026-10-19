@@ -5,7 +5,7 @@ import {
 	resolveAutoThinkingLevel,
 	resolveAutoThinkingLevelHeuristic,
 } from "../src/auto-thinking.ts";
-import { clampThinkingLevel, hasNativeAutoThinking } from "../src/models.ts";
+import { clampThinkingLevel, hasNativeAutoThinking, isThinkingLevelEmbeddedInPrompt } from "../src/models.ts";
 import type { AssistantMessage, AssistantMessageEventStream, Model } from "../src/types.ts";
 
 function makeModel(overrides: Partial<Model<"openai-completions">> = {}): Model<"openai-completions"> {
@@ -73,6 +73,47 @@ describe("thinking level auto support", () => {
 
 	it("clamps auto to off for non-reasoning models", () => {
 		expect(clampThinkingLevel(makeModel({ reasoning: false }), "auto")).toBe("off");
+	});
+});
+
+describe("isThinkingLevelEmbeddedInPrompt", () => {
+	it("detects chat-template kwargs bound to thinking.effort", () => {
+		const model = makeModel({
+			compat: {
+				chatTemplateKwargs: {
+					enable_thinking: { $var: "thinking.enabled" },
+					preserve_thinking: true,
+					reasoning_effort: { $var: "thinking.effort" },
+				},
+			},
+		});
+		expect(isThinkingLevelEmbeddedInPrompt(model)).toBe(true);
+	});
+
+	it("detects baseten chat-template args bound to thinking.effort", () => {
+		const model = makeModel({
+			compat: { chatTemplateArgs: { effort: { $var: "thinking.effort" } } },
+		});
+		expect(isThinkingLevelEmbeddedInPrompt(model)).toBe(true);
+	});
+
+	it("ignores kwargs that never change with the level", () => {
+		const model = makeModel({
+			compat: {
+				chatTemplateKwargs: {
+					enable_thinking: { $var: "thinking.enabled" },
+					budget: { $var: "thinking.budget" },
+					preserve_thinking: true,
+				},
+			},
+		});
+		expect(isThinkingLevelEmbeddedInPrompt(model)).toBe(false);
+	});
+
+	it("returns false without compat or with wire-parameter thinking formats", () => {
+		expect(isThinkingLevelEmbeddedInPrompt(makeModel())).toBe(false);
+		const wireParam = makeModel({ compat: { supportsReasoningEffort: true } });
+		expect(isThinkingLevelEmbeddedInPrompt(wireParam)).toBe(false);
 	});
 });
 
