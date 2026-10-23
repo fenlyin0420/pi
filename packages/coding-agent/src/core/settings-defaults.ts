@@ -25,6 +25,8 @@ export const SETTINGS_DEFAULTS = {
 		},
 	},
 	hideThinkingBlock: false,
+	enableWriteClassifier: true,
+	writeClassifierTimeoutMs: 10000,
 	showCacheMissNotices: false,
 	quietStartup: false,
 	defaultProjectTrust: "ask",

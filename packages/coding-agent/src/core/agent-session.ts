@@ -163,6 +163,19 @@ import {
 	VIRTUAL_MODEL_STATE_ENTRY,
 	type VirtualModelStateData,
 } from "./virtual-models.ts";
+import {
+	classifyWriteLocally,
+	classifyWriteWithModel,
+	MAX_CONCURRENT_WRITE_CLASSIFIER_CALLS,
+	MAX_WRITE_CLASSIFIER_CACHE_ENTRIES,
+	readWriteVerdictEntry,
+	WRITE_VERDICT_ENTRY_TYPE,
+	type WriteClassificationInput,
+	type WriteClassifierModel,
+	type WriteVerdict,
+	type WriteVerdictSource,
+	writeClassifierCacheKey,
+} from "./write-classifier.ts";
 
 // ============================================================================
 // Skill Block Parsing
@@ -240,7 +253,14 @@ export type AgentSessionEvent =
 			reason: "manual" | "threshold" | "overflow";
 	  }
 	| { type: "summarization_retry_finished" }
-	| { type: "bash_execution_update"; id?: string; delta: string };
+	| { type: "bash_execution_update"; id?: string; delta: string }
+	| {
+			/** A tool call's write-operation verdict, for marking rows the transcript redraws. */
+			type: "tool_write_verdict";
+			toolCallId: string;
+			write: boolean;
+			source: WriteVerdictSource;
+	  };
 
 /** Listener function for agent session events */
 export type AgentSessionEventListener = (event: AgentSessionEvent) => void;
@@ -482,6 +502,16 @@ export class AgentSession {
 	// invalidates the provider's KV cache, so the level is pinned for the session.
 	private _autoStickyLevel: ThinkingLevel | undefined;
 	private _autoStickyForModelId: string | undefined;
+
+	// Write-operation verdicts by tool call ID, the model answers reused across calls, and how many
+	// classifier calls are currently running.
+	private _writeVerdicts = new Map<string, WriteVerdict>();
+	private _writeClassifierCache = new Map<string, boolean>();
+	private _writeClassifierInFlight = 0;
+	/** Aborts classifier calls that outlive the session. */
+	private readonly _writeClassifierAbort = new AbortController();
+	/** Verdicts persisted on the branch, rebuilt when the branch changes. */
+	private _writeVerdictIndex: Map<string, WriteVerdict> | undefined;
 
 	// Tool registry for extension getTools/setTools
 	private _toolRegistry: Map<string, AgentTool> = new Map();
@@ -1126,6 +1156,11 @@ export class AgentSession {
 
 	/** Internal handler for agent events - shared by subscribe and reconnect */
 	private _handleAgentEvent = async (event: AgentEvent): Promise<void> => {
+		// Kick off the write-operation verdict as soon as a call starts, so the row can be marked while
+		// the tool still runs. The classification never blocks the tool.
+		if (event.type === "tool_execution_start") {
+			this._startWriteClassification(event.toolCallId, event.toolName, event.args);
+		}
 		// An abort requested while the run was starting, e.g. during before_agent_start, stops it
 		// here. agent_start is awaited before the first request.
 		if (event.type === "agent_start" && this._agentRunAbortRequested) this.agent.abort();
@@ -1442,6 +1477,7 @@ export class AgentSession {
 			this.abortCompaction();
 			this.abortBranchSummary();
 			this.abortBash();
+			this._writeClassifierAbort.abort();
 			this.agent.abort();
 		} catch {
 			// Dispose must succeed even if an abort hook throws.
@@ -2834,6 +2870,135 @@ export class AgentSession {
 				apiKey: resolution.auth.apiKey,
 				headers: resolution.auth.headers,
 				timeoutMs: this.settingsManager.getAutoThinkingClassifierTimeoutMs(),
+			};
+		} catch {
+			return undefined;
+		}
+	}
+
+	/** Whether a tool call writes, once the write classifier has decided. */
+	getWriteVerdict(toolCallId: string): WriteVerdict | undefined {
+		return this._writeVerdicts.get(toolCallId) ?? this._persistedWriteVerdicts().get(toolCallId);
+	}
+
+	/** Verdicts a resumed or replayed session carries, so its rows keep their marker. */
+	private _persistedWriteVerdicts(): Map<string, WriteVerdict> {
+		if (!this._writeVerdictIndex) {
+			const index = new Map<string, WriteVerdict>();
+			for (const entry of this.sessionManager.getBranch()) {
+				if (entry.type !== "custom" || entry.customType !== WRITE_VERDICT_ENTRY_TYPE) continue;
+				const data = readWriteVerdictEntry(entry.data);
+				if (data) index.set(data.toolCallId, { write: true, source: data.source });
+			}
+			this._writeVerdictIndex = index;
+		}
+		return this._writeVerdictIndex;
+	}
+
+	/**
+	 * Decide whether a tool call writes, so the transcript can mark it. Local rules answer immediately;
+	 * a call they cannot decide goes to the write classifier model, which never delays execution.
+	 */
+	private _startWriteClassification(toolCallId: string, toolName: string, args: unknown): void {
+		// A reused id must start undecided, or the previous call's verdict sticks to the new row.
+		this._writeVerdicts.delete(toolCallId);
+		if (!this.settingsManager.getEnableWriteClassifier()) return;
+		const annotations = this.getToolDefinition(toolName)?.annotations;
+		const input: WriteClassificationInput = {
+			toolName,
+			args,
+			...(annotations
+				? { readOnlyHint: annotations.readOnlyHint, destructiveHint: annotations.destructiveHint }
+				: {}),
+		};
+		const local = classifyWriteLocally(input);
+		if (local) {
+			this._recordWriteVerdict(toolCallId, local);
+			return;
+		}
+		const cacheKey = writeClassifierCacheKey(input);
+		const cached = this._writeClassifierCache.get(cacheKey);
+		if (cached !== undefined) {
+			this._recordWriteVerdict(toolCallId, { write: cached, source: "classifier" });
+			return;
+		}
+		// Tool calls of one batch can all need the model; running them all at once costs latency without
+		// adding information, so extra calls stay unmarked.
+		if (this._writeClassifierInFlight >= MAX_CONCURRENT_WRITE_CLASSIFIER_CALLS) return;
+		void this._classifyWriteWithModel(toolCallId, input, cacheKey).catch(() => undefined);
+	}
+
+	private async _classifyWriteWithModel(
+		toolCallId: string,
+		input: WriteClassificationInput,
+		cacheKey: string,
+	): Promise<void> {
+		this._writeClassifierInFlight++;
+		try {
+			const classifier = await this._buildWriteClassifier(this._writeClassifierAbort.signal);
+			if (!classifier) return;
+			const write = await classifyWriteWithModel(classifier, input, this._writeClassifierAbort.signal);
+			if (write === undefined) return;
+			if (this._writeClassifierCache.size >= MAX_WRITE_CLASSIFIER_CACHE_ENTRIES) {
+				const oldest = this._writeClassifierCache.keys().next();
+				if (!oldest.done) this._writeClassifierCache.delete(oldest.value);
+			}
+			this._writeClassifierCache.set(cacheKey, write);
+			this._recordWriteVerdict(toolCallId, { write, source: "classifier" });
+		} finally {
+			this._writeClassifierInFlight--;
+		}
+	}
+
+	private _recordWriteVerdict(toolCallId: string, verdict: WriteVerdict): void {
+		this._writeVerdicts.set(toolCallId, verdict);
+		if (verdict.write) {
+			// Persisted marks survive a resume, a replayed transcript, and the phone's re-sync.
+			const entryId = this.sessionManager.appendCustomEntry(WRITE_VERDICT_ENTRY_TYPE, {
+				toolCallId,
+				source: verdict.source,
+			});
+			this._writeVerdictIndex?.set(toolCallId, verdict);
+			const entry = this.sessionManager.getEntry(entryId);
+			if (entry) this._emit({ type: "entry_appended", entry });
+		}
+		if (process.env.PI_DEBUG_WRITE_CLASSIFIER) {
+			console.error(`[write-classifier] ${toolCallId}: ${verdict.write} (${verdict.source})`);
+		}
+		const event = { type: "tool_write_verdict", toolCallId, write: verdict.write, source: verdict.source } as const;
+		void this._extensionRunner.emit(event);
+		this._emit(event);
+	}
+
+	/** The classifier model: the setting, then the default model, then the session model. */
+	private _writeClassifierModelSpec(): string | undefined {
+		const configured = this.settingsManager.getWriteClassifierModel()?.trim();
+		if (configured) return configured;
+		const provider = this.settingsManager.getDefaultProvider();
+		const modelId = this.settingsManager.getDefaultModel();
+		if (provider && modelId) return `${provider}/${modelId}`;
+		const current = this.model;
+		return current ? `${current.provider}/${current.id}` : undefined;
+	}
+
+	private async _buildWriteClassifier(signal?: AbortSignal): Promise<WriteClassifierModel | undefined> {
+		const spec = this._writeClassifierModelSpec();
+		if (process.env.PI_DEBUG_WRITE_CLASSIFIER) console.error(`[write-classifier] model spec=${spec ?? "(unset)"}`);
+		if (!spec) return undefined;
+		const slash = spec.indexOf("/");
+		if (slash <= 0 || slash === spec.length - 1) return undefined;
+		const model = this._modelRuntime.getModel(spec.slice(0, slash), spec.slice(slash + 1));
+		if (!model) return undefined;
+		try {
+			const resolution = await this._modelRuntime.getAuth(model, { signal });
+			if (!resolution?.auth.apiKey) return undefined;
+			return {
+				model: resolution.auth.baseUrl ? { ...model, baseUrl: resolution.auth.baseUrl } : model,
+				streamFn: this.agent.streamFunction,
+				apiKey: resolution.auth.apiKey,
+				headers: resolution.auth.headers,
+				sessionId: this.agent.sessionId,
+				timeoutMs: this.settingsManager.getWriteClassifierTimeoutMs(),
 			};
 		} catch {
 			return undefined;
@@ -4341,6 +4506,7 @@ export class AgentSession {
 			// Update finalized context from the canonical session projection.
 			this._refreshFinalizedContext();
 			this._restoreToolsFromTranscript();
+			this._writeVerdictIndex = undefined;
 
 			// Emit session_tree event
 			await this._extensionRunner.emit({

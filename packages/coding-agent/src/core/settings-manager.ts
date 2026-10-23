@@ -1192,6 +1192,18 @@ export class SettingsManager {
 		return this.settings.autoThinkingClassifierTimeoutMs;
 	}
 
+	getEnableWriteClassifier(): boolean {
+		return this.settings.enableWriteClassifier ?? SETTINGS_DEFAULTS.enableWriteClassifier;
+	}
+
+	getWriteClassifierModel(): string | undefined {
+		return this.settings.writeClassifierModel;
+	}
+
+	getWriteClassifierTimeoutMs(): number {
+		return this.settings.writeClassifierTimeoutMs ?? SETTINGS_DEFAULTS.writeClassifierTimeoutMs;
+	}
+
 	getTerminalCapabilityOverrides(): Partial<TerminalCapabilities> {
 		const terminal = this.settings.terminal;
 		const images = terminal?.images;

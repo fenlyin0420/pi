@@ -16,6 +16,9 @@ Add `"$schema": "https://pi.dev/schemas/settings.schema.json"` to `settings.json
 | `modelThinkingLevels` | object | None | Per-model startup thinking levels keyed by exact `provider/modelId`. |
 | `autoThinkingClassifier` | string | None | `"provider/modelId"` of a cheap model used to classify task complexity for the `"auto"` thinking level, once per user turn. A deterministic heuristic is used when this is unset or the classifier call fails or times out. |
 | `autoThinkingClassifierTimeoutMs` | number | 6000 | Upper bound in milliseconds for the auto thinking classifier call before falling back to the heuristic. |
+| `enableWriteClassifier` | boolean | `true` | Mark tool calls that write to the machine with a bar on their left edge in the transcript. Local rules decide known tools and shell commands that are clearly read-only or clearly writing; other calls go to `writeClassifierModel`. |
+| `writeClassifierModel` | string | `defaultProvider`/`defaultModel`, then the session model | `"provider/modelId"` of the cheap model that decides the calls the local write rules leave open, such as a Python heredoc or a shell script. |
+| `writeClassifierTimeoutMs` | number | 10000 | Upper bound in milliseconds for the write classifier call before the call stays unmarked. |
 | `thinkingBudgets` | object | Built-in budgets | Token budgets for `minimal`, `low`, `medium`, and `high` thinking levels. |
 | `enabledModels` | `string[]` | All available models | Model patterns used for startup selection and model cycling. Uses the same format as `--models`. |
 | `hideThinkingBlock` | boolean | `false` | Hide thinking blocks in the transcript. |

@@ -117,7 +117,7 @@ The lifecycle involves these event groups:
 | Model turn | `turn_start`, `context`, `context_with_system`, `turn_end` |
 | Provider call | `before_provider_headers`, `before_provider_request`, `after_provider_response`, `provider_stream_event` |
 | Message lifecycle | `message_start`, `message_update`, `message_end` |
-| Tool execution | `tool_execution_start`, `tool_call`, `tool_execution_update`, `tool_result`, `tool_execution_end` |
+| Tool execution | `tool_execution_start`, `tool_call`, `tool_execution_update`, `tool_result`, `tool_execution_end`, `tool_write_verdict` |
 | Settlement | `agent_before_settle`, `agent_settled` |
 
 Pi counts as busy while a run starts, including the compaction check and `before_agent_start`, so messages sent meanwhile go into the starting run. Message lifecycle events also cover user and tool-result messages; the model request list places only the assistant stream where it occurs in each turn.

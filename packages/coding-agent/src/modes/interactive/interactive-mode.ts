@@ -292,6 +292,20 @@ function isUsageSessionEntry(item: RenderSessionItem): item is Extract<SessionEn
 	return "type" in item && item.type === "usage";
 }
 
+/**
+ * Register a tool row so its write verdict can reach it after the call finished, and apply a verdict
+ * that landed before the row existed.
+ */
+function trackToolRow(
+	rows: Map<string, ToolExecutionComponent>,
+	session: Pick<AgentSession, "getWriteVerdict">,
+	component: ToolExecutionComponent,
+	toolCallId: string,
+): void {
+	rows.set(toolCallId, component);
+	if (session.getWriteVerdict(toolCallId)?.write) component.setWriteOperation(true);
+}
+
 // EIO: tty reads/ioctls from an orphaned background process group, or writes after hangup.
 // ENOTTY: the tty was revoked (macOS) and stdin is no longer a terminal.
 const DEAD_TERMINAL_ERROR_CODES = new Set(["EIO", "EPIPE", "ENOTCONN", "ENOTTY"]);
@@ -516,6 +530,11 @@ export class InteractiveMode {
 
 	// Tool execution tracking: toolCallId -> component
 	private pendingTools = new Map<string, ToolExecutionComponent>();
+	/**
+	 * Every tool row of the current transcript, including finished ones. A model-decided write verdict
+	 * arrives seconds later and still has to reach its row, which `pendingTools` already dropped.
+	 */
+	private toolRows = new Map<string, ToolExecutionComponent>();
 
 	// Tool output expansion state
 	private toolOutputExpanded = false;
@@ -3534,6 +3553,7 @@ export class InteractiveMode {
 								component.setExpanded(this.toolOutputExpanded);
 								this.chatContainer.addChild(component);
 								this.pendingTools.set(content.id, component);
+								trackToolRow(this.toolRows, this.session, component, content.id);
 							} else {
 								const component = this.pendingTools.get(content.id);
 								if (component) {
@@ -3592,6 +3612,15 @@ export class InteractiveMode {
 				// The bash execution callback handles TUI output rendering.
 				break;
 
+			case "tool_write_verdict": {
+				const component = this.toolRows.get(event.toolCallId) ?? this.pendingTools.get(event.toolCallId);
+				if (component && event.write) {
+					component.setWriteOperation(true);
+					this.ui.requestRender();
+				}
+				break;
+			}
+
 			case "tool_execution_start": {
 				// Nested calls (from codemode scripts) are shown inside their parent's row.
 				if (event.parentToolCallId) break;
@@ -3613,6 +3642,7 @@ export class InteractiveMode {
 					component.setExpanded(this.toolOutputExpanded);
 					this.chatContainer.addChild(component);
 					this.pendingTools.set(event.toolCallId, component);
+					trackToolRow(this.toolRows, this.session, component, event.toolCallId);
 				}
 				component.markExecutionStarted();
 				this.ui.requestRender();
@@ -3994,6 +4024,7 @@ export class InteractiveMode {
 		options: { updateFooter?: boolean; populateHistory?: boolean } = {},
 	): void {
 		this.pendingTools.clear();
+		this.toolRows.clear();
 		const renderedPendingTools = new Map<string, ToolExecutionComponent>();
 		// Cache misses are not persisted, unlike successful cache-warming usage.
 		// Re-derive them and inject them after the assistant messages that paid for them.
@@ -4042,6 +4073,7 @@ export class InteractiveMode {
 						);
 						component.setExpanded(this.toolOutputExpanded);
 						this.chatContainer.addChild(component);
+						trackToolRow(this.toolRows, this.session, component, content.id);
 
 						if (message.stopReason === "aborted" || message.stopReason === "error") {
 							let errorMessage: string;

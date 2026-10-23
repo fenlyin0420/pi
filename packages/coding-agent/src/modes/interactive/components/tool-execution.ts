@@ -2,6 +2,7 @@ import {
 	Box,
 	type Component,
 	Container,
+	extractAnsiCode,
 	getCapabilities,
 	Image,
 	MouseRegion,
@@ -9,6 +10,8 @@ import {
 	Text,
 	type TUI,
 	type TuiMouseEvent,
+	truncateToWidth,
+	visibleWidth,
 } from "@earendil-works/pi-tui";
 import type { ToolDefinition, ToolRenderContext, ToolRenderers } from "../../../core/extensions/types.ts";
 
@@ -21,6 +24,27 @@ import { theme } from "../theme/theme.ts";
 import { keyHint } from "./keybinding-hints.ts";
 
 const FALLBACK_PREVIEW_LINES = 10;
+
+/** One ANSI escape sequence, used to find the first visible cell of a rendered line. */
+/**
+ * Draw the write marker in a rendered row's leftmost cell. The marker takes the row's existing left
+ * padding, so the row keeps its width and its content does not move when the verdict arrives.
+ */
+function markWriteOperationLine(line: string, marker: string): string {
+	// An empty line is part of the row too: keep the bar continuous instead of leaving a gap.
+	if (!line) return marker;
+	let index = 0;
+	while (index < line.length) {
+		const sequence = extractAnsiCode(line, index);
+		if (!sequence) break;
+		index += sequence.length;
+	}
+	if (index >= line.length) return line;
+	const rest = line.slice(index);
+	if (rest.startsWith(" ")) return `${line.slice(0, index)}${marker}${rest.slice(1)}`;
+	// A row without left padding has no cell to give up, so insert the marker and keep the width.
+	return truncateToWidth(`${line.slice(0, index)}${marker}${rest}`, visibleWidth(line), "");
+}
 
 export interface ToolExecutionOptions {
 	showImages?: boolean;
@@ -49,6 +73,8 @@ export class ToolExecutionComponent extends Container {
 	private imageWidthCells: number;
 	private outputPad: number;
 	private isPartial = true;
+	/** Whether the call writes, once the write classifier decided; undefined while undecided. */
+	private writeOperation: boolean | undefined;
 	private toolDefinition?: ToolRenderers;
 	private ui: TUI;
 	private cwd: string;
@@ -214,6 +240,13 @@ export class ToolExecutionComponent extends Container {
 		this.updateDisplay();
 	}
 
+	/** Mark the row as a write operation: the transcript draws a bar along its left edge. */
+	setWriteOperation(write: boolean): void {
+		if (this.writeOperation === write) return;
+		this.writeOperation = write;
+		this.ui.requestRender();
+	}
+
 	setImageWidthCells(width: number): void {
 		this.imageWidthCells = Math.max(1, Math.floor(width));
 		this.updateDisplay();
@@ -225,6 +258,13 @@ export class ToolExecutionComponent extends Container {
 	}
 
 	override render(width: number): string[] {
+		const lines = this.renderRow(width);
+		if (this.writeOperation !== true) return lines;
+		const marker = theme.fg("borderAccent", "│");
+		return lines.map((line) => markWriteOperationLine(line, marker));
+	}
+
+	private renderRow(width: number): string[] {
 		if (this.hideComponent) {
 			return [];
 		}

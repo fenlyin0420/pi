@@ -1124,6 +1124,20 @@ export interface ToolExecutionEndEvent {
 	parentToolCallId?: string;
 }
 
+/**
+ * Fired when the write classifier decides whether a tool call writes to the machine. Local rules
+ * answer before the call starts; a call they leave open is answered by a model, so this can arrive
+ * after `tool_execution_end`. Calls neither rule decides emit no event.
+ */
+export interface ToolWriteVerdictEvent {
+	type: "tool_write_verdict";
+	toolCallId: string;
+	/** Whether the call writes: it can change files, git or package state, or other persistent state. */
+	write: boolean;
+	/** What decided it. */
+	source: "tool" | "command" | "classifier";
+}
+
 // ============================================================================
 // Model Events
 // ============================================================================
@@ -1429,6 +1443,7 @@ export type ExtensionEvent =
 	| ToolExecutionStartEvent
 	| ToolExecutionUpdateEvent
 	| ToolExecutionEndEvent
+	| ToolWriteVerdictEvent
 	| ModelSelectEvent
 	| ThinkingLevelSelectEvent
 	| UserBashEvent
@@ -1656,6 +1671,7 @@ export interface ExtensionAPI {
 	on(event: "tool_execution_start", handler: ExtensionHandler<ToolExecutionStartEvent>): () => void;
 	on(event: "tool_execution_update", handler: ExtensionHandler<ToolExecutionUpdateEvent>): () => void;
 	on(event: "tool_execution_end", handler: ExtensionHandler<ToolExecutionEndEvent>): () => void;
+	on(event: "tool_write_verdict", handler: ExtensionHandler<ToolWriteVerdictEvent>): () => void;
 	on(event: "model_select", handler: ExtensionHandler<ModelSelectEvent>): () => void;
 	on(event: "thinking_level_select", handler: ExtensionHandler<ThinkingLevelSelectEvent>): () => void;
 	on(event: "tool_call", handler: ExtensionHandler<ToolCallEvent, ToolCallEventResult>): () => void;

@@ -226,6 +226,25 @@ export const SettingsSchema = Type.Object(
 				description: "Upper bound in milliseconds for the auto thinking classifier call. Default 6000.",
 			}),
 		),
+		enableWriteClassifier: Type.Optional(
+			Type.Boolean({
+				description:
+					"Mark tool calls that write to the machine with a bar on their left edge in the transcript. Local rules decide known tools and clear shell commands; the rest goes to the write classifier model. Default true.",
+				default: SETTINGS_DEFAULTS.enableWriteClassifier,
+			}),
+		),
+		writeClassifierModel: Type.Optional(
+			Type.String({
+				description:
+					'"provider/modelId" of the cheap model that classifies tool calls the local rules cannot decide. Defaults to defaultProvider/defaultModel, then the session model.',
+			}),
+		),
+		writeClassifierTimeoutMs: Type.Optional(
+			Type.Number({
+				description:
+					"Upper bound in milliseconds for the write classifier call before the call stays unmarked. Default 10000.",
+			}),
+		),
 		transport: Type.Optional(
 			Type.Union(
 				[Type.Literal("auto"), Type.Literal("sse"), Type.Literal("websocket"), Type.Literal("websocket-cached")],
