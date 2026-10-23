@@ -50,16 +50,19 @@ describe("write operation gutter", () => {
 		resetCapabilitiesCache();
 	});
 
-	test("marks every row line with a bar on the left edge", () => {
+	test("marks only the rows that belong to the block", () => {
 		const component = createComponent();
 		const before = render(component);
-		expect(before.some((line) => line.startsWith("│"))).toBe(false);
+		expect(before.some((line) => line.startsWith("┃"))).toBe(false);
 
 		component.setWriteOperation(true);
 		const after = render(component);
 
-		// Every line of the row carries the bar, including the blank lines around its content.
-		expect(after.every((line) => line.startsWith("│"))).toBe(true);
+		// The blank separator above the block stays empty: the bar never floats outside the block.
+		expect(after[0]).toBe("");
+		expect(after.some((line) => line.startsWith("┃"))).toBe(true);
+		const marked = after.filter((_line, index) => before[index]!.length > 0);
+		expect(marked.every((line) => line.startsWith("┃"))).toBe(true);
 		// The bar takes the row's existing left padding, so no line moves or changes width.
 		const contentWidthsBefore = before.filter((line) => line.length > 0).map((line) => visibleWidth(line));
 		const contentWidthsAfter = after
@@ -72,13 +75,13 @@ describe("write operation gutter", () => {
 		const component = createComponent(0);
 		component.setWriteOperation(true);
 		const lines = render(component, 40).filter((line) => line.length > 0);
-		expect(lines.every((line) => line.startsWith("│"))).toBe(true);
+		expect(lines.every((line) => line.startsWith("┃"))).toBe(true);
 		expect(lines.every((line) => visibleWidth(line) <= 40)).toBe(true);
 	});
 	test("drops the bar when the verdict is cleared", () => {
 		const component = createComponent();
 		component.setWriteOperation(true);
 		component.setWriteOperation(false);
-		expect(render(component).some((line) => line.startsWith("│"))).toBe(false);
+		expect(render(component).some((line) => line.startsWith("┃"))).toBe(false);
 	});
 });

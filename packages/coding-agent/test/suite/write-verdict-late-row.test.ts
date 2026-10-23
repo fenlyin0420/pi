@@ -51,7 +51,7 @@ function createRow(): ToolExecutionComponent {
 }
 
 function hasBar(component: ToolExecutionComponent): boolean {
-	return component.render(60).some((line) => stripAnsi(line).startsWith("│"));
+	return component.render(60).some((line) => stripAnsi(line).startsWith("┃"));
 }
 
 describe("late write verdicts", () => {

@@ -46,6 +46,18 @@ function markWriteOperationLine(line: string, marker: string): string {
 	return truncateToWidth(`${line.slice(0, index)}${marker}${rest}`, visibleWidth(line), "");
 }
 
+/**
+ * Draw the write marker over the rows that belong to the block. Rows without a visible cell are the
+ * blank separators around the block, so they keep their empty cells instead of floating the bar.
+ */
+function markWriteOperationBlock(lines: string[], marker: string): string[] {
+	let start = 0;
+	while (start < lines.length && visibleWidth(lines[start]!) === 0) start++;
+	let end = lines.length - 1;
+	while (end >= start && visibleWidth(lines[end]!) === 0) end--;
+	return lines.map((line, index) => (index < start || index > end ? line : markWriteOperationLine(line, marker)));
+}
+
 export interface ToolExecutionOptions {
 	showImages?: boolean;
 	imageWidthCells?: number;
@@ -260,8 +272,8 @@ export class ToolExecutionComponent extends Container {
 	override render(width: number): string[] {
 		const lines = this.renderRow(width);
 		if (this.writeOperation !== true) return lines;
-		const marker = theme.fg("borderAccent", "│");
-		return lines.map((line) => markWriteOperationLine(line, marker));
+		const marker = theme.fg("borderAccent", "┃");
+		return markWriteOperationBlock(lines, marker);
 	}
 
 	private renderRow(width: number): string[] {
