@@ -262,7 +262,7 @@ cd /path/to/your/project
 ### 可选：装成全局 `pi` 命令
 
 ```bash
-npm install -g --ignore-scripts /path/to/pi/packages/coding-agent
+npm install -g --ignore-scripts ./packages/coding-agent
 ```
 
 实测行为：npm 会把本地目录**做成 symlink** 装进全局 node_modules，并建 `pi` → 仓库内
