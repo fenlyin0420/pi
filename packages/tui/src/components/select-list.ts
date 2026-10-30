@@ -1,4 +1,4 @@
-import { getKeybindings } from "../keybindings.ts";
+import { getKeybindings, getSelectPageIndex } from "../keybindings.ts";
 import type { Component, TuiMouseEvent, TuiMouseEventResult } from "../tui.ts";
 import { truncateToWidth, visibleWidth } from "../utils.ts";
 import { matchesVimListNav } from "../vim-mode.ts";
@@ -39,6 +39,7 @@ export interface SelectListLayoutOptions {
 }
 
 export class SelectList implements Component {
+	readonly capturesViewportInput: boolean = true;
 	private items: SelectItem[] = [];
 	private filteredItems: SelectItem[] = [];
 	private selectedIndex: number = 0;
@@ -153,6 +154,7 @@ export class SelectList implements Component {
 
 	handleInput(keyData: string): void {
 		const kb = getKeybindings();
+		const pageIndex = getSelectPageIndex(kb, keyData, this.selectedIndex, this.filteredItems.length, this.maxVisible);
 		// Up arrow - wrap to bottom when at top
 		if (kb.matches(keyData, "tui.select.up") || matchesVimListNav(keyData, "up")) {
 			this.moveSelection(-1);
@@ -160,6 +162,12 @@ export class SelectList implements Component {
 		// Down arrow - wrap to top when at bottom
 		else if (kb.matches(keyData, "tui.select.down") || matchesVimListNav(keyData, "down")) {
 			this.moveSelection(1);
+		}
+		// Page up/down - move by one visible page, clamped to the list bounds
+		else if (pageIndex !== undefined) {
+			if (this.filteredItems.length === 0 || pageIndex === this.selectedIndex) return;
+			this.selectedIndex = pageIndex;
+			this.notifySelectionChange();
 		}
 		// Enter
 		else if (kb.matches(keyData, "tui.select.confirm")) {

@@ -1,5 +1,5 @@
 import { fuzzyFilter } from "../fuzzy.ts";
-import { getKeybindings } from "../keybindings.ts";
+import { getKeybindings, getSelectPageIndex } from "../keybindings.ts";
 import type { Component, TuiMouseEvent, TuiMouseEventResult } from "../tui.ts";
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "../utils.ts";
 import { matchesVimListNav } from "../vim-mode.ts";
@@ -37,6 +37,7 @@ export interface SettingsListOptions {
 }
 
 export class SettingsList implements Component {
+	readonly capturesViewportInput: boolean = true;
 	private items: SettingItem[];
 	private filteredItems: SettingItem[];
 	private theme: SettingsListTheme;
@@ -232,12 +233,16 @@ export class SettingsList implements Component {
 		const kb = getKeybindings();
 		const displayItems = this.getDisplayItems();
 		const filterQuery = this.searchInput?.getValue() ?? "";
+		const pageIndex = getSelectPageIndex(kb, data, this.selectedIndex, displayItems.length, this.maxVisible);
 		if (kb.matches(data, "tui.select.up") || matchesVimListNav(data, "up", filterQuery)) {
 			if (displayItems.length === 0) return;
 			this.selectedIndex = this.selectedIndex === 0 ? displayItems.length - 1 : this.selectedIndex - 1;
 		} else if (kb.matches(data, "tui.select.down") || matchesVimListNav(data, "down", filterQuery)) {
 			if (displayItems.length === 0) return;
 			this.selectedIndex = this.selectedIndex === displayItems.length - 1 ? 0 : this.selectedIndex + 1;
+		} else if (pageIndex !== undefined) {
+			if (displayItems.length === 0) return;
+			this.selectedIndex = pageIndex;
 		} else if (
 			kb.matches(data, "tui.select.confirm") ||
 			(data === " " && (!this.searchEnabled || this.searchInput?.getValue().length === 0))

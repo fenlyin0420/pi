@@ -127,6 +127,8 @@ export class SelectSubmenu extends Container {
 				kb.matches(data, "tui.select.down") ||
 				matchesVimListNav(data, "up", filterQuery) ||
 				matchesVimListNav(data, "down", filterQuery) ||
+				kb.matches(data, "tui.select.pageUp") ||
+				kb.matches(data, "tui.select.pageDown") ||
 				kb.matches(data, "tui.select.confirm") ||
 				kb.matches(data, "tui.select.cancel");
 			if (isNav) {
