@@ -715,6 +715,11 @@ export class SettingsManager {
 		return this.settings.defaultModel;
 	}
 
+	/** Short model names mapped to "provider/modelId" (settings `modelAliases`). */
+	getModelAliases(): Record<string, string> | undefined {
+		return this.settings.modelAliases;
+	}
+
 	setDefaultProvider(provider: string): void {
 		this.globalSettings.defaultProvider = provider;
 		this.markModified("defaultProvider");

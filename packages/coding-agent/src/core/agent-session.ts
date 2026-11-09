@@ -122,6 +122,7 @@ import {
 import { type BeforeAgentStartTrigger, emitSessionShutdownEvent } from "./extensions/runner.ts";
 import { createToolNameMatcher, isMcpToolName } from "./mcp-servers.ts";
 import { type BashExecutionMessage, type CustomMessage, convertToLlm } from "./messages.ts";
+import { resolveModelAlias } from "./model-aliases.ts";
 import { ModelRegistry } from "./model-registry.ts";
 import type { ModelRuntime } from "./model-runtime.ts";
 import { NestedToolCallRunner } from "./nested-tool-calls.ts";
@@ -2872,7 +2873,10 @@ export class AgentSession {
 	}
 
 	private async _buildAutoThinkingClassifier(signal?: AbortSignal): Promise<AutoThinkingClassifier | undefined> {
-		const spec = this.settingsManager.getAutoThinkingClassifier();
+		const spec = resolveModelAlias(
+			this.settingsManager.getAutoThinkingClassifier() ?? "",
+			this.settingsManager.getModelAliases(),
+		);
 		if (process.env.PI_DEBUG_AUTO_THINKING) console.error(`[auto-thinking] classifier spec=${spec ?? "(unset)"}`);
 		if (!spec) return undefined;
 		const slash = spec.indexOf("/");
@@ -3003,7 +3007,7 @@ export class AgentSession {
 	}
 
 	private async _buildWriteClassifier(signal?: AbortSignal): Promise<WriteClassifierModel | undefined> {
-		const spec = this._writeClassifierModelSpec();
+		const spec = resolveModelAlias(this._writeClassifierModelSpec() ?? "", this.settingsManager.getModelAliases());
 		if (process.env.PI_DEBUG_WRITE_CLASSIFIER) console.error(`[write-classifier] model spec=${spec ?? "(unset)"}`);
 		if (!spec) return undefined;
 		const slash = spec.indexOf("/");
@@ -4030,7 +4034,7 @@ export class AgentSession {
 			extensionsResult.runtime,
 			this._cwd,
 			this.sessionManager,
-			new ModelRegistry(this._modelRuntime),
+			new ModelRegistry(this._modelRuntime, () => this.settingsManager.getModelAliases()),
 		);
 		if (this._extensionRunnerRef) {
 			this._extensionRunnerRef.current = this._extensionRunner;

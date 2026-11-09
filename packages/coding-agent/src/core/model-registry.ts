@@ -25,6 +25,7 @@ import type {
 	Provider,
 	ProviderHeaders,
 } from "@earendil-works/pi-ai";
+import { type ModelAliases, resolveModelAlias, splitProviderModel } from "./model-aliases.ts";
 import type { ModelRuntime } from "./model-runtime.ts";
 import type { AuthStatus, ProviderConfigInput } from "./provider-composer.ts";
 import type { VirtualModelDefinition } from "./virtual-models.ts";
@@ -47,9 +48,11 @@ export { clearApiKeyCache } from "./provider-composer.ts";
  */
 export class ModelRegistry {
 	private readonly runtime: ModelRuntime;
+	private readonly getModelAliases?: () => ModelAliases | undefined;
 
-	constructor(runtime: ModelRuntime) {
+	constructor(runtime: ModelRuntime, getModelAliases?: () => ModelAliases | undefined) {
 		this.runtime = runtime;
+		this.getModelAliases = getModelAliases;
 	}
 
 	/** Reload models.json asynchronously. Await before making synchronous registry reads. */
@@ -71,6 +74,15 @@ export class ModelRegistry {
 
 	find(provider: string, modelId: string): Model<Api> | undefined {
 		return this.runtime.getModel(provider, modelId);
+	}
+
+	/**
+	 * Resolve a model reference: a settings alias ("opus") or "provider/modelId".
+	 * Extensions use this so agent files and tool arguments share Pi's aliases.
+	 */
+	resolveSpec(spec: string): Model<Api> | undefined {
+		const pair = splitProviderModel(resolveModelAlias(spec, this.getModelAliases?.()));
+		return pair ? this.runtime.getModel(pair.provider, pair.modelId) : undefined;
 	}
 
 	/** Find a model of a non-chat type, e.g. `findOfType("classifier", "typesafe", "jev-latest")`. */

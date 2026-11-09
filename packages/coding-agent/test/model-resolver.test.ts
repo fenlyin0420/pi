@@ -805,6 +805,39 @@ describe("default model selection", () => {
 		expect(result.model?.id).toBe("deepseek-v4-flash");
 	});
 
+	test("findInitialModel resolves a model alias in the saved default", async () => {
+		const aliasedModel: Model<"anthropic-messages"> = {
+			id: "claude-opus-4-8",
+			name: "Claude Opus 4.8",
+			api: "anthropic-messages",
+			provider: "anthropic",
+			baseUrl: "https://api.anthropic.com",
+			reasoning: true,
+			input: ["text"],
+			cost: { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 5 },
+			contextWindow: 200000,
+			maxTokens: 8192,
+		};
+		const registry = {
+			getModel: (provider: string, modelId: string) =>
+				provider === aliasedModel.provider && modelId === aliasedModel.id ? aliasedModel : undefined,
+			hasConfiguredAuth: () => true,
+			getAvailableSnapshot: () => [aliasedModel],
+		} as unknown as Parameters<typeof findInitialModel>[0]["modelRuntime"];
+
+		const result = await findInitialModel({
+			scopedModels: [],
+			isContinuing: false,
+			defaultProvider: "stale-provider",
+			defaultModelId: "opus",
+			modelAliases: { opus: "anthropic/claude-opus-4-8" },
+			modelRuntime: registry,
+		});
+
+		expect(result.model?.provider).toBe("anthropic");
+		expect(result.model?.id).toBe("claude-opus-4-8");
+	});
+
 	describe("persisted default model scoping", () => {
 		const tempDirs: string[] = [];
 		const sonnet = getModel("anthropic", "claude-sonnet-4-5")!;

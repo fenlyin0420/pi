@@ -98,6 +98,7 @@ import { configureHttpDispatcher, formatHttpIdleTimeoutMs } from "../../core/htt
 import { type AppKeybinding, KeybindingsManager } from "../../core/keybindings.ts";
 import type { McpHttpServerConfig } from "../../core/mcp-servers.ts";
 import { createCompactionSummaryMessage, createCustomMessage } from "../../core/messages.ts";
+import { resolveModelAlias } from "../../core/model-aliases.ts";
 import {
 	defaultModelPerProvider,
 	findExactModelReferenceMatch,
@@ -4520,13 +4521,19 @@ export class InteractiveMode {
 		this.isShuttingDown = true;
 		try {
 			this.unregisterSignalHandlers();
-		} catch {}
+		} catch {
+			// best effort: teardown must not mask the original crash
+		}
 		try {
 			killTrackedDetachedChildren();
-		} catch {}
+		} catch {
+			// best effort: teardown must not mask the original crash
+		}
 		try {
 			this.ui.stop();
-		} catch {}
+		} catch {
+			// best effort: teardown must not mask the original crash
+		}
 		console.error(`${APP_NAME} exiting due to uncaughtException:`);
 		console.error(error);
 		const extensionHint = this.getCrashExtensionHint(error);
@@ -5414,7 +5421,9 @@ export class InteractiveMode {
 			return;
 		}
 
-		const model = await this.findExactModelMatch(searchTerm);
+		const model = await this.findExactModelMatch(
+			resolveModelAlias(searchTerm, this.settingsManager.getModelAliases()),
+		);
 		if (model) {
 			try {
 				await this.session.setModel(model, { persist: false });

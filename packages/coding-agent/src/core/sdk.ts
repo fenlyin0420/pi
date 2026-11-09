@@ -238,6 +238,7 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 			isContinuing: hasExistingSession,
 			defaultProvider: settingsManager.getDefaultProvider(),
 			defaultModelId: settingsManager.getDefaultModel(),
+			modelAliases: settingsManager.getModelAliases(),
 			defaultThinkingLevel: settingsManager.getDefaultThinkingLevel(),
 			modelThinkingLevels: settingsManager.getAllModelThinkingLevels(),
 			modelRuntime,

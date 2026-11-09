@@ -34,6 +34,22 @@ Run `/thinking` to select the thinking level for the current model. Press `Ctrl+
 
 A session records model and thinking-level changes. Resuming the session restores them without changing defaults for new sessions.
 
+## Model aliases
+
+`modelAliases` in [Settings](settings.md#model-and-thinking) maps a short name to a concrete model. The alias works wherever Pi names a model — `--model`, `--models`, `defaultModel`, `/model`, `autoThinkingClassifier`, `writeClassifierModel` — and in agent files that name a model in their frontmatter.
+
+```json
+{
+  "modelAliases": {
+    "opus": "opencode-go/glm-5.2",
+    "sonnet": "opencode-go/deepseek-v4.1-flash",
+    "haiku": "llama-cpp/Qwen3.8-27B-Q4_K_M.gguf"
+  }
+}
+```
+
+With that map, `/model sonnet`, `pi --model opus`, `"defaultModel": "haiku"` and `model: sonnet` in an agent file all resolve to the configured model. Swapping a tier later is one settings edit; nothing that names the alias changes. A thinking suffix stays outside the substitution: `--model opus:high`. Unknown names pass through, so a plain `provider/modelId` keeps working.
+
 ## Connect local models
 
 Pi integrates directly with the llama.cpp router. The router discovers GGUF files and loads models on demand. Pi's `/llama` command manages the router, while `/model` selects one of its loaded models.

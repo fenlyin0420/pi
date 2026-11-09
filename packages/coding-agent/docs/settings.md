@@ -12,6 +12,7 @@ Add `"$schema": "https://pi.dev/schemas/settings.schema.json"` to `settings.json
 |---|---|---|---|
 | `defaultProvider` | string | Automatic | Startup AI provider. |
 | `defaultModel` | string | Automatic | Startup model ID. |
+| `modelAliases` | object | None | Short model names mapped to `"provider/modelId"`, usable wherever a model is named: `--model`, `--models`, `defaultModel`, `/model`, classifier settings and agent frontmatter. See [Model aliases](models.md#model-aliases). |
 | `defaultThinkingLevel` | `"off" \| "auto" \| "minimal" \| "low" \| "medium" \| "high" \| "xhigh" \| "max"` | `"auto"` | Startup thinking level. `"auto"` lets Pi pick a concrete level per user turn based on task complexity. The level is stable within a user turn; for models that render the level into the prompt (chat-template configs with a `thinking.effort` binding) it is pinned for the session, because a level change there rewrites the prompt prefix and invalidates the provider's KV cache. |
 | `modelThinkingLevels` | object | None | Per-model startup thinking levels keyed by exact `provider/modelId`. |
 | `autoThinkingClassifier` | string | None | `"provider/modelId"` of a cheap model used to classify task complexity for the `"auto"` thinking level, once per user turn. A deterministic heuristic is used when this is unset or the classifier call fails or times out. |

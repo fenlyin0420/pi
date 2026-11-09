@@ -214,6 +214,12 @@ export const SettingsSchema = Type.Object(
 		),
 		defaultProvider: Type.Optional(Type.String()),
 		defaultModel: Type.Optional(Type.String()),
+		modelAliases: Type.Optional(
+			Type.Record(Type.String(), Type.String(), {
+				description:
+					'Short model names mapped to "provider/modelId", usable wherever a model is named: --model, --models, defaultModel, /model, classifier settings and agent files.',
+			}),
+		),
 		defaultThinkingLevel: Type.Optional(ModelThinkingLevelSchema),
 		modelThinkingLevels: Type.Optional(
 			Type.Record(Type.String(), ModelThinkingLevelSchema, {
