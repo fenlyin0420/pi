@@ -1,4 +1,4 @@
-// 一轮回答的折叠规则：整轮并块、工具合并、思考成链、只留最后一个 loop 的输出。
+// 一轮回答的折叠规则：整轮并块、工具合并、思考成链、正文留在原位。
 
 import { describe, expect, it } from "vitest";
 import { buildTurnEntries, groupTranscript, layoutTurn } from "../src/renderer/lib/turn-entries.ts";
@@ -88,28 +88,37 @@ describe("buildTurnEntries", () => {
 });
 
 describe("layoutTurn", () => {
-	it("整轮折成一行，只留最后一个 loop 的输出", () => {
+	it("整轮的思考与工具并成一条链，正文留在原位", () => {
 		const items = [
 			assistant("a1", [thinking("plan"), tool("x"), text("draft")]),
 			assistant("a2", [tool("y"), text("final")]),
 		];
-		const { activity, output } = layoutTurn(assistantItems(items), true);
-		expect(output?.text).toBe("final");
-		// 上一个 loop 的草稿、思考、工具全在活动行里。
-		expect(activity.map((entry) => entry.kind)).toEqual(["activity", "text", "activity"]);
+		const entries = layoutTurn(assistantItems(items), true);
+		expect(entries.map((entry) => entry.kind)).toEqual(["activity", "text", "text"]);
+		const chain = entries[0];
+		expect(chain.kind === "activity" && chain.blocks.length).toBe(3);
+		expect(entries.at(-1)?.kind === "text" && entries.at(-1)).toMatchObject({ text: "final" });
 	});
 
-	it("最后一个 loop 没有文本时不留输出，全在活动行", () => {
-		const items = [assistant("a1", [thinking("plan"), tool("x")])];
-		const { activity, output } = layoutTurn(assistantItems(items), true);
-		expect(output).toBeNull();
-		expect(activity).toHaveLength(1);
+	it("模型中途输出的正文不被折进链里", () => {
+		const items = [assistant("a1", [tool("x"), text("mid"), tool("y"), text("end")])];
+		const entries = layoutTurn(assistantItems(items), true);
+		expect(entries.map((entry) => entry.kind)).toEqual(["activity", "text", "text"]);
+		expect(entries[1].kind === "text" && entries[1].text).toBe("mid");
 	});
 
-	it("中间 loop 的工具不会代替最后一段输出", () => {
-		const items = [assistant("a1", [text("early")]), assistant("a2", [tool("x")])];
-		const { activity, output } = layoutTurn(assistantItems(items), true);
-		expect(output).toBeNull();
-		expect(activity.map((entry) => entry.kind)).toEqual(["text", "activity"]);
+	it("最后一个 loop 没有正文时活动链就是最后一项", () => {
+		const items = [assistant("a1", [text("early")]), assistant("a2", [thinking("plan"), tool("x")])];
+		const entries = layoutTurn(assistantItems(items), true);
+		expect(entries.map((entry) => entry.kind)).toEqual(["text", "activity"]);
+	});
+
+	it("不同 loop 的 key 不冲突", () => {
+		const items = [assistant("a1", [tool("x")]), assistant("a2", [tool("y")])];
+		const entries = layoutTurn(assistantItems(items), true);
+		const chain = entries[0];
+		if (chain.kind !== "activity") return;
+		const keys = chain.blocks.map((block) => block.key);
+		expect(new Set(keys).size).toBe(keys.length);
 	});
 });

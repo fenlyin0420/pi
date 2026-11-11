@@ -14,12 +14,6 @@ export type TurnEntry =
 	| { kind: "text"; key: string; text: string }
 	| { kind: "activity"; key: string; blocks: ActivityBlock[] };
 
-/** 一轮回答最终露在外面的两样：折进活动行的过程，和最后一段模型输出。 */
-export type TurnLayout = {
-	activity: TurnEntry[];
-	output: Extract<TurnEntry, { kind: "text" }> | null;
-};
-
 /** transcript 的渲染块：一条独立记录，或整轮回答（用户两句话之间的全部 loop）。 */
 export type TranscriptBlock =
 	| { kind: "item"; key: string; item: Exclude<TranscriptItem, { kind: "assistant" }> }
@@ -71,37 +65,28 @@ export function buildTurnEntries(parts: readonly AssistantPart[], showThinking: 
 }
 
 /**
- * 整轮折叠：前面每个 loop 的思考、工具与草稿都折进活动行，只有最后一个 loop 的最后一段
- * 文本留在外面。最后一个 loop 没有文本时（还在跑工具）输出为空，活动行就是全部。
+ * 整轮折叠：所有 loop 的思考与工具调用并进一条活动链（位置在第一次出现活动的地方），
+ * 文本照旧按原位一段段显示——模型中途输出的正文不该被折进去。
  */
-export function layoutTurn(items: readonly AssistantItem[], showThinking: boolean): TurnLayout {
-	const lastIndex = items.length - 1;
-	const activity: TurnEntry[] = [];
-	for (const [index, item] of items.entries()) {
-		const entries = buildTurnEntries(item.parts, showThinking);
-		if (index < lastIndex) {
-			activity.push(...entries);
-			continue;
-		}
-		const layout = layoutTurnEntries(entries);
-		activity.push(...layout.activity);
-		return { activity, output: layout.output };
-	}
-	return { activity, output: null };
-}
-
-/** 一段 entries 里最后那段文本留在外面，其余都进活动行。 */
-function layoutTurnEntries(entries: readonly TurnEntry[]): TurnLayout {
-	let outputIndex = -1;
-	for (let index = entries.length - 1; index >= 0; index -= 1) {
-		if (entries[index].kind === "text") {
-			outputIndex = index;
-			break;
+export function layoutTurn(items: readonly AssistantItem[], showThinking: boolean): TurnEntry[] {
+	const entries: TurnEntry[] = [];
+	// 活动链只建一次，后续 loop 的环节继续往里加。
+	let chain: ActivityBlock[] | null = null;
+	for (const item of items) {
+		for (const entry of buildTurnEntries(item.parts, showThinking)) {
+			if (entry.kind === "text") {
+				entries.push({ kind: "text", key: `${item.id}-${entry.key}`, text: entry.text });
+				continue;
+			}
+			if (chain === null) {
+				chain = [];
+				entries.push({ kind: "activity", key: `${item.id}-${entry.key}`, blocks: chain });
+			}
+			// 环节的 key 也要带上 item id：每个 loop 都从下标 0 重新编号。
+			for (const block of entry.blocks) chain.push({ ...block, key: `${item.id}-${block.key}` });
 		}
 	}
-	if (outputIndex < 0) return { activity: [...entries], output: null };
-	const output = entries[outputIndex] as Extract<TurnEntry, { kind: "text" }>;
-	return { activity: entries.filter((_, index) => index !== outputIndex), output };
+	return entries;
 }
 
 /** 追加一环：接在已有的活动链后面，否则新开一条链。 */
