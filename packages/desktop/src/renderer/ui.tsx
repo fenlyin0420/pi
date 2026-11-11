@@ -255,6 +255,7 @@ type ContextMenuApi = {
 /** 右键菜单：在光标处弹出，选中或点空白处关闭。 */
 export function useContextMenu(): ContextMenuApi {
 	const [state, setState] = useState<ContextMenuState>(null);
+	const menuRef = useRef<HTMLDivElement | null>(null);
 	const close = () => setState(null);
 
 	useEffect(() => {
@@ -262,20 +263,28 @@ export function useContextMenu(): ContextMenuApi {
 		const onKey = (event: KeyboardEvent) => {
 			if (event.key === "Escape") setState(null);
 		};
-		const onPointer = () => setState(null);
+		// 点在菜单自己身上不算“点空白”：否则 pointerdown 先把菜单卸掉，随后的 click
+		// 永远落不到菜单项上，删除/改名看起来就是“没反应”。
+		const onPointer = (event: PointerEvent) => {
+			const target = event.target as Node | null;
+			if (target && menuRef.current?.contains(target)) return;
+			setState(null);
+		};
+		const onBlur = () => setState(null);
 		document.addEventListener("keydown", onKey, true);
 		document.addEventListener("pointerdown", onPointer, true);
-		window.addEventListener("blur", onPointer);
+		window.addEventListener("blur", onBlur);
 		return () => {
 			document.removeEventListener("keydown", onKey, true);
 			document.removeEventListener("pointerdown", onPointer, true);
-			window.removeEventListener("blur", onPointer);
+			window.removeEventListener("blur", onBlur);
 		};
 	}, [state]);
 
 	const node = state
 		? createPortal(
 				<div
+					ref={menuRef}
 					className="context-menu"
 					style={{
 						left: Math.min(state.x, window.innerWidth - 240),
