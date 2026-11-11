@@ -7,7 +7,7 @@ Electron 桌面端：main 进程持有 pi 会话，renderer 只通过 IPC 契约
 - `src/main/`：Electron 主进程。
   - `index.ts`：装配设置、主题、会话中枢、窗口与菜单，注册 IPC。
   - `session-host.ts`：会话中枢。打开过的会话各保留一个活 `AgentSession`，切走不打断运行；
-    事件在这里合并（结构变化 32ms、流式增量一帧一次）后推给 renderer。
+    事件在这里合并（一帧一次的整体快照，含尚未提交的流式消息）后推给 renderer。
   - `session-files.ts` / `file-search.ts`：会话文件的列出、改名、删除，以及 `@` 引用用的项目文件搜索。
   - `transcript.ts`：消息到 transcript 契约的纯映射（思考块、工具卡片、diff、用量、错误）。
   - `settings.ts`：`userData/settings.json` 的读写（逐字段校验、去抖、原子替换），窗口几何也在里面。

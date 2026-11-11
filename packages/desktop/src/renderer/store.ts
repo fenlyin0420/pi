@@ -1,7 +1,6 @@
 // renderer 状态：把 main 推来的事件折叠成界面要渲染的一份状态，并向组件暴露命令入口。
 
 import { useCallback, useEffect, useReducer } from "react";
-import { applyDelta } from "../main/transcript.ts";
 import type {
 	AskRequest,
 	DesktopCommand,
@@ -48,22 +47,6 @@ export function reduceEvent(state: AppState, event: DesktopEvent): AppState {
 		case "transcript": {
 			if (!state.desktop || state.desktop.activeSessionId !== event.sessionId) return state;
 			return { ...state, desktop: { ...state.desktop, transcript: event.items } };
-		}
-		case "delta": {
-			if (!state.desktop || state.desktop.activeSessionId !== event.sessionId) return state;
-			return {
-				...state,
-				desktop: {
-					...state.desktop,
-					transcript: applyDelta(
-						state.desktop.transcript,
-						event.itemId,
-						event.partIndex,
-						event.partType,
-						event.delta,
-					),
-				},
-			};
 		}
 		case "models":
 			return { ...state, models: event.models };

@@ -86,30 +86,6 @@ export function toTranscriptItems(messages: readonly AgentMessage[], options: Tr
 	return items;
 }
 
-/** 给流式 item 追加文本或思考增量，其余 item 保持引用不变。 */
-export function applyDelta(
-	items: readonly TranscriptItem[],
-	itemId: string,
-	partIndex: number,
-	partType: "text" | "thinking",
-	delta: string,
-): TranscriptItem[] {
-	return items.map((item) => {
-		if (item.kind !== "assistant" || item.id !== itemId) return item;
-		const parts = item.parts.slice();
-		const part = parts[partIndex];
-		if (!part) return item;
-		if (partType === "text" && part.type === "text") {
-			parts[partIndex] = { type: "text", text: part.text + delta };
-		} else if (partType === "thinking" && part.type === "thinking") {
-			parts[partIndex] = { type: "thinking", text: part.text + delta };
-		} else {
-			return item;
-		}
-		return { ...item, parts };
-	});
-}
-
 /** 纯文本投影，搜索结果和复制全文用。 */
 export function transcriptToText(items: readonly TranscriptItem[]): string {
 	const chunks: string[] = [];

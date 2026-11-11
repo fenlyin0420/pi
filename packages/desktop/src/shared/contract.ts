@@ -191,17 +191,8 @@ export type MenuAction = "newSession" | "openProject" | "settings" | "search" | 
 export type DesktopEvent =
 	/** 全量快照：初始化、切换会话、会话列表、设置或状态变化。 */
 	| { type: "state"; state: DesktopState }
-	/** 当前会话的结构性变化（消息开始/结束、工具开始/结束）。 */
+	/** 当前会话的结构性变化（消息开始/结束、工具开始/结束），流式内容也走快照。 */
 	| { type: "transcript"; sessionId: string; items: TranscriptItem[] }
-	/** 流式文本增量，main 已按帧合并。 */
-	| {
-			type: "delta";
-			sessionId: string;
-			itemId: string;
-			partIndex: number;
-			partType: "text" | "thinking";
-			delta: string;
-	  }
 	/** 模型选择列表，按需重发，不跟每次状态快照走。 */
 	| { type: "models"; models: ModelView[] }
 	/** @ 引用补全的结果，requestId 对应发起的那次搜索。 */

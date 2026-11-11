@@ -75,30 +75,22 @@ describe("reduceEvent", () => {
 		expect(reduceEvent(base, { type: "transcript", sessionId: "s1", items }).desktop?.transcript).toEqual(items);
 	});
 
-	it("delta 事件追加到命中 part，其它 item 引用不变", () => {
+	it("流式内容也走 transcript 快照，整条替换", () => {
 		const base = reduceEvent(INITIAL_STATE, { type: "state", state: state() });
-		const next = reduceEvent(base, {
-			type: "delta",
-			sessionId: "s1",
-			itemId: "msg-1",
-			partIndex: 0,
-			partType: "text",
-			delta: "llo",
-		});
-		const turn = next.desktop?.transcript[0];
-		expect(turn?.kind === "assistant" ? turn.parts[0] : null).toEqual({ type: "text", text: "hello" });
-	});
-
-	it("没有快照时 delta 被丢弃", () => {
-		const next = reduceEvent(INITIAL_STATE, {
-			type: "delta",
-			sessionId: "s1",
-			itemId: "msg-1",
-			partIndex: 0,
-			partType: "text",
-			delta: "x",
-		});
-		expect(next.desktop).toBeNull();
+		const streaming: TranscriptItem[] = [
+			{
+				kind: "assistant",
+				id: "msg-1",
+				parts: [{ type: "thinking", text: "hmm" }],
+				timestamp: 2,
+				streaming: true,
+				model: "p/m",
+				usage: null,
+				error: null,
+			},
+		];
+		const next = reduceEvent(base, { type: "transcript", sessionId: "s1", items: streaming });
+		expect(next.desktop?.transcript).toEqual(streaming);
 	});
 
 	it("models 与 window 事件各自更新一个字段", () => {

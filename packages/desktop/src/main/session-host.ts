@@ -1,5 +1,6 @@
 // main 进程的会话中枢：打开过的会话各自保留一个活 AgentSession，事件在这里合并后推给 renderer。
 
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { ImageContent } from "@earendil-works/pi-ai";
 import type { AgentSession, AgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import {
@@ -55,15 +56,9 @@ type LiveSession = {
 	toolDurations: Map<string, number>;
 	items: TranscriptItem[];
 	transcriptDirty: boolean;
+	/** 正在生成的那条 assistant 消息；提交前它不在 agent.messages 里，界面靠它先显示。 */
+	partial: AgentMessage | null;
 	unsubscribe: () => void;
-};
-
-type DeltaBuffer = {
-	sessionId: string;
-	itemId: string;
-	partIndex: number;
-	partType: "text" | "thinking";
-	text: string;
 };
 
 /**
@@ -80,7 +75,6 @@ export class SessionHost {
 	private stateTimer: NodeJS.Timeout | null = null;
 	private structureDirty = false;
 	private stateDirty = false;
-	private readonly deltas = new Map<string, DeltaBuffer>();
 	/** 扩展与宿主共享的事件总线；pi-ask 的提问和答案都走它。 */
 	private readonly bus = createEventBus();
 	private pendingAsk: AskRequest | null = null;
@@ -256,6 +250,7 @@ export class SessionHost {
 			toolDurations: new Map(),
 			items: [],
 			transcriptDirty: true,
+			partial: null,
 			unsubscribe: () => {},
 		};
 		live.unsubscribe = session.subscribe((event) => this.onSessionEvent(live, event));
@@ -436,12 +431,20 @@ export class SessionHost {
 
 	private transcriptOf(live: LiveSession): TranscriptItem[] {
 		if (live.transcriptDirty) {
-			const messages = live.agent.messages;
-			const streamingIndex = live.status === "running" ? streamingMessageIndex(messages) : null;
-			live.items = toTranscriptItems(messages, { streamingIndex, toolDurations: live.toolDurations });
+			live.items = toTranscriptItems(live.agent.messages, {
+				streamingIndex: null,
+				toolDurations: live.toolDurations,
+			});
 			live.transcriptDirty = false;
 		}
-		return live.items;
+		if (!live.partial) return live.items;
+		// 未提交的那条消息单独投影：id 用它将来的下标，落地成正式消息时界面不会重挂。
+		const [streaming] = toTranscriptItems([live.partial], {
+			streamingIndex: 0,
+			toolDurations: live.toolDurations,
+		});
+		if (!streaming) return live.items;
+		return [...live.items, { ...streaming, id: itemIdAt(live.agent.messages.length) }];
 	}
 
 	private agentView(live: LiveSession | undefined): AgentView {
@@ -458,27 +461,19 @@ export class SessionHost {
 
 	private onSessionEvent(live: LiveSession, event: AgentSessionEvent): void {
 		switch (event.type) {
-			case "message_update": {
-				const update = event.assistantMessageEvent;
-				if (update.type === "text_delta" || update.type === "thinking_delta") {
-					this.bufferDelta(
-						live,
-						update.contentIndex,
-						update.type === "text_delta" ? "text" : "thinking",
-						update.delta,
-					);
-					return;
-				}
-				// 新块开始：先让 renderer 拿到结构，再按 partIndex 追加增量。
-				this.markStructure();
+			case "message_update":
+				// 每个流式帧带上这条消息的最新快照：它还没进 agent.messages，界面靠它边生成边显示。
+				live.partial = event.message;
+				this.structureDirty = true;
 				this.scheduleTranscriptFlush();
 				return;
-			}
 			case "message_start":
 			case "message_end":
 			case "turn_start":
 			case "turn_end":
 			case "queue_update":
+				// 消息落地（或被丢弃）：收起流式快照，让已提交的消息自己占位。
+				live.partial = null;
 				this.markStructure();
 				this.scheduleTranscriptFlush();
 				if (event.type === "message_end") void this.refreshSessionsQuietly();
@@ -504,12 +499,14 @@ export class SessionHost {
 			}
 			case "agent_end":
 				if (!live.agent.isStreaming) live.status = "idle";
+				live.partial = null;
 				this.markStructure();
 				this.markState();
 				this.flushNow();
 				return;
 			case "agent_settled":
 				live.status = "idle";
+				live.partial = null;
 				this.markStructure();
 				this.markState();
 				this.flushNow();
@@ -542,16 +539,6 @@ export class SessionHost {
 		}
 	}
 
-	private bufferDelta(live: LiveSession, partIndex: number, partType: "text" | "thinking", delta: string): void {
-		if (live.id !== this.activeId) return;
-		const itemId = itemIdAt(live.agent.messages.length - 1);
-		const key = `${live.id}|${itemId}|${partIndex}|${partType}`;
-		const buffer = this.deltas.get(key);
-		if (buffer) buffer.text += delta;
-		else this.deltas.set(key, { sessionId: live.id, itemId, partIndex, partType, text: delta });
-		this.scheduleTranscriptFlush();
-	}
-
 	private markStructure(): void {
 		const live = this.activeSession();
 		if (!live) return;
@@ -576,26 +563,12 @@ export class SessionHost {
 		}, TRANSCRIPT_FLUSH_MS);
 	}
 
-	/** 先发结构快照，再发增量：增量引用的 part 必须已经在 renderer 里存在。 */
+	/** 先发结构快照：流式内容也走快照，renderer 只认这一种。 */
 	private flushTranscript(): void {
 		const live = this.activeSession();
-		if (live && this.structureDirty) {
-			this.structureDirty = false;
-			this.deps.emit({ type: "transcript", sessionId: live.id, items: this.transcriptOf(live) });
-		}
-		if (this.deltas.size > 0) {
-			for (const buffer of this.deltas.values()) {
-				this.deps.emit({
-					type: "delta",
-					sessionId: buffer.sessionId,
-					itemId: buffer.itemId,
-					partIndex: buffer.partIndex,
-					partType: buffer.partType,
-					delta: buffer.text,
-				});
-			}
-			this.deltas.clear();
-		}
+		if (!live || !this.structureDirty) return;
+		this.structureDirty = false;
+		this.deps.emit({ type: "transcript", sessionId: live.id, items: this.transcriptOf(live) });
 	}
 
 	private flushNow(): void {
@@ -653,13 +626,6 @@ export class SessionHost {
 	private notify(level: "info" | "warning" | "error", message: string): void {
 		this.deps.emit({ type: "toast", level, message });
 	}
-}
-
-function streamingMessageIndex(messages: readonly { role: string }[]): number | null {
-	for (let index = messages.length - 1; index >= 0; index -= 1) {
-		if (messages[index]?.role === "assistant") return index;
-	}
-	return null;
 }
 
 function usageOf(agent: AgentSession): UsageSummary {

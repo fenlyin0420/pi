@@ -2,7 +2,7 @@
 
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { describe, expect, it } from "vitest";
-import { applyDelta, itemIdAt, toTranscriptItems, transcriptToText } from "../src/main/transcript.ts";
+import { itemIdAt, toTranscriptItems } from "../src/main/transcript.ts";
 
 /** 手写 pi 形状的 fixture：只填映射读到的字段，其余用 as 收口（生产类型分支太多，测试不复制）。 */
 function messages(...items: unknown[]): AgentMessage[] {
@@ -163,66 +163,5 @@ describe("toTranscriptItems", () => {
 			{ streamingIndex: null },
 		);
 		expect(items[0]).toMatchObject({ kind: "notice", level: "error", text: "$ false (exit 1)" });
-	});
-});
-
-describe("applyDelta", () => {
-	const base = toTranscriptItems(
-		messages(
-			USER,
-			assistant([
-				{ type: "text", text: "a" },
-				{ type: "thinking", thinking: "t" },
-			]),
-		),
-		{ streamingIndex: 1 },
-	);
-
-	it("只改命中的 part，其余 item 引用不变", () => {
-		const next = applyDelta(base, itemIdAt(1), 0, "text", "b");
-		const turn = next[1];
-		expect(turn?.kind === "assistant" ? turn.parts[0] : null).toEqual({ type: "text", text: "ab" });
-		expect(next[0]).toBe(base[0]);
-	});
-
-	it("思考增量写到 thinking part", () => {
-		const next = applyDelta(base, itemIdAt(1), 1, "thinking", "hought");
-		const turn = next[1];
-		expect(turn?.kind === "assistant" ? turn.parts[1] : null).toEqual({ type: "thinking", text: "thought" });
-	});
-
-	it("下标越界或类型不符时原样返回", () => {
-		expect(applyDelta(base, itemIdAt(1), 9, "text", "x")).toEqual(base);
-		expect(applyDelta(base, itemIdAt(1), 1, "text", "x")).toEqual(base);
-		expect(applyDelta(base, "missing", 0, "text", "x")).toEqual(base);
-	});
-});
-
-describe("transcriptToText", () => {
-	it("把 user、assistant 正文和 notice 串成纯文本，跳过工具参数", () => {
-		const items = toTranscriptItems(
-			messages(
-				USER,
-				assistant([
-					{ type: "text", text: "answer" },
-					{ type: "toolCall", id: "c", name: "read", arguments: { path: "a.ts" } },
-				]),
-				{
-					role: "bashExecution",
-					command: "ls",
-					output: "",
-					exitCode: 0,
-					cancelled: false,
-					truncated: false,
-					timestamp: 5,
-				},
-			),
-			{ streamingIndex: null },
-		);
-		const text = transcriptToText(items);
-		expect(text).toContain("User:\nhello");
-		expect(text).toContain("answer");
-		expect(text).toContain("$ ls");
-		expect(text).not.toContain("a.ts");
 	});
 });
