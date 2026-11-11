@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { DesktopSettings, MenuAction } from "../shared/contract.ts";
+import { AskDialog } from "./components/AskDialog.tsx";
 import { CommandPalette, type PaletteAction } from "./components/CommandPalette.tsx";
 import { Composer } from "./components/composer/Composer.tsx";
 import { SettingsPage } from "./components/settings/SettingsPage.tsx";
@@ -214,6 +215,12 @@ export function App() {
 					}}
 				/>
 				<ToastHost toasts={state.toasts} onDismiss={dismissToast} />
+				{/* 每次提问一份独立草稿：flowId 一变就重挂。 */}
+				<AskDialog
+					key={state.ask?.flowId ?? "none"}
+					request={state.ask}
+					onSubmit={(flowId, answers, note) => send({ type: "askAnswer", flowId, answers, note })}
+				/>
 				{running ? <output className="sr-only">Agent is running</output> : null}
 			</div>
 		</ThemeContext.Provider>

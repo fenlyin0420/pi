@@ -2,10 +2,17 @@
 
 import type { ImageContent } from "@earendil-works/pi-ai";
 import type { AgentSession, AgentSessionEvent } from "@earendil-works/pi-coding-agent";
-import { createAgentSession, SessionManager } from "@earendil-works/pi-coding-agent";
+import {
+	createAgentSessionFromServices,
+	createAgentSessionServices,
+	createEventBus,
+	SessionManager,
+} from "@earendil-works/pi-coding-agent";
 import type {
 	AgentStatus,
 	AgentView,
+	AskAnswer,
+	AskRequest,
 	DesktopCommand,
 	DesktopEvent,
 	DesktopSettings,
@@ -19,6 +26,7 @@ import type {
 	TranscriptItem,
 	UsageSummary,
 } from "../shared/contract.ts";
+import { flowIdOf, PI_ASK_COMPLETED, PI_ASK_STARTED, PI_ASK_SUBMIT, toAskRequest, toSubmitPayload } from "./ask.ts";
 import { deleteSessionFile, listSessionSummaries, renameSessionFile, toSessionSummary } from "./session-files.ts";
 import type { SettingsStore } from "./settings.ts";
 import { itemIdAt, previewLine, toTranscriptItems } from "./transcript.ts";
@@ -73,10 +81,15 @@ export class SessionHost {
 	private structureDirty = false;
 	private stateDirty = false;
 	private readonly deltas = new Map<string, DeltaBuffer>();
+	/** 扩展与宿主共享的事件总线；pi-ask 的提问和答案都走它。 */
+	private readonly bus = createEventBus();
+	private pendingAsk: AskRequest | null = null;
 
 	constructor(cwd: string, deps: HostDeps) {
 		this.cwd = cwd;
 		this.deps = deps;
+		this.bus.on(PI_ASK_STARTED, (data) => this.onAskStarted(data));
+		this.bus.on(PI_ASK_COMPLETED, (data) => this.onAskCompleted(data));
 	}
 
 	getCwd(): string {
@@ -152,6 +165,9 @@ export class SessionHost {
 			case "updateSettings":
 				this.updateSettings(command.patch);
 				return;
+			case "askAnswer":
+				this.answerAsk(command.flowId, command.answers, command.note);
+				return;
 			case "setModel":
 				await this.setModel(command.model);
 				return;
@@ -219,10 +235,17 @@ export class SessionHost {
 	}
 
 	private async createLive(manager: SessionManager): Promise<LiveSession> {
-		const { session, modelFallbackMessage } = await createAgentSession({
-			sessionManager: manager,
+		// 总线由宿主创建并交给扩展：pi-ask 的 started/submit 两个方向都落在同一个通道上。
+		const services = await createAgentSessionServices({
 			cwd: this.cwd,
+			resourceLoaderOptions: { eventBus: this.bus },
 		});
+		const { session, modelFallbackMessage } = await createAgentSessionFromServices({
+			services,
+			sessionManager: manager,
+		});
+		// 对扩展而言我们是“没有终端、但有传输”的宿主：pi-ask 据此走事件契约而不是 TUI 组件。
+		await session.bindExtensions({ mode: "rpc" });
 		if (modelFallbackMessage) this.notify("warning", modelFallbackMessage);
 		const live: LiveSession = {
 			id: session.sessionId,
@@ -603,6 +626,28 @@ export class SessionHost {
 		this.notify("error", messageOf(error));
 		this.markStructure();
 		this.markState();
+	}
+
+	/** pi-ask 开始提问：转成界面契约推给 renderer，同一时刻只保留一份。 */
+	private onAskStarted(data: unknown): void {
+		const request = toAskRequest(data);
+		if (!request) return;
+		this.pendingAsk = request;
+		this.deps.emit({ type: "ask", request });
+	}
+
+	/** 提问结束（提交、取消或超时）：让界面上那张卡自己收起。 */
+	private onAskCompleted(data: unknown): void {
+		const flowId = flowIdOf(data);
+		if (!flowId) return;
+		if (this.pendingAsk?.flowId === flowId) this.pendingAsk = null;
+		this.deps.emit({ type: "askClosed", flowId });
+	}
+
+	/** 回答一次提问：通过扩展的提交通道送回去，结果由 pi-ask 自己决定。 */
+	private answerAsk(flowId: string, answers: Record<string, AskAnswer>, note?: string): void {
+		if (this.pendingAsk?.flowId !== flowId) return;
+		this.bus.emit(PI_ASK_SUBMIT, toSubmitPayload(flowId, answers, note));
 	}
 
 	private notify(level: "info" | "warning" | "error", message: string): void {

@@ -145,10 +145,46 @@ export type DesktopCommand =
 	| { type: "listModels" }
 	/** 项目内文件搜索，给 composer 的 @ 引用补全用。 */
 	| { type: "searchFiles"; requestId: number; query: string }
+	/** 回答一次 ask_user；flowId 取自收到的 ask 事件。 */
+	| { type: "askAnswer"; flowId: string; answers: Record<string, AskAnswer>; note?: string }
 	| { type: "openExternal"; url: string }
 	| { type: "revealPath"; path: string };
 
 export type PromptImage = { data: string; mimeType: string; name?: string };
+
+/** pi-ask 的一道题里可选的答案。 */
+export type AskOptionView = {
+	value: string;
+	label: string;
+	description?: string;
+	recommended?: boolean;
+};
+
+/** 一道题在界面上的样子；freeform 表示允许自己填一句。 */
+export type AskQuestionView = {
+	id: string;
+	label: string;
+	prompt: string;
+	type: "single" | "multi" | "preview";
+	required: boolean;
+	freeform: boolean;
+	options: AskOptionView[];
+};
+
+/** 一次 ask_user 提问；flowId 原样回传，是提交答案的唯一凭证。 */
+export type AskRequest = {
+	flowId: string;
+	title: string | null;
+	questions: AskQuestionView[];
+	createdAt: number;
+};
+
+/** 一道题的作答：选项值、自填正文、或整题备注。 */
+export type AskAnswer = {
+	values?: string[];
+	customText?: string;
+	note?: string;
+};
 
 export type MenuAction = "newSession" | "openProject" | "settings" | "search" | "toggleSidebar" | "closeSession";
 
@@ -173,7 +209,11 @@ export type DesktopEvent =
 	/** 原生菜单触发的动作，renderer 转成对应命令。 */
 	| { type: "menu"; action: MenuAction }
 	| { type: "window"; maximized: boolean }
-	| { type: "toast"; level: "info" | "warning" | "error"; message: string };
+	| { type: "toast"; level: "info" | "warning" | "error"; message: string }
+	/** pi-ask 开始提问；同一时刻最多一个。 */
+	| { type: "ask"; request: AskRequest }
+	/** 提问已经结束（提交、取消或超时），界面上那一张应当收起。 */
+	| { type: "askClosed"; flowId: string };
 
 export type DesktopBridge = {
 	getState(): Promise<DesktopState>;

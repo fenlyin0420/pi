@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useReducer } from "react";
 import { applyDelta } from "../main/transcript.ts";
 import type {
+	AskRequest,
 	DesktopCommand,
 	DesktopEvent,
 	DesktopState,
@@ -20,6 +21,8 @@ export type AppState = {
 	toasts: Toast[];
 	/** 原生菜单动作；seq 递增，便于同一动作连续触发。 */
 	menu: { action: MenuAction; seq: number } | null;
+	/** 正在等用户回答的 ask_user 提问。 */
+	ask: AskRequest | null;
 };
 
 export const INITIAL_STATE: AppState = {
@@ -28,6 +31,7 @@ export const INITIAL_STATE: AppState = {
 	maximized: false,
 	toasts: [],
 	menu: null,
+	ask: null,
 };
 
 let toastId = 0;
@@ -71,6 +75,10 @@ export function reduceEvent(state: AppState, event: DesktopEvent): AppState {
 		case "files":
 			// @ 引用补全的结果由 MentionPalette 自己订阅消费，主状态不持有它。
 			return state;
+		case "ask":
+			return { ...state, ask: event.request };
+		case "askClosed":
+			return state.ask?.flowId === event.flowId ? { ...state, ask: null } : state;
 		case "toast":
 			toastId += 1;
 			return {
