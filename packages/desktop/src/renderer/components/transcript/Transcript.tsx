@@ -1,8 +1,9 @@
-// 对话区：滚动容器、贴底跟随、回到底部按钮与空会话起始提示。
+// 对话区：滚动容器、贴底跟随、回到底部按钮、用户消息定位条与空会话起始提示。
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { AgentStatus, TranscriptItem } from "../../../shared/contract.ts";
 import { cx } from "../../ui.tsx";
+import { type MessageMark, MessageRail } from "./MessageRail.tsx";
 import { MessageRow } from "./MessageRow.tsx";
 import { ScrollToBottom } from "./ScrollToBottom.tsx";
 
@@ -38,6 +39,9 @@ export function Transcript({
 	const scrollRef = useRef<HTMLDivElement | null>(null);
 	const following = useRef(true);
 	const [showJump, setShowJump] = useState(false);
+	// 定位条点亮的格是“视口顶部那条用户消息”；滚动事件按帧合并后才重算。
+	const [activeUser, setActiveUser] = useState<string | null>(null);
+	const syncFrame = useRef<number | null>(null);
 
 	// 父组件每次渲染都会给出新的回调引用；这里转成稳定引用，行组件的 memo 才不会被它打断。
 	const callbacks = useRef({ onOpenExternal, onPrompt });
@@ -46,6 +50,39 @@ export function Transcript({
 	}, [onOpenExternal, onPrompt]);
 	const openExternal = useCallback((url: string) => callbacks.current.onOpenExternal(url), []);
 	const prompt = useCallback((text: string) => callbacks.current.onPrompt(text), []);
+
+	const marks = useMemo<MessageMark[]>(
+		() => items.flatMap((item) => (item.kind === "user" ? [{ id: item.id, preview: previewText(item.text) }] : [])),
+		[items],
+	);
+
+	// 读的是每行的实际位置：折叠块、图片、markdown 长高都会改它，所以只在滚动时读一次。
+	const syncActiveUser = useCallback(() => {
+		const node = scrollRef.current;
+		if (!node) return;
+		const edge = node.getBoundingClientRect().top + 8;
+		let current: string | null = null;
+		for (const element of node.querySelectorAll<HTMLElement>(".message-row.user[data-item-id]")) {
+			if (element.getBoundingClientRect().top > edge) break;
+			current = element.dataset.itemId ?? null;
+		}
+		setActiveUser(current);
+	}, []);
+
+	const scheduleSync = useCallback(() => {
+		if (syncFrame.current !== null) return;
+		syncFrame.current = requestAnimationFrame(() => {
+			syncFrame.current = null;
+			syncActiveUser();
+		});
+	}, [syncActiveUser]);
+
+	useEffect(
+		() => () => {
+			if (syncFrame.current !== null) cancelAnimationFrame(syncFrame.current);
+		},
+		[],
+	);
 
 	// 贴底时跟着新内容走：每次内容变化只读写一次布局，不做逐条测量的重活。
 	useLayoutEffect(() => {
@@ -76,7 +113,8 @@ export function Transcript({
 		following.current = node.scrollHeight - node.scrollTop - node.clientHeight <= FOLLOW_THRESHOLD_PX;
 		// 重新贴底就把提示收掉；离底时按钮要等新内容到达才出现，由上面的效果负责。
 		if (following.current) setShowJump(false);
-	}, []);
+		scheduleSync();
+	}, [scheduleSync]);
 
 	const handleWheel = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
 		if (event.deltaY >= 0) return;
@@ -95,37 +133,61 @@ export function Transcript({
 		node.scrollTo({ top: node.scrollHeight, behavior: reduced ? "auto" : "smooth" });
 	}, []);
 
+	/** 跳到某条用户消息：顶对齐，并停掉跟随，否则下一条增量会把视图拽回底部。 */
+	const jumpToMessage = useCallback((id: string, behavior: ScrollBehavior) => {
+		const node = scrollRef.current;
+		if (!node) return;
+		const target = node.querySelector<HTMLElement>(`.message-row[data-item-id="${CSS.escape(id)}"]`);
+		if (!target) return;
+		following.current = false;
+		setShowJump(false);
+		setActiveUser(id);
+		const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+		const top = target.getBoundingClientRect().top - node.getBoundingClientRect().top + node.scrollTop - 8;
+		node.scrollTo({ top: Math.max(0, top), behavior: reduced ? "auto" : behavior });
+	}, []);
+
 	return (
 		<div className="chat-surface">
-			<div
-				ref={scrollRef}
-				className="transcript-scroll"
-				role="log"
-				aria-live="polite"
-				aria-busy={status === "running"}
-				onScroll={handleScroll}
-				onWheel={handleWheel}
-			>
-				<div className={cx("transcript-content", items.length === 0 && "is-empty")}>
-					{items.length === 0 ? (
-						<EmptyConversation cwd={cwd} onPrompt={prompt} />
-					) : (
-						items.map((item) => (
-							<MessageRow
-								key={item.id}
-								item={item}
-								showThinking={showThinking}
-								showUsage={showUsage}
-								showToolDetails={showToolDetails}
-								onOpenExternal={openExternal}
-							/>
-						))
-					)}
+			<div className="transcript-body">
+				<div
+					ref={scrollRef}
+					className="transcript-scroll"
+					role="log"
+					aria-live="polite"
+					aria-busy={status === "running"}
+					onScroll={handleScroll}
+					onWheel={handleWheel}
+				>
+					<div className={cx("transcript-content", items.length === 0 && "is-empty")}>
+						{items.length === 0 ? (
+							<EmptyConversation cwd={cwd} onPrompt={prompt} />
+						) : (
+							items.map((item) => (
+								<MessageRow
+									key={item.id}
+									item={item}
+									showThinking={showThinking}
+									showUsage={showUsage}
+									showToolDetails={showToolDetails}
+									onOpenExternal={openExternal}
+								/>
+							))
+						)}
+					</div>
 				</div>
+				{/* 只有一条用户消息时没有可去的地方，定位条不占宽度。 */}
+				{marks.length > 1 ? <MessageRail marks={marks} activeId={activeUser} onJump={jumpToMessage} /> : null}
 			</div>
 			{showJump ? <ScrollToBottom onClick={jumpToLatest} /> : null}
 		</div>
 	);
+}
+
+/** 定位条悬停提示：消息压成一行，超长截断。 */
+function previewText(text: string): string {
+	const line = text.replace(/\s+/g, " ").trim();
+	return line.length > 120 ? `${line.slice(0, 120)}…` : line;
 }
 
 /** 空会话：给出工作目录和几个点开就能发的起始提示。 */

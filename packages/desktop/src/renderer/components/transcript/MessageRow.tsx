@@ -40,7 +40,7 @@ export const MessageRow = memo(function MessageRow({
 
 const UserRow = memo(function UserRow({ item }: { item: Extract<TranscriptItem, { kind: "user" }> }) {
 	return (
-		<article className="message-row user" aria-label="Your message">
+		<article className="message-row user" aria-label="Your message" data-item-id={item.id}>
 			<div className="message-col">
 				<div className="message-bubble">
 					<div className="message-user-text selectable">{item.text}</div>

@@ -7,6 +7,17 @@
 /* ---------- 滚动容器 ---------- */
 
 /*
+  对话区右侧留出一条定位条的位置：滚动条还在滚动容器自己的右边缘，定位条浮在它左侧的
+  留白里，两者不抢位。
+*/
+.transcript-body {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+/*
   .chat-surface 是 chat-shell.css 给的相对定位列容器；滚动留给这个元素。
   没有用 .thread-scroll：它的底部渐隐遮罩按“composer 浮在对话上”预留了高度，
   而我们的 composer 是滚动区下面的并列 flex 子项。
@@ -19,6 +30,114 @@
   /* 贴底跟随自己改 scrollTop，交给浏览器的滚动锚定会互相拉扯。 */
   overflow-anchor: none;
   scrollbar-gutter: stable;
+}
+
+/* ---------- 用户消息定位条 ---------- */
+
+/*
+  刻度均分整条高度：位置只由“第几条用户消息”决定，与内容高度无关。
+  整条都能按下并拖动，刻度本身是按钮，键盘也能逐个跳。
+*/
+.message-rail {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  /* 滚动条约 6px：定位条落在它左侧的 12px 里，不挡拖动条，也不进窗口的缩放边。 */
+  right: 12px;
+  z-index: 6;
+  display: flex;
+  width: 16px;
+  flex-direction: column;
+  justify-content: center;
+  padding: 12px 0;
+  user-select: none;
+  touch-action: none;
+}
+
+.message-rail-mark {
+  display: flex;
+  flex: 1 1 0;
+  min-height: 2px;
+  max-height: 14px;
+  width: 100%;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.message-rail-mark::before {
+  content: "";
+  width: 6px;
+  height: 2px;
+  border-radius: var(--radius-full);
+  background: color-mix(in oklab, var(--ds-text-primary) 22%, transparent);
+  transition:
+    width var(--motion-duration-fast) var(--motion-ease-out),
+    background var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.message-rail-mark:hover::before,
+.message-rail-mark:focus-visible::before {
+  width: 10px;
+  background: var(--ds-text-secondary);
+}
+
+/* 视口顶部那条用户消息：刻度加长加亮，位置感靠它。 */
+.message-rail-mark.is-active::before {
+  width: 10px;
+  height: 3px;
+  background: var(--ds-text-primary);
+}
+
+/* 悬浮预览卡：贴在定位条左侧，以悬浮的刻度为中心。 */
+.message-rail-popover {
+  position: absolute;
+  right: calc(100% + 10px);
+  display: flex;
+  width: 260px;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--ds-border-default);
+  border-radius: var(--radius-md);
+  background: var(--ds-bg-elevated-opaque);
+  box-shadow: var(--ds-shadow-composer);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.message-rail-popover-role {
+  color: var(--ds-text-muted);
+  font-size: var(--text-2xs);
+}
+
+.message-rail-popover-text {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  color: var(--ds-text-secondary);
+  font-size: var(--text-sm);
+  line-height: var(--leading-body);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+/* ---------- 一轮的活动链 ---------- */
+
+/*
+  活动链复用工具分组的壳（.tool-activity-group / .tool-activity-header），
+  只补链内的排布：思考文本直接铺开，不再套一层自己的折叠头。
+*/
+.turn-activity-body > .turn-activity-thinking {
+  margin: 6px 0 2px;
+}
+
+.turn-activity-body > .turn-activity-thinking:first-child {
+  margin-top: 2px;
 }
 
 /* 阅读带宽与 token 里的 --chat-content-max-width 对齐，横向留白不随窗口缩放抖动。 */
