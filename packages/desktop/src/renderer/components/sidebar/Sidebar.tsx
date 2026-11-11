@@ -16,7 +16,6 @@ import {
 	IconChevronRight,
 	IconClose,
 	IconMoon,
-	IconPanelLeftClose,
 	IconPlus,
 	IconSearch,
 	IconSettings,
@@ -50,7 +49,6 @@ type SidebarProps = {
 	onDeleteSession: (id: string) => void;
 	onPinSession: (id: string, pinned: boolean) => void;
 	onOpenSettings: () => void;
-	onToggleCollapsed: () => void;
 	onToggleTheme: () => void;
 	onSearch: () => void;
 	onResize: (width: number) => void;
@@ -68,7 +66,6 @@ export function Sidebar({
 	onDeleteSession,
 	onPinSession,
 	onOpenSettings,
-	onToggleCollapsed,
 	onToggleTheme,
 	onSearch,
 	onResize,
@@ -240,9 +237,6 @@ export function Sidebar({
 				<div className="sidebar-header-actions no-drag">
 					<IconButton label="New session" onClick={onNewSession}>
 						<IconPlus size={15} aria-hidden="true" />
-					</IconButton>
-					<IconButton label="Collapse sidebar" onClick={onToggleCollapsed}>
-						<IconPanelLeftClose size={15} aria-hidden="true" />
 					</IconButton>
 				</div>
 			</div>

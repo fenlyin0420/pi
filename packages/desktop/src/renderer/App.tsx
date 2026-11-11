@@ -113,7 +113,11 @@ export function App() {
 
 	return (
 		<ThemeContext.Provider value={theme}>
-			<div className="app-shell" data-sidebar-collapsed={collapsed || undefined}>
+			<div
+				className="app-shell"
+				data-sidebar-collapsed={collapsed || undefined}
+				data-maximized={state.maximized || undefined}
+			>
 				{desktop && settings ? (
 					<>
 						<Sidebar
@@ -127,7 +131,6 @@ export function App() {
 							onDeleteSession={(id) => send({ type: "deleteSession", id })}
 							onPinSession={(id, pinned) => send({ type: "pinSession", id, pinned })}
 							onOpenSettings={() => setSettingsOpen(true)}
-							onToggleCollapsed={() => updateSettings({ sidebarCollapsed: !collapsed })}
 							onToggleTheme={() =>
 								updateSettings({
 									theme:

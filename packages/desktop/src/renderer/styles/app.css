@@ -486,6 +486,28 @@
   display: none;
 }
 
+/*
+  Frameless window on Windows/Linux has no OS edge, so the shell draws one;
+  macOS keeps its native frame. The line has to sit above the sidebar and the
+  main pane (both opaque), hence a pseudo-element over the whole shell rather
+  than a border or an inset shadow the children would paint over. A maximized
+  window already has the screen edges.
+*/
+:root[data-platform="win32"] .app-shell::after,
+:root[data-platform="linux"] .app-shell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 200;
+  border: 1px solid var(--ds-border-default);
+  pointer-events: none;
+}
+
+:root[data-platform="win32"] .app-shell[data-maximized]::after,
+:root[data-platform="linux"] .app-shell[data-maximized]::after {
+  border-color: transparent;
+}
+
 /* ---------- 我们的三段式外壳 ---------- */
 
 /*
@@ -497,6 +519,28 @@
   position: relative;
   inset: auto;
   flex: 0 0 var(--ds-toolbar-height);
+}
+
+/*
+  chrome.css reserves the frameless window-button band with `right: 120px`,
+  which is right for its absolutely positioned bar and wrong for ours: as a
+  relative box it pulls the whole strip 120px off the left edge, so with the
+  sidebar collapsed the only remaining toggle sits at x=-108 and cannot be
+  clicked. The buttons are inside `.ct-right`, so the band is not needed here;
+  the platform selector is what outranks chrome.css.
+*/
+:root[data-platform="win32"] .main-pane > .conversation-topbar,
+:root[data-platform="linux"] .main-pane > .conversation-topbar {
+  right: auto;
+}
+
+/*
+  Same story for the lane padding: 36px of air exists so a floating bar clears
+  the native buttons it does not own. Ours sits in `.ct-right` and ends at the
+  strip's own 12px padding.
+*/
+.main-pane > .conversation-topbar .ct-right {
+  padding-right: 0;
 }
 
 .main-pane > .composer-dock {
