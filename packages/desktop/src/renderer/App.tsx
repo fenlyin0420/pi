@@ -5,6 +5,7 @@ import type { DesktopSettings, MenuAction } from "../shared/contract.ts";
 import { AskDialog } from "./components/AskDialog.tsx";
 import { CommandPalette, type PaletteAction } from "./components/CommandPalette.tsx";
 import { Composer } from "./components/composer/Composer.tsx";
+import { LivePreview } from "./components/LivePreview.tsx";
 import { SettingsPage } from "./components/settings/SettingsPage.tsx";
 import { Sidebar } from "./components/sidebar/Sidebar.tsx";
 import { Titlebar } from "./components/Titlebar.tsx";
@@ -169,6 +170,7 @@ export function App() {
 								onOpenExternal={(url) => send({ type: "openExternal", url })}
 								onPrompt={(text) => send({ type: "prompt", text })}
 							/>
+							<LivePreview items={desktop.transcript} status={desktop.agent.status} />
 							<Composer
 								sessionId={desktop.activeSessionId}
 								agent={desktop.agent}
