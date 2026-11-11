@@ -631,59 +631,6 @@
   padding: 0 24px 10px;
 }
 
-/* ---------- 模型输出实时预览 ---------- */
-
-/*
-  输入框上方的一行预览：运行中才有，占文档流里固定的一行，所以每秒十几次刷新也不会
-  让对话区跳动；只显示最新一行的尾部，长了就省略。
-*/
-.live-preview {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 8px;
-  min-height: 22px;
-  padding: 0 24px 2px;
-  overflow: hidden;
-  color: var(--ds-text-muted);
-  font-size: var(--text-xs);
-  line-height: var(--leading-tight);
-  white-space: nowrap;
-}
-
-.live-preview-dot {
-  flex: 0 0 auto;
-  width: 6px;
-  height: 6px;
-  border-radius: var(--radius-full);
-  background: var(--ds-text-secondary);
-  animation: live-preview-pulse 1.2s ease-in-out infinite;
-}
-
-.live-preview-text {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--ds-text-secondary);
-  text-overflow: ellipsis;
-}
-
-@keyframes live-preview-pulse {
-  0%,
-  100% {
-    opacity: 0.35;
-  }
-
-  50% {
-    opacity: 1;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .live-preview-dot {
-    animation: none;
-  }
-}
-
 /* 输入区底部快捷键提示：一行低对比度文字，不参与滚动。 */
 .composer-hints {
   display: flex;

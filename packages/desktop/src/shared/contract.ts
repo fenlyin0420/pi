@@ -94,12 +94,22 @@ export type TranscriptItem =
 	  }
 	| { kind: "notice"; id: string; level: "info" | "warning" | "error"; text: string; timestamp: number };
 
+/** 当前这一步在做的事；startedAt 是这一步自己的起点，换一步就换一个值。 */
+export type RunActivity = {
+	kind: "thinking" | "tool";
+	/** 正在跑的工具名；思考时为 null。 */
+	tool: string | null;
+	startedAt: number;
+};
+
 export type AgentView = {
 	model: string | null;
 	modelName: string | null;
 	thinkingLevel: ThinkingLevel;
 	reasoning: boolean;
 	status: AgentStatus;
+	/** 运行中的当前步骤；空闲时为 null。 */
+	activity: RunActivity | null;
 	usage: UsageSummary | null;
 };
 

@@ -380,3 +380,57 @@
     opacity: 0.7;
   }
 }
+
+/* ---------- 运行状态行 ---------- */
+
+/*
+  贴在对话尾部的运行状态：发送那一帧出现，整轮结束消失。每一步换一句文案、重新计时，
+  文字走已有的 .text-shimmer 扫光；秒表只重渲染自己，不牵动对话区。
+*/
+.run-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0 2px;
+  color: var(--ds-text-secondary);
+  font-size: var(--text-sm);
+  line-height: var(--leading-tight);
+  font-variant-numeric: tabular-nums;
+}
+
+.run-status-mark {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: currentColor;
+  animation: run-status-pulse 1.2s ease-in-out infinite;
+}
+
+.run-status-text {
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.run-status-tail {
+  color: var(--ds-text-faint);
+  letter-spacing: 1px;
+}
+
+@keyframes run-status-pulse {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .run-status-mark {
+    animation: none;
+    opacity: 0.7;
+  }
+}

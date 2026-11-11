@@ -1,12 +1,13 @@
 // 对话区：滚动容器、贴底跟随、回到底部按钮、用户消息定位条与空会话起始提示。
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { AgentStatus, TranscriptItem } from "../../../shared/contract.ts";
+import type { AgentStatus, RunActivity, TranscriptItem } from "../../../shared/contract.ts";
 import { groupTranscript } from "../../lib/turn-entries.ts";
 import { cx } from "../../ui.tsx";
 import { AssistantTurn } from "./AssistantTurn.tsx";
 import { type MessageMark, MessageRail } from "./MessageRail.tsx";
 import { MessageRow } from "./MessageRow.tsx";
+import { RunStatus } from "./RunStatus.tsx";
 import { ScrollToBottom } from "./ScrollToBottom.tsx";
 
 type TranscriptProps = {
@@ -14,6 +15,8 @@ type TranscriptProps = {
 	sessionId: string | null;
 	cwd: string;
 	status: AgentStatus;
+	/** 运行中的当前步骤；状态行挂在对话尾部。 */
+	activity: RunActivity | null;
 	showThinking: boolean;
 	showUsage: boolean;
 	showToolDetails: boolean;
@@ -32,6 +35,7 @@ export function Transcript({
 	sessionId,
 	cwd,
 	status,
+	activity,
 	showThinking,
 	showUsage,
 	showToolDetails,
@@ -92,15 +96,16 @@ export function Transcript({
 	// 贴底时跟着新内容走：每次内容变化只读写一次布局，不做逐条测量的重活。
 	useLayoutEffect(() => {
 		const node = scrollRef.current;
-		// items 的长度读在这里：它是让这个效果跟着新记录和增量重跑的依赖。
-		if (!node || items.length === 0) return;
+		// items 的长度读在这里：它是让这个效果跟着新记录和增量重跑的依赖；
+		// activity 让状态行的出现和消失也把视图带到新高度。
+		if (!node || (items.length === 0 && activity === null)) return;
 		if (!following.current) {
 			// 读者停在上文时只提个醒，绝不抢走正在看的位置。
 			setShowJump(true);
 			return;
 		}
 		node.scrollTop = node.scrollHeight;
-	}, [items]);
+	}, [items, activity]);
 
 	// 切换会话直接落到底部：上个会话的滚动位置和暂停状态都不带过来。
 	useLayoutEffect(() => {
@@ -183,6 +188,7 @@ export function Transcript({
 								),
 							)
 						)}
+						<RunStatus activity={activity} />
 					</div>
 				</div>
 				{/* 只有一条用户消息时没有可去的地方，定位条不占宽度。 */}

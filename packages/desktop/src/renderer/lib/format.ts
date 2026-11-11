@@ -18,6 +18,16 @@ export function formatDuration(ms: number | null): string {
 	return `${minutes}m ${Math.round(seconds % 60)}s`;
 }
 
+/** 运行中的秒表：12s / 1m 05s / 1h 02m，秒位补零，读数不跳宽。 */
+export function formatElapsed(ms: number): string {
+	const total = Math.max(0, Math.floor(ms / 1000));
+	const minutes = Math.floor(total / 60);
+	if (minutes < 1) return `${total}s`;
+	const seconds = String(total % 60).padStart(2, "0");
+	if (minutes < 60) return `${minutes}m ${seconds}s`;
+	return `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, "0")}m`;
+}
+
 /** 金额：小于一分钱时给四位小数，避免统计行永远显示 $0.00。 */
 export function formatCost(cost: number): string {
 	if (!Number.isFinite(cost) || cost <= 0) return "$0";

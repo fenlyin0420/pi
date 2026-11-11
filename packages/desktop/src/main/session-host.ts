@@ -22,6 +22,7 @@ import type {
 	Platform,
 	PromptImage,
 	ResolvedTheme,
+	RunActivity,
 	SessionSummary,
 	ThinkingLevel,
 	TranscriptItem,
@@ -58,6 +59,8 @@ type LiveSession = {
 	transcriptDirty: boolean;
 	/** 正在生成的那条 assistant 消息；提交前它不在 agent.messages 里，界面靠它先显示。 */
 	partial: AgentMessage | null;
+	/** 当前步骤：思考，还是某个工具；换步骤时计时跟着重置。 */
+	activity: RunActivity | null;
 	unsubscribe: () => void;
 };
 
@@ -251,6 +254,7 @@ export class SessionHost {
 			items: [],
 			transcriptDirty: true,
 			partial: null,
+			activity: null,
 			unsubscribe: () => {},
 		};
 		live.unsubscribe = session.subscribe((event) => this.onSessionEvent(live, event));
@@ -268,6 +272,8 @@ export class SessionHost {
 				await live.agent.steer(trimmed, payload);
 			} else {
 				live.status = "running";
+				// 预填期也算在思考：状态行从点发送那一帧起就要有话说。
+				live.activity = { kind: "thinking", tool: null, startedAt: Date.now() };
 				this.markState();
 				// prompt 会等到整轮结束；不阻塞 IPC 返回，错误交给下面统一上报。
 				void live.agent.prompt(trimmed, { images: payload }).catch((error: unknown) => this.report(live, error));
@@ -455,6 +461,7 @@ export class SessionHost {
 			thinkingLevel: live?.agent.thinkingLevel ?? "medium",
 			reasoning: model?.reasoning ?? false,
 			status: live?.status ?? "idle",
+			activity: live?.activity ?? null,
 			usage: live ? usageOf(live.agent) : null,
 		};
 	}
@@ -468,6 +475,10 @@ export class SessionHost {
 				this.scheduleTranscriptFlush();
 				return;
 			case "message_start":
+				live.partial = null;
+				this.markStructure();
+				this.scheduleTranscriptFlush();
+				return;
 			case "message_end":
 			case "turn_start":
 			case "turn_end":
@@ -480,6 +491,8 @@ export class SessionHost {
 				return;
 			case "tool_execution_start":
 				live.toolStartedAt.set(event.toolCallId, Date.now());
+				live.activity = { kind: "tool", tool: event.toolName, startedAt: Date.now() };
+				this.markState();
 				this.markStructure();
 				this.scheduleTranscriptFlush();
 				return;
@@ -493,6 +506,11 @@ export class SessionHost {
 					live.toolDurations.set(event.toolCallId, Date.now() - startedAt);
 					live.toolStartedAt.delete(event.toolCallId);
 				}
+				// 手上没工具了，模型就在读结果、想下一步：状态行换成思考，计时从头开始。
+				if (live.toolStartedAt.size === 0 && live.activity?.kind === "tool") {
+					live.activity = { kind: "thinking", tool: null, startedAt: Date.now() };
+					this.markState();
+				}
 				this.markStructure();
 				this.scheduleTranscriptFlush();
 				return;
@@ -500,6 +518,7 @@ export class SessionHost {
 			case "agent_end":
 				if (!live.agent.isStreaming) live.status = "idle";
 				live.partial = null;
+				live.activity = null;
 				this.markStructure();
 				this.markState();
 				this.flushNow();
@@ -507,6 +526,7 @@ export class SessionHost {
 			case "agent_settled":
 				live.status = "idle";
 				live.partial = null;
+				live.activity = null;
 				this.markStructure();
 				this.markState();
 				this.flushNow();
@@ -596,6 +616,7 @@ export class SessionHost {
 
 	private report(live: LiveSession, error: unknown): void {
 		live.status = live.agent.isStreaming ? "running" : "idle";
+		if (!live.agent.isStreaming) live.activity = null;
 		this.notify("error", messageOf(error));
 		this.markStructure();
 		this.markState();

@@ -43,6 +43,7 @@ function state(): DesktopState {
 			thinkingLevel: "medium",
 			reasoning: true,
 			status: "running",
+			activity: null,
 			usage: null,
 		},
 		settings: {
