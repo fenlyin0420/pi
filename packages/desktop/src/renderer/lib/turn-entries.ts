@@ -65,28 +65,34 @@ export function buildTurnEntries(parts: readonly AssistantPart[], showThinking: 
 }
 
 /**
- * 整轮折叠：所有 loop 的思考与工具调用并进一条活动链（位置在第一次出现活动的地方），
- * 文本照旧按原位一段段显示——模型中途输出的正文不该被折进去。
+ * 一轮回答的折叠：相邻的思考与工具调用并成一条活动行，文本按原位置显示。每个 step 的
+ * 过程和它吐出的正文因此相邻，不会把中途的正文挤到最后。
  */
 export function layoutTurn(items: readonly AssistantItem[], showThinking: boolean): TurnEntry[] {
 	const entries: TurnEntry[] = [];
-	// 活动链只建一次，后续 loop 的环节继续往里加。
-	let chain: ActivityBlock[] | null = null;
 	for (const item of items) {
 		for (const entry of buildTurnEntries(item.parts, showThinking)) {
+			// 环节的 key 带上 item id：每个 loop 都从下标 0 重新编号。
+			const blocks = entry.kind === "activity" ? entry.blocks.map((block) => withKey(item, block)) : [];
 			if (entry.kind === "text") {
 				entries.push({ kind: "text", key: `${item.id}-${entry.key}`, text: entry.text });
 				continue;
 			}
-			if (chain === null) {
-				chain = [];
-				entries.push({ kind: "activity", key: `${item.id}-${entry.key}`, blocks: chain });
+			const last = entries.at(-1);
+			if (last?.kind === "activity") {
+				// 中间没有文本，就是同一段过程：继续接在这条活动行上。
+				last.blocks.push(...blocks);
+				continue;
 			}
-			// 环节的 key 也要带上 item id：每个 loop 都从下标 0 重新编号。
-			for (const block of entry.blocks) chain.push({ ...block, key: `${item.id}-${block.key}` });
+			entries.push({ kind: "activity", key: `${item.id}-${entry.key}`, blocks });
 		}
 	}
 	return entries;
+}
+
+/** 给活动链里的环节加上所属 loop 的前缀。 */
+function withKey(item: AssistantItem, block: ActivityBlock): ActivityBlock {
+	return { ...block, key: `${item.id}-${block.key}` };
 }
 
 /** 追加一环：接在已有的活动链后面，否则新开一条链。 */

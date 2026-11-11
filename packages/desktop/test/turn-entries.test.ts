@@ -1,4 +1,4 @@
-// 一轮回答的折叠规则：整轮并块、工具合并、思考成链、正文留在原位。
+// 一轮回答的折叠规则：整轮并块、工具合并、思考成链、正文紧跟在它的过程后面。
 
 import { describe, expect, it } from "vitest";
 import { buildTurnEntries, groupTranscript, layoutTurn } from "../src/renderer/lib/turn-entries.ts";
@@ -88,29 +88,28 @@ describe("buildTurnEntries", () => {
 });
 
 describe("layoutTurn", () => {
-	it("整轮的思考与工具并成一条链，正文留在原位", () => {
+	it("每个 step 的过程和它吐出的正文相邻", () => {
 		const items = [
-			assistant("a1", [thinking("plan"), tool("x"), text("draft")]),
-			assistant("a2", [tool("y"), text("final")]),
+			assistant("a1", [thinking("plan"), tool("x"), text("A")]),
+			assistant("a2", [thinking("plan2"), tool("y"), text("B")]),
 		];
 		const entries = layoutTurn(assistantItems(items), true);
-		expect(entries.map((entry) => entry.kind)).toEqual(["activity", "text", "text"]);
+		expect(entries.map((entry) => entry.kind)).toEqual(["activity", "text", "activity", "text"]);
+		expect(entries.map((entry) => (entry.kind === "text" ? entry.text : ""))).toEqual(["", "A", "", "B"]);
+	});
+
+	it("相邻 loop 之间没有正文时并成同一行", () => {
+		const items = [assistant("a1", [thinking("plan"), tool("x")]), assistant("a2", [tool("y")])];
+		const entries = layoutTurn(assistantItems(items), true);
+		expect(entries).toHaveLength(1);
 		const chain = entries[0];
 		expect(chain.kind === "activity" && chain.blocks.length).toBe(3);
-		expect(entries.at(-1)?.kind === "text" && entries.at(-1)).toMatchObject({ text: "final" });
 	});
 
-	it("模型中途输出的正文不被折进链里", () => {
-		const items = [assistant("a1", [tool("x"), text("mid"), tool("y"), text("end")])];
+	it("每个 step 自己的思考不被后面的正文带走", () => {
+		const items = [assistant("a1", [thinking("plan"), text("A"), tool("x"), text("B")])];
 		const entries = layoutTurn(assistantItems(items), true);
-		expect(entries.map((entry) => entry.kind)).toEqual(["activity", "text", "text"]);
-		expect(entries[1].kind === "text" && entries[1].text).toBe("mid");
-	});
-
-	it("最后一个 loop 没有正文时活动链就是最后一项", () => {
-		const items = [assistant("a1", [text("early")]), assistant("a2", [thinking("plan"), tool("x")])];
-		const entries = layoutTurn(assistantItems(items), true);
-		expect(entries.map((entry) => entry.kind)).toEqual(["text", "activity"]);
+		expect(entries.map((entry) => entry.kind)).toEqual(["activity", "text", "activity", "text"]);
 	});
 
 	it("不同 loop 的 key 不冲突", () => {
