@@ -145,7 +145,6 @@ export type DesktopCommand =
 	| { type: "listModels" }
 	/** 项目内文件搜索，给 composer 的 @ 引用补全用。 */
 	| { type: "searchFiles"; requestId: number; query: string }
-	| { type: "windowControl"; action: "minimize" | "maximize" | "close" }
 	| { type: "openExternal"; url: string }
 	| { type: "revealPath"; path: string };
 

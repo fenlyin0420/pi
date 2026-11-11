@@ -134,45 +134,6 @@
   padding-left: 78px;
 }
 
-/* ---------- Window buttons ---------- */
-
-.window-controls {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  -webkit-app-region: no-drag;
-  app-region: no-drag;
-}
-
-/*
-  Square, glyph-sized targets. They take the shared 28px control metric so they
-  stay aligned with every other icon button in the strip.
-*/
-.window-control {
-  display: inline-flex;
-  width: var(--ds-control-size);
-  height: var(--ds-control-size);
-  flex: 0 0 var(--ds-control-size);
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-2xs);
-  color: var(--ds-text-muted);
-  transition:
-    background var(--motion-duration-fast) var(--motion-ease-out),
-    color var(--motion-duration-fast) var(--motion-ease-out);
-}
-
-.window-control:hover {
-  background: var(--ds-bg-hover);
-  color: var(--ds-text-primary);
-}
-
-/* Close is the one destructive target in the strip: it fills with the error tone. */
-.window-control-close:hover {
-  background: var(--ds-error);
-  color: var(--ds-bg-primary);
-}
-
 /* ---------- Popover and menus ---------- */
 
 /*
@@ -487,14 +448,13 @@
 }
 
 /*
-  Frameless window on Windows/Linux has no OS edge, so the shell draws one;
-  macOS keeps its native frame. The line has to sit above the sidebar and the
-  main pane (both opaque), hence a pseudo-element over the whole shell rather
-  than a border or an inset shadow the children would paint over. A maximized
-  window already has the screen edges.
+  Windows keeps a frameless window with the system-drawn buttons, so the shell
+  still has to draw its own edge: the line sits above the sidebar and the main
+  pane (both opaque), hence a pseudo-element rather than a border or an inset
+  shadow the children would paint over. A maximized window already has the
+  screen edges. macOS and Linux use the OS frame and need none of this.
 */
-:root[data-platform="win32"] .app-shell::after,
-:root[data-platform="linux"] .app-shell::after {
+:root[data-platform="win32"] .app-shell::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -503,8 +463,7 @@
   pointer-events: none;
 }
 
-:root[data-platform="win32"] .app-shell[data-maximized]::after,
-:root[data-platform="linux"] .app-shell[data-maximized]::after {
+:root[data-platform="win32"] .app-shell[data-maximized]::after {
   border-color: transparent;
 }
 
@@ -526,10 +485,18 @@
   which is right for its absolutely positioned bar and wrong for ours: as a
   relative box it pulls the whole strip 120px off the left edge, so with the
   sidebar collapsed the only remaining toggle sits at x=-108 and cannot be
-  clicked. The buttons are inside `.ct-right`, so the band is not needed here;
-  the platform selector is what outranks chrome.css.
+  clicked. The platform selector is what outranks chrome.css.
+
+  Windows also keeps clear of the native buttons Electron draws in the
+  top-right corner (Window Controls Overlay): `titlebar-area-*` are viewport
+  lengths, so the inset is the viewport width minus the area they leave us.
+  138px is the fallback (three 46px buttons) when the env vars are missing.
 */
-:root[data-platform="win32"] .main-pane > .conversation-topbar,
+:root[data-platform="win32"] .main-pane > .conversation-topbar {
+  right: auto;
+  padding-right: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, calc(100vw - 138px)));
+}
+
 :root[data-platform="linux"] .main-pane > .conversation-topbar {
   right: auto;
 }

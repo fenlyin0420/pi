@@ -152,14 +152,10 @@ export function App() {
 								sessionTitle={activeSession?.title ?? "pi"}
 								modelName={desktop.agent.modelName}
 								status={desktop.agent.status}
-								maximized={state.maximized}
 								sidebarCollapsed={collapsed}
 								onToggleSidebar={() => updateSettings({ sidebarCollapsed: !collapsed })}
 								onSearch={() => setPaletteOpen(true)}
 								onOpenSettings={() => setSettingsOpen(true)}
-								onMinimize={() => send({ type: "windowControl", action: "minimize" })}
-								onMaximize={() => send({ type: "windowControl", action: "maximize" })}
-								onClose={() => send({ type: "windowControl", action: "close" })}
 							/>
 							<Transcript
 								items={desktop.transcript}
