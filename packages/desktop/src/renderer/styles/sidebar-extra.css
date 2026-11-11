@@ -1,0 +1,130 @@
+/* sidebar-extra：本切片自有的样式；共享 token 与通用规则在 tokens.css / app.css。 */
+
+/*
+  拖拽柄 4px：共享 .sidebar-resize-handle 给的是 8px 命中区，这里的切片规格是 4px。
+  hr 元素先清掉浏览器默认边框，视觉指示条仍由共享的 ::after 绘制。
+*/
+hr.sidebar-resize-handle {
+	width: 4px;
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+
+/* 标题最多两行：单行截断会切掉区分同一项目下多个会话的关键词。 */
+.sidebar .thread-item-title {
+	display: -webkit-box;
+	overflow: hidden;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	white-space: normal;
+}
+
+/* 项目行里的目录名吃掉剩余宽度，折叠箭头贴右。 */
+.sidebar-project-name {
+	min-width: 0;
+	flex: 1 1 auto;
+}
+
+/* 分组计数：安静的数字，不参与标题截断。 */
+.sidebar-group-count {
+	flex: 0 0 auto;
+	margin-left: auto;
+	color: var(--ds-text-muted);
+	font-size: var(--text-xs);
+	font-variant-numeric: tabular-nums;
+}
+
+/* 会话列表：ul/li 的语义保留，行距与 .sidebar-session-groups 的 1px 节奏一致。 */
+.sidebar-session-list {
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+	margin: 0;
+	padding: 2px 0 7px;
+	list-style: none;
+}
+
+/* 折叠分组直接不渲染占位，避免空的 body 留下一条缝。 */
+.sidebar-session-group-body.is-collapsed {
+	display: none;
+}
+
+/* 搜索框：本地过滤，样式贴近 composer 的输入底色。 */
+.sidebar-search {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	min-height: 28px;
+	margin-top: 4px;
+	padding: 0 6px;
+	border-radius: var(--radius-sm);
+	background: var(--ds-tile-hover);
+	color: var(--ds-text-muted);
+	transition: background var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.sidebar-search:focus-within {
+	background: var(--ds-raised);
+	box-shadow: 0 0 0 2px color-mix(in oklab, var(--ds-accent) 22%, transparent);
+}
+
+.sidebar-search-input {
+	min-width: 0;
+	flex: 1 1 auto;
+	border: 0;
+	background: transparent;
+	color: var(--ds-text-primary);
+	font-size: var(--text-md);
+	line-height: var(--leading-compact);
+	outline: none;
+}
+
+.sidebar-search-input::placeholder {
+	color: var(--ds-text-muted);
+}
+
+.sidebar-search-action {
+	display: inline-flex;
+	flex: 0 0 auto;
+	align-items: center;
+	justify-content: center;
+	border: 0;
+	border-radius: var(--radius-2xs);
+	padding: 0;
+	background: transparent;
+	color: var(--ds-text-muted);
+}
+
+.sidebar-search-action:hover,
+.sidebar-search-action:focus-visible {
+	color: var(--ds-text-primary);
+}
+
+.sidebar-search-count {
+	margin: 4px 0 0;
+	padding: 0 4px;
+	color: var(--ds-text-muted);
+	font-size: var(--text-xs);
+}
+
+/* 空状态：一行提示加一个新建入口，左对齐到列表的内容网格。 */
+.sidebar-empty {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 8px;
+	padding: 6px 0;
+}
+
+/* 底部模型名：只占一行，长名字截断。 */
+.sidebar-footer-model {
+	min-width: 0;
+	margin-left: auto;
+	overflow: hidden;
+	padding: 0 4px;
+	color: var(--ds-text-muted);
+	font-size: var(--text-xs-plus);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}

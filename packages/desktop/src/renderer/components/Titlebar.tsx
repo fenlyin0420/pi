@@ -1,0 +1,87 @@
+// 无边框窗口的标题栏：整条是拖动区，左侧折叠侧栏，中间标题与模型状态，右侧搜索/设置和窗口按钮。
+
+import type { AgentStatus, Platform } from "../../shared/contract.ts";
+import { IconPanelLeftClose, IconPanelLeftOpen, IconSearch, IconSettings } from "../icons.tsx";
+import { cx, IconButton } from "../ui.tsx";
+import { WindowControls } from "./WindowControls.tsx";
+
+/** 渲染标题栏；只有 macOS 不画窗口按钮，其余平台的按钮由 WindowControls 接在右侧。 */
+export function Titlebar({
+	platform,
+	sessionTitle,
+	modelName,
+	status,
+	maximized,
+	sidebarCollapsed,
+	onToggleSidebar,
+	onSearch,
+	onOpenSettings,
+	onMinimize,
+	onMaximize,
+	onClose,
+}: {
+	platform: Platform;
+	sessionTitle: string;
+	modelName: string | null;
+	status: AgentStatus;
+	maximized: boolean;
+	sidebarCollapsed: boolean;
+	onToggleSidebar: () => void;
+	onSearch: () => void;
+	onOpenSettings: () => void;
+	onMinimize: () => void;
+	onMaximize: () => void;
+	onClose: () => void;
+}) {
+	const running = status === "running";
+	// 快捷键标签跟着平台走：macOS 用 ⌘，其余平台用 Ctrl。
+	const modKey = platform === "darwin" ? "⌘" : "Ctrl+";
+
+	return (
+		<div className="conversation-topbar" role="toolbar" aria-label="Session">
+			<div className="ct-left">
+				<IconButton
+					label={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
+					size="small"
+					className="ct-icon-btn"
+					onClick={onToggleSidebar}
+				>
+					{sidebarCollapsed ? <IconPanelLeftOpen size={15} /> : <IconPanelLeftClose size={15} />}
+				</IconButton>
+				<div className="ct-title-wrap" title={sessionTitle}>
+					<h1 className="ct-title">{sessionTitle}</h1>
+					{modelName ? <span className="ct-model">{modelName}</span> : null}
+					<span
+						className={cx("ct-status", running && "is-running")}
+						role="img"
+						aria-label={running ? "Agent is running" : "Agent is idle"}
+						title={running ? "Agent is running" : "Agent is idle"}
+					/>
+				</div>
+			</div>
+			<div className="ct-right">
+				<div className="ct-actions">
+					<IconButton label={`Search (${modKey}K)`} size="small" className="ct-icon-btn" onClick={onSearch}>
+						<IconSearch size={15} />
+					</IconButton>
+					<IconButton
+						label={`Settings (${modKey},)`}
+						size="small"
+						className="ct-icon-btn"
+						onClick={onOpenSettings}
+					>
+						<IconSettings size={15} />
+					</IconButton>
+				</div>
+				{platform === "darwin" ? null : (
+					<WindowControls
+						maximized={maximized}
+						onMinimize={onMinimize}
+						onMaximize={onMaximize}
+						onClose={onClose}
+					/>
+				)}
+			</div>
+		</div>
+	);
+}

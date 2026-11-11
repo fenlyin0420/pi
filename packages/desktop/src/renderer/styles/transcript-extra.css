@@ -1,0 +1,258 @@
+/*
+  对话区的自有样式。messages.css / prose.css / chat-shell.css 已经带着参考实现的
+  行、气泡、工具卡片和 markdown 排版，这里只补我们这套 DOM 需要的部分：滚动容器、
+  空会话、系统提示、github 主题的代码底色、流式光标和逐行 diff 的底座。
+*/
+
+/* ---------- 滚动容器 ---------- */
+
+/*
+  .chat-surface 是 chat-shell.css 给的相对定位列容器；滚动留给这个元素。
+  没有用 .thread-scroll：它的底部渐隐遮罩按“composer 浮在对话上”预留了高度，
+  而我们的 composer 是滚动区下面的并列 flex 子项。
+*/
+.transcript-scroll {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* 贴底跟随自己改 scrollTop，交给浏览器的滚动锚定会互相拉扯。 */
+  overflow-anchor: none;
+  scrollbar-gutter: stable;
+}
+
+/* 阅读带宽与 token 里的 --chat-content-max-width 对齐，横向留白不随窗口缩放抖动。 */
+.transcript-content {
+  width: min(100%, var(--chat-content-max-width, 760px));
+  margin: 0 auto;
+  padding: 20px 32px 28px;
+}
+
+/* 空会话时把内容区撑满视口，才能把提示行居中；有消息时行高就是内容高。 */
+.transcript-content.is-empty {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+}
+
+/* 回到底部按钮贴在滚动区右下角，而不是参考实现的屏幕中下（那里之上是浮层 composer）。 */
+.chat-surface > .jump-latest-btn {
+  bottom: 16px;
+  left: auto;
+  right: 16px;
+  translate: none;
+}
+
+/* ---------- 空会话 ---------- */
+
+.chat-empty {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 48px 0;
+  text-align: center;
+}
+
+.chat-empty-label {
+  color: var(--ds-text-muted);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+}
+
+.chat-empty-path {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--ds-text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm-plus);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-empty-prompts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.chat-empty-prompt {
+  padding: 7px 12px;
+  border-radius: var(--radius-md);
+  background: var(--ds-tile);
+  color: var(--ds-text-secondary);
+  font-size: var(--text-sm-plus);
+  text-align: left;
+  transition:
+    background var(--motion-duration-fast) var(--motion-ease-out),
+    color var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.chat-empty-prompt:hover {
+  background: var(--ds-bg-hover);
+  color: var(--ds-text-primary);
+}
+
+.chat-empty-prompt:focus-visible {
+  outline: 2px solid var(--ds-accent);
+  outline-offset: 2px;
+}
+
+/* ---------- 系统提示 ---------- */
+
+/* 提示行沿用 assistant 列的阅读带宽；已经是 pre，换行和缩进都按原文。 */
+.message-row.notice .message-col {
+  width: min(100%, var(--chat-prose-max-width, 720px));
+}
+
+.message-notice {
+  margin: 0;
+  max-height: 320px;
+  overflow: auto;
+  border-radius: var(--radius-md);
+  background: var(--ds-tile);
+  padding: 10px 12px;
+  color: var(--ds-text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs-plus);
+  line-height: var(--leading-relaxed);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.message-notice.is-warning {
+  background: color-mix(in oklab, var(--ds-warning) 9%, transparent);
+  color: color-mix(in oklab, var(--ds-warning) 70%, var(--ds-text-primary));
+}
+
+.message-notice.is-error {
+  background: color-mix(in oklab, var(--ds-error) 9%, transparent);
+  color: color-mix(in oklab, var(--ds-error) 70%, var(--ds-text-primary));
+}
+
+/* 用户气泡里的图片数量徽标跟着正文往下排，不挤在同一行。 */
+.message-bubble > .message-attachment {
+  margin-top: 6px;
+}
+
+/* ---------- 逐行 diff ---------- */
+
+/*
+  diff 行的底座本在 work-panel.css（工作面板不参与对话渲染），这里把它补齐：
+  符号列固定宽度，正文列吃掉剩余宽度并自行折行。
+*/
+.diff-line {
+  display: flex;
+  min-width: 0;
+  align-items: stretch;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs-plus);
+  line-height: var(--leading-relaxed);
+}
+
+.diff-line-sign {
+  flex: 0 0 auto;
+  width: 18px;
+  text-align: center;
+  user-select: none;
+  color: var(--ds-text-muted);
+}
+
+.diff-line-text {
+  flex: 1;
+  min-width: 0;
+  padding-right: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.diff-line.add .diff-line-sign {
+  color: var(--ds-success);
+}
+
+.diff-line.remove .diff-line-sign {
+  color: var(--ds-error);
+}
+
+/* ---------- 代码块（github 主题） ---------- */
+
+/*
+  prose.css 的代码底色是按 one-dark-pro / one-light 定的；高亮走的是 github-dark /
+  github-light（见 lib/highlight.ts），底色和默认墨色要跟着换，否则 token 颜色和
+  底板不在一个调子上。浅色的 .code-block-lang / 复制按钮已在 prose.css 里。
+*/
+.code-block {
+  --code-block-bg: #24292e;
+  color: #e1e4e8;
+}
+
+:root[data-theme="light"] .code-block {
+  --code-block-bg: #ffffff;
+  color: #24292e;
+}
+
+.code-block-lang {
+  color: color-mix(in oklab, #e1e4e8 62%, transparent);
+}
+
+:root[data-theme="light"] .code-block-lang {
+  color: color-mix(in oklab, #24292e 62%, transparent);
+}
+
+/* 没有语言标签（或语法未就绪）时的裸 pre 兜底，同样跟 github 主题走。 */
+.prose-chat pre {
+  background: #24292e;
+  color: #e1e4e8;
+}
+
+:root[data-theme="light"] .prose-chat pre {
+  background: #ffffff;
+  color: #24292e;
+}
+
+/* ---------- 流式光标 ---------- */
+
+/*
+  光标总跟着最后一块内容：段落、列表末项、引用末段和代码块末行都要有。
+  在列表、代码块直接加 ::after 会掉到块外，所以逐个降级到它们的末尾子节点。
+*/
+@keyframes transcript-stream-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+.assistant-turn-fragment.streaming .prose-chat > :last-child:not(ul):not(ol):not(blockquote):not(pre):not(table):not(.table-wrap)::after,
+.assistant-turn-fragment.streaming .prose-chat > :is(ul, ol):last-child li:last-child:not(:has(ul, ol)):not(:has(p))::after,
+.assistant-turn-fragment.streaming .prose-chat > :is(ul, ol):last-child li:last-child > p:last-child::after,
+.assistant-turn-fragment.streaming .prose-chat > blockquote:last-child > p:last-child::after,
+.assistant-turn-fragment.streaming .prose-chat > pre:last-child > code::after {
+  content: "";
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: var(--ds-text-primary);
+  animation: transcript-stream-blink 1s step-end infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .assistant-turn-fragment.streaming .prose-chat > :last-child:not(ul):not(ol):not(blockquote):not(pre):not(table):not(.table-wrap)::after,
+  .assistant-turn-fragment.streaming .prose-chat > :is(ul, ol):last-child li:last-child:not(:has(ul, ol)):not(:has(p))::after,
+  .assistant-turn-fragment.streaming .prose-chat > :is(ul, ol):last-child li:last-child > p:last-child::after,
+  .assistant-turn-fragment.streaming .prose-chat > blockquote:last-child > p:last-child::after,
+  .assistant-turn-fragment.streaming .prose-chat > pre:last-child > code::after {
+    animation: none;
+    opacity: 0.7;
+  }
+}

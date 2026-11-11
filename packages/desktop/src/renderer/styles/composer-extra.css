@@ -1,0 +1,132 @@
+/* composer-extra：输入区自有样式：命令/引用面板容器、附件托盘、模型与等级浮层壳、用量读数和快捷键提示。
+   参考实现里已移植的 composer.css / composer-menus.css class 不在这里重复。 */
+
+/* 面板贴在输入框上沿：它挂在输入框上，不改变 shell 的布局高度。 */
+.composer-palette {
+	position: absolute;
+	inset-inline: 0;
+	bottom: calc(100% + 6px);
+	z-index: 20;
+	display: flex;
+	flex-direction: column;
+	max-height: min(320px, 50vh);
+	overflow: hidden;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--radius-lg);
+	background: var(--ds-bg-elevated-opaque);
+	box-shadow: var(--ds-shadow-dialog);
+}
+
+.composer-palette .composer-ac-list {
+	overflow-y: auto;
+}
+
+/* 附件托盘：一行缩略图，超过一行就换行，最多 MAX_ATTACHMENTS 张。 */
+.composer-attachments {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	width: 100%;
+	margin-bottom: 8px;
+}
+
+.composer-attachment {
+	position: relative;
+	width: 56px;
+	height: 56px;
+	margin: 0;
+	overflow: hidden;
+	border-radius: var(--radius-md);
+	background: var(--ds-tile-deep);
+}
+
+.composer-attachment-image {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+/* 删除入口压在右下角：缩略图本身没有可点的地方，光标移上去才浮出来。 */
+.composer-attachment-remove {
+	position: absolute;
+	top: 2px;
+	right: 2px;
+	display: inline-flex;
+	width: 16px;
+	height: 16px;
+	align-items: center;
+	justify-content: center;
+	border-radius: var(--radius-full);
+	background: color-mix(in oklab, var(--ds-text-primary) 32%, transparent);
+	color: var(--ds-bg-primary);
+	opacity: 0;
+	transition: opacity var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.composer-attachment:hover .composer-attachment-remove,
+.composer-attachment-remove:focus-visible {
+	opacity: 1;
+}
+
+/* 浮层外壳：列表自己滚动，搜索框与分组行的样式来自 composer-menus.css。 */
+.composer-model-picker {
+	display: flex;
+	flex-direction: column;
+	max-height: min(420px, 60vh);
+}
+
+.composer-thinking-picker {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	padding: 4px;
+}
+
+/* 没配凭据的 provider：行留在列表里说明它存在，但不可选。 */
+.composer-model-option:disabled {
+	cursor: default;
+	opacity: 0.45;
+}
+
+.composer-model-option-unavailable {
+	color: var(--ds-text-faint);
+	font-size: var(--text-2xs);
+}
+
+/* 用量读数：百分比是正文，token 与费用是它的注脚。 */
+.composer-usage {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 0 4px;
+	color: var(--ds-text-muted);
+	font-size: var(--text-2xs);
+	white-space: nowrap;
+}
+
+.composer-usage-context {
+	color: var(--ds-text-secondary);
+	font-variant-numeric: tabular-nums;
+}
+
+.composer-usage-tokens,
+.composer-usage-cost {
+	color: var(--ds-text-faint);
+	font-variant-numeric: tabular-nums;
+}
+
+/* 快捷键提示：一行小字贴着输入框底边，右对齐跟发送按钮一侧。 */
+.composer-hints {
+	display: flex;
+	justify-content: flex-end;
+	gap: 10px;
+	padding: 6px 8px 0;
+	color: var(--ds-text-faint);
+	font-size: var(--text-2xs);
+}
+
+.composer-hints > span {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+}

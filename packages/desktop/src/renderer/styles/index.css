@@ -1,0 +1,26 @@
+/*
+  Renderer stylesheet entry point. Import order is the cascade: tokens and base
+  first, the ported reference layers in dependency order, our own shell and
+  primitives (app.css) after them so they can refine, then the per-surface
+  addenda and the settings sheet last.
+*/
+
+@import "./tokens.css";
+@import "./base.css";
+@import "./ui-kit.css";
+@import "./chrome.css";
+@import "./chat-shell.css";
+@import "./sidebar-threads.css";
+@import "./messages.css";
+@import "./prose.css";
+@import "./composer.css";
+@import "./composer-menus.css";
+@import "./overlays.css";
+@import "./theme-overrides.css";
+@import "./markdown-table.css";
+@import "./responsive.css";
+@import "./app.css";
+@import "./sidebar-extra.css";
+@import "./transcript-extra.css";
+@import "./composer-extra.css";
+@import "./settings.css";
