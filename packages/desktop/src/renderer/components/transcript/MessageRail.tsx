@@ -39,7 +39,7 @@ export function MessageRail({ marks, activeId, onJump }: MessageRailProps) {
 
 	const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
 		if (event.button !== 0) return;
-		event.currentTarget.setPointerCapture(event.pointerId);
+		// 不在按下时捕获指针：捕获会把随后的 click 改派给导航条，刻度按钮的 onClick 就永远不触发。
 		press.current = { pointerId: event.pointerId, y: event.clientY, dragging: false };
 	};
 
@@ -49,6 +49,9 @@ export function MessageRail({ marks, activeId, onJump }: MessageRailProps) {
 		if (!state.dragging) {
 			if (Math.abs(event.clientY - state.y) < 4) return;
 			state.dragging = true;
+			// 越过阈值才算拖动，这时才需要把指针锁在条上。
+			event.currentTarget.setPointerCapture(event.pointerId);
+			setHover(null);
 		}
 		jumpTo(event.clientY);
 	};

@@ -129,14 +129,19 @@
 /* ---------- 一轮的活动链 ---------- */
 
 /*
-  活动链复用工具分组的壳（.tool-activity-group / .tool-activity-header），
-  只补链内的排布：思考文本直接铺开，不再套一层自己的折叠头。
+  活动行复用工具分组的壳（.tool-activity-group / .tool-activity-header），
+  只补行内的排布：思考与中途草稿直接铺开，不再各自套一层折叠头。
 */
 .turn-activity-body > .turn-activity-thinking {
   margin: 6px 0 2px;
 }
 
-.turn-activity-body > .turn-activity-thinking:first-child {
+.turn-activity-body > .turn-activity-text {
+  margin: 4px 0 8px;
+}
+
+.turn-activity-body > .turn-activity-thinking:first-child,
+.turn-activity-body > .turn-activity-text:first-child {
   margin-top: 2px;
 }
 

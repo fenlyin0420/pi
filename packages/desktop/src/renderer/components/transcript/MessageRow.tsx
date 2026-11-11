@@ -1,41 +1,21 @@
-// 一行对话的分发：用户气泡、assistant 整列、系统提示各走各的渲染。
+// 一行非 assistant 的对话记录：用户气泡与系统提示各走各的渲染。
 
 import { memo } from "react";
 import type { TranscriptItem } from "../../../shared/contract.ts";
 import { IconImage } from "../../icons.tsx";
 import { cx } from "../../ui.tsx";
-import { AssistantTurn } from "./AssistantTurn.tsx";
 
 type MessageRowProps = {
-	item: TranscriptItem;
-	showThinking: boolean;
-	showUsage: boolean;
-	showToolDetails: boolean;
-	onOpenExternal: (url: string) => void;
+	item: Exclude<TranscriptItem, { kind: "assistant" }>;
 };
 
 /**
- * 一条 transcript 记录。memo 的默认浅比较就够：流式增量只替换命中的那一条
- * item，其余 item 的引用不变，因此只有正在生成的最后一行会重渲染。
+ * 一条对话记录。memo 的默认浅比较就够：流式增量只替换命中的那一条 item，
+ * 其余 item 的引用不变。
  */
-export const MessageRow = memo(function MessageRow({
-	item,
-	showThinking,
-	showUsage,
-	showToolDetails,
-	onOpenExternal,
-}: MessageRowProps) {
+export const MessageRow = memo(function MessageRow({ item }: MessageRowProps) {
 	if (item.kind === "user") return <UserRow item={item} />;
-	if (item.kind === "notice") return <NoticeRow item={item} />;
-	return (
-		<AssistantTurn
-			item={item}
-			showThinking={showThinking}
-			showUsage={showUsage}
-			showToolDetails={showToolDetails}
-			onOpenExternal={onOpenExternal}
-		/>
-	);
+	return <NoticeRow item={item} />;
 });
 
 const UserRow = memo(function UserRow({ item }: { item: Extract<TranscriptItem, { kind: "user" }> }) {

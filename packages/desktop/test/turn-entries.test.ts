@@ -1,8 +1,8 @@
-// 一轮回答的渲染单元折叠规则：工具合并、思考与工具成链、单环不套壳。
+// 一轮回答的折叠规则：整轮并块、工具合并、思考成链、只留最后一个 loop 的输出。
 
 import { describe, expect, it } from "vitest";
-import { buildTurnEntries } from "../src/renderer/lib/turn-entries.ts";
-import type { AssistantPart, ToolCallView } from "../src/shared/contract.ts";
+import { buildTurnEntries, groupTranscript, layoutTurn } from "../src/renderer/lib/turn-entries.ts";
+import type { AssistantPart, ToolCallView, TranscriptItem } from "../src/shared/contract.ts";
 
 function call(id: string): ToolCallView {
 	return {
@@ -21,54 +21,95 @@ const tool = (id: string): AssistantPart => ({ type: "tool", call: call(id) });
 const text = (value: string): AssistantPart => ({ type: "text", text: value });
 const thinking = (value: string): AssistantPart => ({ type: "thinking", text: value });
 
-describe("buildTurnEntries", () => {
-	it("相邻工具调用合成一条链，单次调用直接铺开", () => {
-		const two = buildTurnEntries([tool("a"), tool("b")], true);
-		expect(two).toHaveLength(1);
-		expect(two[0].kind).toBe("activity");
-		expect(two[0].kind === "activity" && two[0].blocks[0]).toMatchObject({ kind: "tools" });
+function assistant(id: string, parts: AssistantPart[], streaming = false): TranscriptItem {
+	return { kind: "assistant", id, parts, timestamp: 0, streaming, model: null, usage: null, error: null };
+}
 
-		const one = buildTurnEntries([tool("a")], true);
-		expect(one).toHaveLength(1);
-		expect(one[0].kind).toBe("tool");
+/** 把构造出来的一轮记录收窄成 layoutTurn 接受的 assistant 数组。 */
+function assistantItems(items: readonly TranscriptItem[]): Extract<TranscriptItem, { kind: "assistant" }>[] {
+	return items.flatMap((item) => (item.kind === "assistant" ? [item] : []));
+}
+
+const user = (id: string): TranscriptItem => ({ kind: "user", id, text: id, timestamp: 0, imageCount: 0 });
+
+describe("groupTranscript", () => {
+	it("相邻的 assistant 记录并成一轮", () => {
+		const blocks = groupTranscript([user("u1"), assistant("a1", [tool("x")]), assistant("a2", [text("done")])]);
+		expect(blocks.map((block) => block.kind)).toEqual(["item", "turn"]);
+		const turn = blocks[1];
+		expect(turn.kind === "turn" && turn.items.map((item) => item.id)).toEqual(["a1", "a2"]);
+	});
+
+	it("用户消息和系统提示把轮切开", () => {
+		const notice: TranscriptItem = { kind: "notice", id: "n1", level: "info", text: "hi", timestamp: 0 };
+		const blocks = groupTranscript([assistant("a1", [text("x")]), user("u1"), notice]);
+		expect(blocks.map((block) => block.kind)).toEqual(["turn", "item", "item"]);
+	});
+});
+
+describe("buildTurnEntries", () => {
+	it("相邻工具调用合成一条链", () => {
+		const entries = buildTurnEntries([tool("a"), tool("b")], true);
+		expect(entries).toHaveLength(1);
+		const entry = entries[0];
+		expect(entry.kind).toBe("activity");
+		if (entry.kind !== "activity") return;
+		expect(entry.blocks).toHaveLength(1);
+		expect(entry.blocks[0].kind === "tools" && entry.blocks[0].calls.map((item) => item.id)).toEqual(["a", "b"]);
 	});
 
 	it("思考与工具合成一条链，顺序不变", () => {
 		const entries = buildTurnEntries([thinking("plan"), tool("a"), thinking("next"), tool("b")], true);
 		expect(entries).toHaveLength(1);
 		const entry = entries[0];
-		expect(entry.kind).toBe("activity");
-		if (entry.kind !== "activity") return;
-		expect(entry.blocks.map((block) => block.kind)).toEqual(["thinking", "tools", "thinking", "tools"]);
+		expect(entry.kind === "activity" && entry.blocks.map((block) => block.kind)).toEqual([
+			"thinking",
+			"tools",
+			"thinking",
+			"tools",
+		]);
 	});
 
 	it("文本把链切开，空文本不占位", () => {
-		const entries = buildTurnEntries([tool("a"), text("hello"), tool("b")], true);
-		expect(entries.map((entry) => entry.kind)).toEqual(["tool", "text", "tool"]);
-
-		const sparse = buildTurnEntries([text(""), text("kept")], true);
-		expect(sparse).toEqual([{ kind: "text", key: "text-1", text: "kept" }]);
+		expect(buildTurnEntries([tool("a"), text("hello"), tool("b")], true).map((entry) => entry.kind)).toEqual([
+			"activity",
+			"text",
+			"activity",
+		]);
+		expect(buildTurnEntries([text(""), text("kept")], true)).toEqual([{ kind: "text", key: "text-1", text: "kept" }]);
 	});
 
 	it("关掉思考后整块消失，只剩工具链", () => {
-		const parts: AssistantPart[] = [thinking("plan"), tool("a"), tool("b")];
-		const withoutThinking = buildTurnEntries(parts, false);
-		expect(withoutThinking).toHaveLength(1);
-		const entry = withoutThinking[0];
-		expect(entry.kind).toBe("activity");
-		if (entry.kind !== "activity") return;
-		expect(entry.blocks).toHaveLength(1);
-		expect(entry.blocks[0].kind).toBe("tools");
-		expect(entry.blocks[0].kind === "tools" && entry.blocks[0].calls.map((item) => item.id)).toEqual(["a", "b"]);
-
-		// 只有思考时什么都不渲染，不留占位。
+		const entries = buildTurnEntries([thinking("plan"), tool("a")], false);
+		expect(entries).toHaveLength(1);
+		expect(entries[0].kind === "activity" && entries[0].blocks.map((block) => block.kind)).toEqual(["tools"]);
 		expect(buildTurnEntries([thinking("plan")], false)).toEqual([]);
 	});
+});
 
-	it("key 跟着第一个 part 的下标，追加内容不会改写已有单元的 key", () => {
-		const before = buildTurnEntries([text("hi"), tool("a"), tool("b")], true);
-		const after = buildTurnEntries([text("hi"), tool("a"), tool("b"), tool("c")], true);
-		expect(after[0].key).toBe(before[0].key);
-		expect(after[1].key).toBe(before[1].key);
+describe("layoutTurn", () => {
+	it("整轮折成一行，只留最后一个 loop 的输出", () => {
+		const items = [
+			assistant("a1", [thinking("plan"), tool("x"), text("draft")]),
+			assistant("a2", [tool("y"), text("final")]),
+		];
+		const { activity, output } = layoutTurn(assistantItems(items), true);
+		expect(output?.text).toBe("final");
+		// 上一个 loop 的草稿、思考、工具全在活动行里。
+		expect(activity.map((entry) => entry.kind)).toEqual(["activity", "text", "activity"]);
+	});
+
+	it("最后一个 loop 没有文本时不留输出，全在活动行", () => {
+		const items = [assistant("a1", [thinking("plan"), tool("x")])];
+		const { activity, output } = layoutTurn(assistantItems(items), true);
+		expect(output).toBeNull();
+		expect(activity).toHaveLength(1);
+	});
+
+	it("中间 loop 的工具不会代替最后一段输出", () => {
+		const items = [assistant("a1", [text("early")]), assistant("a2", [tool("x")])];
+		const { activity, output } = layoutTurn(assistantItems(items), true);
+		expect(output).toBeNull();
+		expect(activity.map((entry) => entry.kind)).toEqual(["text", "activity"]);
 	});
 });

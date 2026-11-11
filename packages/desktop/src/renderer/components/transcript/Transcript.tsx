@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { AgentStatus, TranscriptItem } from "../../../shared/contract.ts";
+import { groupTranscript } from "../../lib/turn-entries.ts";
 import { cx } from "../../ui.tsx";
+import { AssistantTurn } from "./AssistantTurn.tsx";
 import { type MessageMark, MessageRail } from "./MessageRail.tsx";
 import { MessageRow } from "./MessageRow.tsx";
 import { ScrollToBottom } from "./ScrollToBottom.tsx";
@@ -55,6 +57,9 @@ export function Transcript({
 		() => items.flatMap((item) => (item.kind === "user" ? [{ id: item.id, preview: previewText(item.text) }] : [])),
 		[items],
 	);
+
+	// 一次提问会来回好几个 loop，它们是同一轮：并成一块才能在收起时只占一行。
+	const blocks = useMemo(() => groupTranscript(items), [items]);
 
 	// 读的是每行的实际位置：折叠块、图片、markdown 长高都会改它，所以只在滚动时读一次。
 	const syncActiveUser = useCallback(() => {
@@ -163,16 +168,20 @@ export function Transcript({
 						{items.length === 0 ? (
 							<EmptyConversation cwd={cwd} onPrompt={prompt} />
 						) : (
-							items.map((item) => (
-								<MessageRow
-									key={item.id}
-									item={item}
-									showThinking={showThinking}
-									showUsage={showUsage}
-									showToolDetails={showToolDetails}
-									onOpenExternal={openExternal}
-								/>
-							))
+							blocks.map((block) =>
+								block.kind === "turn" ? (
+									<AssistantTurn
+										key={block.key}
+										items={block.items}
+										showThinking={showThinking}
+										showUsage={showUsage}
+										showToolDetails={showToolDetails}
+										onOpenExternal={openExternal}
+									/>
+								) : (
+									<MessageRow key={block.key} item={block.item} />
+								),
+							)
 						)}
 					</div>
 				</div>
