@@ -1,6 +1,8 @@
-// 助手一轮回答的渲染单元：相邻的思考与工具调用合成一条活动链，整轮只留最后一段模型输出。
+// 助手一轮回答的渲染单元：相邻的思考与工具调用合成一条活动链，整轮只留最后一段模型输出；
+// 活动链那一条标题的文案也在这里算。
 
 import type { AssistantPart, ToolCallView, TranscriptItem } from "../../shared/contract.ts";
+import { lineTail } from "./format.ts";
 
 type AssistantItem = Extract<TranscriptItem, { kind: "assistant" }>;
 
@@ -88,6 +90,49 @@ export function layoutTurn(items: readonly AssistantItem[], showThinking: boolea
 		}
 	}
 	return entries;
+}
+
+/** 思考预览带上多少字：够长才能顶满一行，多出来的旧字会被标题裁掉。 */
+const PREVIEW_CHARS = 240;
+
+/** 粘进对话的截图落在临时目录里：路径又长又没信息量，预览里不说它。 */
+const CLIPBOARD_TEMP = /pi-clipboard-[0-9a-f-]+\.\w+/;
+
+/**
+ * 运行中的预览。`tail` 是一直往前长的正文：按最新一段排满一行，最新的字贴着行尾；
+ * `plain` 是一条短摘要。正文还没到时思考只说 Thinking。
+ */
+export type StepPreview = { kind: "tail"; text: string } | { kind: "plain"; text: string };
+
+/**
+ * 运行中的预览：这一步在做的事。思考给正文最新写下的一段，工具给一行调用摘要，
+ * 临时截图只说“在读截图”。
+ */
+export function stepPreview(blocks: readonly ActivityBlock[]): StepPreview {
+	const block = blocks.at(-1);
+	if (!block) return { kind: "plain", text: "Working" };
+	if (block.kind === "thinking") {
+		const tail = lineTail(block.text, PREVIEW_CHARS);
+		return { kind: "tail", text: tail === "" ? "Thinking" : `Thinking · ${tail}` };
+	}
+	const call = block.calls.at(-1);
+	if (!call) return { kind: "plain", text: "Working" };
+	// 真正的路径留给结束后的工具卡片：展开就能看到，跑的时候不需要它在眼前。
+	return { kind: "plain", text: CLIPBOARD_TEMP.test(call.summary) ? `${call.name} screenshot` : call.summary };
+}
+
+/** 静态摘要：先工具后思考，数量为 0 的部分不出现。 */
+export function activitySummary(blocks: readonly ActivityBlock[]): string {
+	let tools = 0;
+	let thoughts = 0;
+	for (const block of blocks) {
+		if (block.kind === "thinking") thoughts += 1;
+		else tools += block.calls.length;
+	}
+	const parts: string[] = [];
+	if (tools > 0) parts.push(`${tools} tool${tools === 1 ? "" : "s"}`);
+	if (thoughts > 0) parts.push(thoughts === 1 ? "thought" : `${thoughts} thoughts`);
+	return parts.join(" · ");
 }
 
 /** 给活动链里的环节加上所属 loop 的前缀。 */

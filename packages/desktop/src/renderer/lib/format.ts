@@ -1,6 +1,23 @@
-// 展示层格式化：token、耗时、时间戳、金额。所有函数都是纯函数，方便直接测。
+// 展示层格式化：token、耗时、时间戳、金额，以及把正文压成一行预览。所有函数都是纯函数，方便直接测。
 
 const COMPACT = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
+
+/** 一行预览：折叠空白、超长时截掉尾部；状态行和定位条都靠它把正文压成一行。 */
+export function oneLine(text: string, limit: number): string {
+	const line = flatten(text);
+	return line.length > limit ? `${line.slice(0, limit)}…` : line;
+}
+
+/** 一行预览的另一头：超长时截掉开头，读者看到的是正文最新写下的那句。 */
+export function lineTail(text: string, limit: number): string {
+	const line = flatten(text);
+	return line.length > limit ? `…${line.slice(-limit)}` : line;
+}
+
+/** 预览只有一行：换行和连续空白全折成单个空格。 */
+function flatten(text: string): string {
+	return text.replace(/\s+/g, " ").trim();
+}
 
 /** 12.4k / 987 这样的紧凑 token 数。 */
 export function formatTokens(tokens: number): string {
@@ -64,4 +81,24 @@ export function formatClock(timestamp: number): string {
 	const date = new Date(timestamp);
 	if (Number.isNaN(date.getTime())) return "";
 	return date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+}
+
+/** 附件大小：KB 起一位小数，超过 10 只留整数，够看数量级就行。 */
+export function formatBytes(bytes: number): string {
+	if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
+	if (bytes < 1024) return `${Math.round(bytes)} B`;
+	const units = ["KB", "MB", "GB"];
+	let value = bytes / 1024;
+	let unit = 0;
+	while (value >= 1024 && unit < units.length - 1) {
+		value /= 1024;
+		unit += 1;
+	}
+	return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[unit]}`;
+}
+
+/** 路径的最后一段：chip 里只放文件名，完整路径走 title。 */
+export function baseName(path: string): string {
+	const parts = path.split(/[\\/]/);
+	return parts[parts.length - 1] || path;
 }

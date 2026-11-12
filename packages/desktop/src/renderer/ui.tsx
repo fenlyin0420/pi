@@ -17,6 +17,19 @@ export function cx(...parts: Array<string | false | null | undefined>): string {
 	return parts.filter(Boolean).join(" ");
 }
 
+/**
+ * 运行中的文字扫光：同一段文字叠两层，上层用渐变画扫过的高光。
+ * 两层同格叠放，所以文字不断变长时宽度不跳，扫光也不会重启。
+ */
+export function ShimmerText({ text }: { text: string }) {
+	return (
+		<span className="text-shimmer" data-active="true">
+			<span className="text-shimmer-base">{text}</span>
+			<span className="text-shimmer-peak">{text}</span>
+		</span>
+	);
+}
+
 const OVERLAY_ROOT_ID = "pi-desktop-overlays";
 
 function overlayRoot(): HTMLElement {

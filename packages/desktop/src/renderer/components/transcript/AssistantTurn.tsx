@@ -12,6 +12,8 @@ import { TurnMeta } from "./TurnMeta.tsx";
 type AssistantTurnProps = {
 	/** 一次提问之后的所有 loop，按时间顺序。 */
 	items: readonly Extract<TranscriptItem, { kind: "assistant" }>[];
+	/** 这是最后一轮、且这一轮还没跑完：预览行接着动，用量条先不露。 */
+	live: boolean;
 	showThinking: boolean;
 	showUsage: boolean;
 	showToolDetails: boolean;
@@ -22,12 +24,23 @@ type AssistantTurnProps = {
  * 一轮回答。整轮的思考与工具调用折进一条活动行（默认收起，运行中在标题上预览当前步骤），
  * 模型输出的正文按原顺序显示——中途的正文和最后一段一样正常露出。
  */
-export function AssistantTurn({ items, showThinking, showUsage, showToolDetails, onOpenExternal }: AssistantTurnProps) {
+export function AssistantTurn({
+	items,
+	live,
+	showThinking,
+	showUsage,
+	showToolDetails,
+	onOpenExternal,
+}: AssistantTurnProps) {
 	const entries = useMemo(() => layoutTurn(items, showThinking), [items, showThinking]);
-	const running = items.some((item) => item.streaming);
+	// 正文还在流式才亮光标：中途跑工具时没有流式正文，光标得减。
+	const streaming = items.some((item) => item.streaming);
 	const last = items.at(-1);
 	// 光标只跟在最后一段正文后面；活动行不是正文，不承载光标。
 	const lastTextKey = entries.findLast((entry) => entry.kind === "text")?.key ?? null;
+	// 运行中的预览只挂在最后一条活动行上：一轮没跑完（包括正在跑工具那段）就一直预览当前这一步，
+	// 不退回静态摘要；整轮结束才收起折叠行、露出耗时和用量。
+	const previewIndex = live ? entries.findLastIndex((entry) => entry.kind === "activity") : -1;
 	return (
 		<div className="message-row assistant">
 			<div className="message-col">
@@ -38,7 +51,7 @@ export function AssistantTurn({ items, showThinking, showUsage, showToolDetails,
 							className={cx(
 								"message-bubble",
 								"assistant-turn-fragment",
-								running && entry.key === lastTextKey && "streaming",
+								streaming && entry.key === lastTextKey && "streaming",
 							)}
 						>
 							<div className="prose-chat">
@@ -49,15 +62,14 @@ export function AssistantTurn({ items, showThinking, showUsage, showToolDetails,
 						<TurnActivity
 							key={entry.key}
 							blocks={entry.blocks}
-							// 活动行排在最后一项才是“正在工作”；后面还有正文时，跑的是那段正文。
-							running={running && index === entries.length - 1}
+							running={index === previewIndex}
 							showToolDetails={showToolDetails}
 							onOpenExternal={onOpenExternal}
 						/>
 					),
 				)}
 				{last?.error ? <AssistantError error={last.error} /> : null}
-				{showUsage && !running ? <TurnMeta usage={last?.usage ?? null} model={last?.model ?? null} /> : null}
+				{showUsage && !live ? <TurnMeta usage={last?.usage ?? null} model={last?.model ?? null} /> : null}
 			</div>
 		</div>
 	);

@@ -3,11 +3,15 @@
 import { describe, expect, it } from "vitest";
 import { diffLines } from "../src/renderer/lib/diff.ts";
 import {
+	baseName,
+	formatBytes,
 	formatCost,
 	formatDuration,
 	formatElapsed,
 	formatSessionTime,
 	formatTokens,
+	lineTail,
+	oneLine,
 	sessionGroup,
 } from "../src/renderer/lib/format.ts";
 
@@ -26,6 +30,28 @@ describe("formatTokens", () => {
 	it("负数和非数按 0 处理", () => {
 		expect(formatTokens(-5)).toBe("0");
 		expect(formatTokens(Number.NaN)).toBe("0");
+	});
+});
+
+describe("oneLine", () => {
+	it("折叠空白、去掉首尾空白", () => {
+		expect(oneLine("  a\n\tb   c ", 40)).toBe("a b c");
+	});
+
+	it("超长才截断，转折号算在上限外", () => {
+		expect(oneLine("abcdef", 6)).toBe("abcdef");
+		expect(oneLine("abcdefg", 6)).toBe("abcdef…");
+	});
+});
+
+describe("lineTail", () => {
+	it("超长时截掉开头，留下最新那段", () => {
+		expect(lineTail("abcdef", 6)).toBe("abcdef");
+		expect(lineTail("abcdefg", 6)).toBe("…bcdefg");
+	});
+
+	it("同样折叠空白：预览只有一行", () => {
+		expect(lineTail("  a\n\tb ", 40)).toBe("a b");
 	});
 });
 
@@ -109,5 +135,31 @@ describe("diffLines", () => {
 			{ kind: "same", text: "a" },
 			{ kind: "same", text: "b" },
 		]);
+	});
+});
+
+describe("formatBytes", () => {
+	it("字节以内给整数，之后 KB / MB / GB", () => {
+		expect(formatBytes(0)).toBe("0 B");
+		expect(formatBytes(987)).toBe("987 B");
+		expect(formatBytes(1536)).toBe("1.5 KB");
+		expect(formatBytes(12 * 1024 * 1024)).toBe("12 MB");
+		expect(formatBytes(2.5 * 1024 * 1024 * 1024)).toBe("2.5 GB");
+	});
+
+	it("负数和非数按 0 处理", () => {
+		expect(formatBytes(-1)).toBe("0 B");
+		expect(formatBytes(Number.NaN)).toBe("0 B");
+	});
+});
+
+describe("baseName", () => {
+	it("两种分隔符都切在最后一段", () => {
+		expect(baseName("/home/u/report.pdf")).toBe("report.pdf");
+		expect(baseName("C:\\Users\\u\\notes.txt")).toBe("notes.txt");
+	});
+
+	it("没有分隔符时原样返回", () => {
+		expect(baseName("file.md")).toBe("file.md");
 	});
 });

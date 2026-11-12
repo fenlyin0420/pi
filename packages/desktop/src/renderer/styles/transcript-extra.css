@@ -145,6 +145,43 @@
   margin-top: 2px;
 }
 
+/*
+  展开后的过程可能比一屏还长：标题行吸在滚动容器顶部，关闭折叠的箭头始终在手边，
+  不用翻回上面再关。底色必须不透明，正文才能从它后面滚过去而不透出来；
+  悬停底色是半透明的，所以叠在底色上而不是替掉它。
+*/
+.turn-activity.open > .tool-activity-header {
+  position: sticky;
+  top: 0;
+  /* 正文就在同一条活动链里、排在标题后面：给标题一层叠放，它才盖得住正文。 */
+  z-index: 1;
+  background-color: var(--ds-bg-primary);
+}
+
+.turn-activity.open > .tool-activity-header:hover {
+  background-image: linear-gradient(var(--ds-bg-hover), var(--ds-bg-hover));
+}
+
+/*
+  运行中的预览要吃满整行：标签拿走剩余宽度，正文靠右排，超长时从左渗出去被裁掉——
+  最新那几个字因此总是贴着运行标记，读者看到的就是模型此刻写下的那一句。
+*/
+.turn-activity.active > .tool-activity-header > .tool-activity-label {
+  flex: 1 1 auto;
+}
+
+.tool-activity-preview {
+  display: flex;
+  justify-content: flex-end;
+  overflow: hidden;
+  /* 被裁断的那頭用渐隐收尾，看着像句子还在左面，而不是被刀切掉。 */
+  mask-image: linear-gradient(90deg, transparent, #000 2.5ch);
+}
+
+.tool-activity-preview > * {
+  flex: none;
+}
+
 /* 阅读带宽与 token 里的 --chat-content-max-width 对齐，横向留白不随窗口缩放抖动。 */
 .transcript-content {
   width: min(100%, var(--chat-content-max-width, 760px));

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { AgentStatus, RunActivity, TranscriptItem } from "../../../shared/contract.ts";
+import { oneLine } from "../../lib/format.ts";
 import { groupTranscript } from "../../lib/turn-entries.ts";
 import { cx } from "../../ui.tsx";
 import { AssistantTurn } from "./AssistantTurn.tsx";
@@ -27,6 +28,9 @@ type TranscriptProps = {
 
 // 距底多少像素内算“贴底”。比这更远就认为读者在看上文，停止自动跟随。
 const FOLLOW_THRESHOLD_PX = 80;
+
+// 定位条悬停提示的长度：消息压成一行，超出就截断。
+const RAIL_PREVIEW_CHARS = 120;
 
 const STARTING_PROMPTS = ["Summarize this project", "Find a bug and fix it", "Add tests for a module"];
 
@@ -59,7 +63,10 @@ export function Transcript({
 	const prompt = useCallback((text: string) => callbacks.current.onPrompt(text), []);
 
 	const marks = useMemo<MessageMark[]>(
-		() => items.flatMap((item) => (item.kind === "user" ? [{ id: item.id, preview: previewText(item.text) }] : [])),
+		() =>
+			items.flatMap((item) =>
+				item.kind === "user" ? [{ id: item.id, preview: oneLine(item.text, RAIL_PREVIEW_CHARS) }] : [],
+			),
 		[items],
 	);
 
@@ -68,6 +75,9 @@ export function Transcript({
 
 	// 一次提问会来回好几个 loop，它们是同一轮：并成一块才能在收起时只占一行。
 	const blocks = useMemo(() => groupTranscript(items), [items]);
+
+	// 只有最后一条回答才可能“还在进行中”：中间跑工具时没有流式消息，不能拿它判断整轮结束。
+	const liveTurnKey = status === "running" ? (blocks.findLast((block) => block.kind === "turn")?.key ?? null) : null;
 
 	// 读的是每行的实际位置：折叠块、图片、markdown 长高都会改它，所以只在滚动时读一次。
 	const syncActiveUser = useCallback(() => {
@@ -193,6 +203,7 @@ export function Transcript({
 									<AssistantTurn
 										key={block.key}
 										items={block.items}
+										live={block.key === liveTurnKey}
 										showThinking={showThinking}
 										showUsage={showUsage}
 										showToolDetails={showToolDetails}
@@ -203,7 +214,7 @@ export function Transcript({
 								),
 							)
 						)}
-						{activity !== null && phrase !== null ? <RunStatus activity={activity} phrase={phrase} /> : null}
+						{activity !== null ? <RunStatus /> : null}
 					</div>
 				</div>
 				{/* 只有一条用户消息时没有可去的地方，定位条不占宽度。 */}
@@ -212,12 +223,6 @@ export function Transcript({
 			{showJump ? <ScrollToBottom onClick={jumpToLatest} /> : null}
 		</div>
 	);
-}
-
-/** 定位条悬停提示：消息压成一行，超长截断。 */
-function previewText(text: string): string {
-	const line = text.replace(/\s+/g, " ").trim();
-	return line.length > 120 ? `${line.slice(0, 120)}…` : line;
 }
 
 /** 空会话：给出工作目录和几个点开就能发的起始提示。 */

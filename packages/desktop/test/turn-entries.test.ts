@@ -1,7 +1,14 @@
-// 一轮回答的折叠规则：整轮并块、工具合并、思考成链、正文紧跟在它的过程后面。
+// 一轮回答的折叠规则：整轮并块、工具合并、思考成链、正文紧跟在它的过程后面；
+// 以及那一条活动链标题的文案（运行中的预览、结束后的摘要）。
 
 import { describe, expect, it } from "vitest";
-import { buildTurnEntries, groupTranscript, layoutTurn } from "../src/renderer/lib/turn-entries.ts";
+import {
+	activitySummary,
+	buildTurnEntries,
+	groupTranscript,
+	layoutTurn,
+	stepPreview,
+} from "../src/renderer/lib/turn-entries.ts";
 import type { AssistantPart, ToolCallView, TranscriptItem } from "../src/shared/contract.ts";
 
 function call(id: string): ToolCallView {
@@ -30,7 +37,9 @@ function assistantItems(items: readonly TranscriptItem[]): Extract<TranscriptIte
 	return items.flatMap((item) => (item.kind === "assistant" ? [item] : []));
 }
 
-const user = (id: string): TranscriptItem => ({ kind: "user", id, text: id, timestamp: 0, imageCount: 0 });
+/** 一条用户记录；夹具只填这条测试用得上的字段，其余交给类型断言。 */
+const user = (id: string): TranscriptItem =>
+	({ kind: "user", id, text: id, timestamp: 0, imageCount: 0 }) as TranscriptItem;
 
 describe("groupTranscript", () => {
 	it("相邻的 assistant 记录并成一轮", () => {
@@ -119,5 +128,70 @@ describe("layoutTurn", () => {
 		if (chain.kind !== "activity") return;
 		const keys = chain.blocks.map((block) => block.key);
 		expect(new Set(keys).size).toBe(keys.length);
+	});
+});
+
+describe("stepPreview", () => {
+	it("思考带正文、按滚动尾巴排，工具用调用摘要", () => {
+		expect(stepPreview([{ kind: "thinking", key: "t", text: "先看失败的用例" }])).toEqual({
+			kind: "tail",
+			text: "Thinking · 先看失败的用例",
+		});
+		expect(
+			stepPreview([
+				{ kind: "thinking", key: "t", text: "plan" },
+				{ kind: "tools", key: "x", calls: [call("a"), call("b")] },
+			]),
+		).toEqual({ kind: "plain", text: "read b" });
+	});
+
+	it("正文还没到的思考只说 Thinking", () => {
+		expect(stepPreview([{ kind: "thinking", key: "t", text: " \n " }]).text).toBe("Thinking");
+	});
+
+	it("临时截图的长路径不上预览，只说在读截图", () => {
+		const screenshot: ToolCallView = {
+			...call("x"),
+			summary: "read /tmp/pi-clipboard-f6476fb6-032e-4a84-a65b-d2022a3afbd7.png",
+		};
+		expect(stepPreview([{ kind: "tools", key: "x", calls: [screenshot] }]).text).toBe("read screenshot");
+	});
+
+	it("长思考留最新那段给行尾，旧字交给裁切", () => {
+		const preview = stepPreview([{ kind: "thinking", key: "t", text: `开头\n${"想".repeat(400)}最新这句` }]);
+		expect(preview.text.startsWith("Thinking · …")).toBe(true);
+		expect(preview.text.endsWith("最新这句")).toBe(true);
+		expect(preview.text).not.toContain("\n");
+		expect(preview.text).not.toContain("开头");
+	});
+
+	it("正文每长一点，预览就跟着动", () => {
+		const first = stepPreview([{ kind: "thinking", key: "t", text: "看第一个" }]);
+		const next = stepPreview([{ kind: "thinking", key: "t", text: "看第一个 还是第二个" }]);
+		expect(first.text).not.toBe(next.text);
+	});
+
+	it("没有环节时说 Working", () => {
+		expect(stepPreview([])).toEqual({ kind: "plain", text: "Working" });
+	});
+});
+
+describe("activitySummary", () => {
+	it("工具在前、思考在后，数量为 0 的部分不出现", () => {
+		expect(
+			activitySummary([
+				{ kind: "tools", key: "x", calls: [call("a")] },
+				{ kind: "thinking", key: "t", text: "p" },
+			]),
+		).toBe("1 tool · thought");
+		expect(activitySummary([{ kind: "thinking", key: "t", text: "p" }])).toBe("thought");
+		expect(
+			activitySummary([
+				{ kind: "tools", key: "x", calls: [call("a"), call("b")] },
+				{ kind: "thinking", key: "t1", text: "p" },
+				{ kind: "thinking", key: "t2", text: "q" },
+			]),
+		).toBe("2 tools · 2 thoughts");
+		expect(activitySummary([])).toBe("");
 	});
 });

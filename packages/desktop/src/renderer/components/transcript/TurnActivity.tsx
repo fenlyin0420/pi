@@ -3,14 +3,14 @@
 import { useId, useState } from "react";
 import { IconChevronRight, IconZap } from "../../icons.tsx";
 import { formatDuration } from "../../lib/format.ts";
-import type { ActivityBlock } from "../../lib/turn-entries.ts";
-import { cx } from "../../ui.tsx";
+import { type ActivityBlock, activitySummary, type StepPreview, stepPreview } from "../../lib/turn-entries.ts";
+import { cx, ShimmerText } from "../../ui.tsx";
 import { Markdown } from "../Markdown.tsx";
 import { ToolRow } from "./ToolRow.tsx";
 
 type TurnActivityProps = {
 	blocks: readonly ActivityBlock[];
-	/** 这一轮还在跑：标题换成当前步骤的预览，带运行标记。 */
+	/** 这一轮还在跑、而这条链是最后一条：标题换成当前步骤的预览，带运行标记。 */
 	running: boolean;
 	showToolDetails: boolean;
 	onOpenExternal: (url: string) => void;
@@ -18,7 +18,8 @@ type TurnActivityProps = {
 
 /**
  * 一整轮的过程行。默认折叠成一行：静态时给“几个工具 · 几段思考 · 耗时”，
- * 运行中给当前步骤（`bash npm test`、`Thinking`）；展开后按原顺序铺开思考与工具。
+ * 运行中给当前这一步的预览（思考带正文最新一段、工具带调用摘要，文字走扫光）；
+ * 展开后按原顺序铺开思考与工具。
  */
 export function TurnActivity({ blocks, running, showToolDetails, onOpenExternal }: TurnActivityProps) {
 	const [open, setOpen] = useState(false);
@@ -37,7 +38,7 @@ export function TurnActivity({ blocks, running, showToolDetails, onOpenExternal 
 					<IconZap size={14} />
 				</span>
 				<span className={cx("tool-activity-label", running && "running")}>
-					{running ? describeStep(blocks) : describe(blocks)}
+					{running ? <RunPreview preview={stepPreview(blocks)} /> : activitySummary(blocks)}
 				</span>
 				{running ? <span className="activity-marker" aria-hidden /> : null}
 				{duration > 0 ? <span className="tool-activity-count">{`· ${formatDuration(duration)}`}</span> : null}
@@ -68,27 +69,10 @@ export function TurnActivity({ blocks, running, showToolDetails, onOpenExternal 
 	);
 }
 
-/** 静态摘要：先工具后思考，数量为 0 的部分不出现。 */
-function describe(blocks: readonly ActivityBlock[]): string {
-	let tools = 0;
-	let thoughts = 0;
-	for (const block of blocks) {
-		if (block.kind === "thinking") thoughts += 1;
-		else tools += block.calls.length;
-	}
-	const parts: string[] = [];
-	if (tools > 0) parts.push(`${tools} tool${tools === 1 ? "" : "s"}`);
-	if (thoughts > 0) parts.push(thoughts === 1 ? "thought" : `${thoughts} thoughts`);
-	return parts.join(" · ");
-}
-
-/** 运行中的预览：这一步在做的事。 */
-function describeStep(blocks: readonly ActivityBlock[]): string {
-	const block = blocks.at(-1);
-	if (!block) return "Working";
-	if (block.kind === "thinking") return "Thinking";
-	const call = block.calls.at(-1);
-	return call ? call.summary : "Working";
+/** 运行中的预览：正文按滚动尾巴排满一行，短摘要照常左对齐。 */
+function RunPreview({ preview }: { preview: StepPreview }) {
+	const text = <ShimmerText text={preview.text} />;
+	return preview.kind === "tail" ? <span className="tool-activity-preview">{text}</span> : text;
 }
 
 /** 累计耗时只加已记录到的那部分，还在跑的工具不参与统计。 */
