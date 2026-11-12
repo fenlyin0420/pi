@@ -60,6 +60,12 @@ export const SETTINGS_DEFAULTS = {
 		mode: "on",
 		inlineBudget: 3000,
 	},
+	toolSupervision: {
+		enabled: true,
+		softDeadlineMs: 120_000,
+		maxWallMs: 2_700_000,
+		maxJobs: 8,
+	},
 	cacheWarming: "streaming",
 	tuiMode: "fullscreen",
 	editorMode: "emacs",

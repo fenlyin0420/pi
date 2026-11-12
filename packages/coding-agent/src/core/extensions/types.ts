@@ -16,6 +16,7 @@ import type {
 	AgentToolUpdateCallback,
 	ThinkingLevel,
 	ToolExecutionMode,
+	ToolSupervisionPolicy,
 } from "@earendil-works/pi-agent-core";
 import type {
 	AnyModel,
@@ -651,6 +652,9 @@ export interface ToolDefinition<TParams extends TSchema = TSchema, TDetails = un
 	 * If omitted, the default execution mode applies.
 	 */
 	executionMode?: ToolExecutionMode;
+
+	/** Supervised-execution policy. Absent means the session's default policy applies. */
+	supervision?: ToolSupervisionPolicy;
 
 	/** Execute the tool. */
 	execute(
@@ -1844,9 +1848,9 @@ export interface ExtensionAPI {
 	 *
 	 * @example
 	 * // Register a new provider with custom models
+	 * // `apiKey` takes "$NAME" to read the environment variable NAME.
 	 * pi.registerProvider("my-proxy", {
 	 *   baseUrl: "https://proxy.example.com",
-	 *   apiKey: "$PROXY_API_KEY",
 	 *   api: "anthropic-messages",
 	 *   models: [
 	 *     {

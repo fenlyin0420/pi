@@ -49,7 +49,7 @@ See [Choose a Model](models.md) for model selection and thinking controls.
 | `codemode.mode` | `"on"` \| `"only"` | `"on"` | How the `codemode` tool presents tools while it is active. `on`: declared tools get a note on calling them from scripts appended to their description, and `codemode` lists only tools that are not declared. `only`: `codemode` lists every tool scripts can call, and active built-in and extension tools are hidden from the model, so it reaches them through `codemode`. |
 | `codemode.inlineBudget` | number | `3000` | Estimated tokens (characters / 4) the `codemode` tool's description may spend on tool declarations. Tools that do not fit are left out and found with `searchTools()`. `0` lists only namespaces. |
 
-Available built-in tools are `read`, `bash`, `powershell`, `edit`, `write`, `grep`, `find`, and `ls`. `defaultTools` can also name `codemode` and `tool_search`, which built-in extensions register inactive, and other extension tools registered inactive.
+Available built-in tools are `read`, `bash`, `powershell`, `edit`, `write`, `grep`, `find`, `ls`, and `job`. `defaultTools` can also name `codemode` and `tool_search`, which built-in extensions register inactive, and other extension tools registered inactive. `job` is active whenever tool supervision is enabled, even when `defaultTools` leaves it out, because a suspended call needs a way to be waited for, stopped, or read.
 
 A list of only `+name` and `-name` entries changes the inherited selection instead of replacing it. For example, this enables `codemode` next to the default tools:
 
@@ -66,6 +66,19 @@ This replaces `bash` with `powershell` and enables `grep`: `["-bash", "+powershe
 CLI tool options override this setting for one invocation. `--tools` with only `+name` and `-name` entries changes the resolved `defaultTools` selection instead, for example `pi --tools +codemode`. On `/reload`, these entries apply to the reloaded setting too, so a tool removed with `-name` stays removed. See [Command Line](cli.md#tools).
 
 ## Sessions and context
+
+### Tool supervision
+
+A tool call that outlives its deadline is neither killed nor left to block the session: it keeps running as a job, and its tool result reports what the call is measured to be doing. The model then decides with the `job` tool whether to keep waiting, stop it, or read what it has written, and continues other work meanwhile. A call that settles in the background leaves a message in the transcript for the next turn.
+
+| Setting | Type | Default | Description |
+|---|---|---|---|
+| `toolSupervision.enabled` | boolean | `true` | Suspend tool calls that outlive their deadline into a background job instead of waiting for them. |
+| `toolSupervision.softDeadlineMs` | number | `120000` | Default deadline of one tool call. `bash` and `powershell` use the call's `timeout` argument when it sets one, so `timeout` states the expected duration instead of killing the command. |
+| `toolSupervision.maxWallMs` | number | `2700000` | Wall-clock limit of one call, whatever the model decides; `0` disables it. |
+| `toolSupervision.maxJobs` | number | `8` | Concurrently suspended calls; `0` disables suspension. |
+
+A suspended call reports its output so far and, where the platform allows process inspection (Linux and macOS), the state, CPU time, and blocking point of its process tree. The supervisor stops a call after three consecutive checks without progress and at `maxWallMs`, and its result says which.
 
 | Setting | Type | Default | Description |
 |---|---|---|---|

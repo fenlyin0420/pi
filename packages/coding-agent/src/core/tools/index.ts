@@ -8,6 +8,7 @@ export {
 	createBashTool,
 	createBashToolDefinition,
 	createLocalBashOperations,
+	type ShellTimeoutAction,
 } from "./bash.ts";
 export {
 	createEditTool,

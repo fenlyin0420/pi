@@ -66,6 +66,8 @@ export type BashToolOutput = Static<typeof bashOutputSchema>;
 export interface BashToolDetails {
 	truncation?: TruncationResult;
 	fullOutputPath?: string;
+	/** Root process of the running command, reported so a suspended call can be probed. */
+	pid?: number;
 }
 
 /**
@@ -86,6 +88,8 @@ export interface BashOperations {
 		cwd: string,
 		options: {
 			onData: (data: Buffer) => void;
+			/** Called with the pid of the spawned shell, when the backend can report it. */
+			onSpawn?: (pid: number) => void;
 			signal?: AbortSignal;
 			timeout?: number;
 			env?: NodeJS.ProcessEnv;
@@ -93,10 +97,21 @@ export interface BashOperations {
 	) => Promise<{ exitCode: number | null }>;
 }
 
+/**
+ * What the shell backend does when a command outlives its `timeout`. `kill` ends it, which is the
+ * behavior for callers without a supervisor; `ignore` leaves it running so the supervisor can
+ * suspend the call and let the model decide.
+ */
+export type ShellTimeoutAction = "kill" | "ignore";
+
 /** Shared process execution used by the built-in shell tools. */
-export function createLocalShellOperations(shellName: string, resolveShellConfig: () => ShellConfig): BashOperations {
+export function createLocalShellOperations(
+	shellName: string,
+	resolveShellConfig: () => ShellConfig,
+	options: { timeoutAction?: ShellTimeoutAction } = {},
+): BashOperations {
 	return {
-		exec: async (command, cwd, { onData, signal, timeout, env }) => {
+		exec: async (command, cwd, { onData, onSpawn, signal, timeout, env }) => {
 			const timeoutMs = resolveTimeoutMs(timeout);
 			if (signal?.aborted) {
 				throw new Error("aborted");
@@ -120,7 +135,10 @@ export function createLocalShellOperations(shellName: string, resolveShellConfig
 				child.stdin?.on("error", () => {});
 				child.stdin?.end(command);
 			}
-			if (child.pid) trackDetachedChildPid(child.pid);
+			if (child.pid) {
+				trackDetachedChildPid(child.pid);
+				onSpawn?.(child.pid);
+			}
 			let timedOut = false;
 			let timeoutHandle: NodeJS.Timeout | undefined;
 			const onAbort = () => {
@@ -128,8 +146,8 @@ export function createLocalShellOperations(shellName: string, resolveShellConfig
 			};
 
 			try {
-				// Set timeout if provided.
-				if (timeoutMs !== undefined) {
+				// Set timeout if provided, unless a supervisor owns the deadline.
+				if (timeoutMs !== undefined && options.timeoutAction !== "ignore") {
 					timeoutHandle = setTimeout(() => {
 						timedOut = true;
 						if (child.pid) killProcessTree(child.pid);
@@ -171,8 +189,13 @@ export function createLocalShellOperations(shellName: string, resolveShellConfig
  * This is useful for extensions that intercept user_bash and still want pi's
  * standard local shell behavior while wrapping or rewriting commands.
  */
-export function createLocalBashOperations(options?: { shellPath?: string }): BashOperations {
-	return createLocalShellOperations("bash", () => getShellConfig(options?.shellPath));
+export function createLocalBashOperations(options?: {
+	shellPath?: string;
+	timeoutAction?: ShellTimeoutAction;
+}): BashOperations {
+	return createLocalShellOperations("bash", () => getShellConfig(options?.shellPath), {
+		timeoutAction: options?.timeoutAction,
+	});
 }
 
 export interface BashSpawnContext {
@@ -222,6 +245,11 @@ export interface BashToolOptions {
 	exposeSessionEnvironment?: boolean;
 	/** Hook to adjust command, cwd, or env before execution */
 	spawnHook?: BashSpawnHook;
+	/**
+	 * What the local backend does when a command outlives its `timeout`. Default `kill`. Set `ignore`
+	 * in sessions whose tool supervisor owns the deadline.
+	 */
+	timeoutAction?: ShellTimeoutAction;
 }
 
 export type BashRenderState = {
@@ -245,19 +273,32 @@ export function createShellToolDefinition(
 	config: ShellToolConfig,
 	options?: BashToolOptions,
 ): ToolDefinition<typeof bashSchema, BashToolDetails | undefined, BashRenderState> {
-	const ops = options?.operations ?? createLocalBashOperations({ shellPath: options?.shellPath });
+	const ops =
+		options?.operations ??
+		createLocalBashOperations({ shellPath: options?.shellPath, timeoutAction: options?.timeoutAction });
 	const commandPrefix = options?.commandPrefix;
 	const exposeSessionEnvironment = options?.exposeSessionEnvironment ?? true;
 	const spawnHook = options?.spawnHook;
+	const supervised = options?.timeoutAction === "ignore";
+	const timeoutHint = supervised
+		? "Optionally provide `timeout` in seconds: the duration you expect the command to take. Past it the call is suspended as a job that keeps running, and you decide whether to wait or stop it."
+		: "Optionally provide a timeout in seconds.";
+	const guidelines = exposeSessionEnvironment && config.promptGuidelines ? [...config.promptGuidelines] : undefined;
 	return {
 		name: config.name,
 		label: config.label,
-		description: `Execute a ${config.shellName} command in the current working directory. Returns stdout and stderr. Output is truncated to last ${DEFAULT_MAX_LINES} lines or ${DEFAULT_MAX_BYTES / 1024}KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds.`,
+		description: `Execute a ${config.shellName} command in the current working directory. Returns stdout and stderr. Output is truncated to last ${DEFAULT_MAX_LINES} lines or ${DEFAULT_MAX_BYTES / 1024}KB (whichever is hit first). If truncated, full output is saved to a temp file. ${timeoutHint}`,
 		promptSnippet: config.promptSnippet,
-		promptGuidelines: exposeSessionEnvironment && config.promptGuidelines ? [...config.promptGuidelines] : undefined,
+		promptGuidelines: guidelines,
 		parameters: bashSchema,
 		outputSchema: bashOutputSchema,
 		constrainedSampling: { type: "json_schema", strict: "prefer" },
+		supervision: {
+			deadlineMs: (params: unknown) => {
+				const timeout = (params as BashToolInput).timeout;
+				return timeout === undefined ? undefined : timeout * 1000;
+			},
+		},
 		async execute(
 			_toolCallId,
 			{ command, timeout }: { command: string; timeout?: number },
@@ -363,6 +404,9 @@ export function createShellToolDefinition(
 				try {
 					const result = await ops.exec(spawnContext.command, spawnContext.cwd, {
 						onData: handleData,
+						onSpawn: (pid) => {
+							if (onUpdate) onUpdate({ content: [], details: { pid } });
+						},
 						signal,
 						timeout,
 						env: spawnContext.env,

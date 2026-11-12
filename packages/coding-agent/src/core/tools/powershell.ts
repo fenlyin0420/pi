@@ -9,6 +9,7 @@ import {
 	type createBashTool,
 	createLocalShellOperations,
 	createShellToolDefinition,
+	type ShellTimeoutAction,
 	type ShellToolConfig,
 } from "./bash.ts";
 import { wrapToolDefinition } from "./tool-definition-wrapper.ts";
@@ -27,12 +28,16 @@ export type PowerShellToolDetails = BashToolDetails;
 export type PowerShellToolInput = BashToolInput;
 
 export interface PowerShellToolOptions
-	extends Pick<BashToolOptions, "operations" | "exposeSessionEnvironment" | "spawnHook"> {}
+	extends Pick<BashToolOptions, "operations" | "exposeSessionEnvironment" | "spawnHook" | "timeoutAction"> {}
 
-export function createLocalPowerShellOperations(): PowerShellOperations {
-	const operations = createLocalShellOperations("PowerShell", getPowerShellConfig);
+export function createLocalPowerShellOperations(options?: {
+	timeoutAction?: ShellTimeoutAction;
+}): PowerShellOperations {
+	const operations = createLocalShellOperations("PowerShell", getPowerShellConfig, {
+		timeoutAction: options?.timeoutAction,
+	});
 	return {
-		exec: (command, cwd, options) => operations.exec(`${UTF8_OUTPUT_PREFIX}${command}`, cwd, options),
+		exec: (command, cwd, execOptions) => operations.exec(`${UTF8_OUTPUT_PREFIX}${command}`, cwd, execOptions),
 	};
 }
 
@@ -52,7 +57,7 @@ export function createPowerShellToolDefinition(
 ): ReturnType<typeof createShellToolDefinition> {
 	return createShellToolDefinition(cwd, powershellToolConfig, {
 		...options,
-		operations: options?.operations ?? createLocalPowerShellOperations(),
+		operations: options?.operations ?? createLocalPowerShellOperations({ timeoutAction: options?.timeoutAction }),
 	});
 }
 

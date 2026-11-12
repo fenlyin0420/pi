@@ -1007,6 +1007,17 @@ export class SettingsManager {
 		return shellPath ? normalizePath(shellPath) : shellPath;
 	}
 
+	/** Deadline, wall-clock limit, and job limit of supervised tool execution. */
+	getToolSupervision(): { enabled: boolean; softDeadlineMs: number; maxWallMs: number; maxJobs: number } {
+		const supervision = this.settings.toolSupervision;
+		return {
+			enabled: supervision?.enabled ?? SETTINGS_DEFAULTS.toolSupervision.enabled,
+			softDeadlineMs: supervision?.softDeadlineMs ?? SETTINGS_DEFAULTS.toolSupervision.softDeadlineMs,
+			maxWallMs: supervision?.maxWallMs ?? SETTINGS_DEFAULTS.toolSupervision.maxWallMs,
+			maxJobs: supervision?.maxJobs ?? SETTINGS_DEFAULTS.toolSupervision.maxJobs,
+		};
+	}
+
 	setShellPath(path: string | undefined): void {
 		this.globalSettings.shellPath = path;
 		this.markModified("shellPath");
