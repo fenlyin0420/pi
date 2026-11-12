@@ -1,7 +1,7 @@
 /*
   对话区的自有样式。messages.css / prose.css / chat-shell.css 已经带着参考实现的
   行、气泡、工具卡片和 markdown 排版，这里只补我们这套 DOM 需要的部分：滚动容器、
-  空会话、系统提示、github 主题的代码底色、流式光标和逐行 diff 的底座。
+  空会话、系统提示、github 主题的代码底色、流式光标、逐行 diff 的底座和运行状态行。
 */
 
 /* ---------- 滚动容器 ---------- */
@@ -414,7 +414,6 @@
 
 .run-status-tail {
   color: var(--ds-text-faint);
-  letter-spacing: 1px;
 }
 
 @keyframes run-status-pulse {

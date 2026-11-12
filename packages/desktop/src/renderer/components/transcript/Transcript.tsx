@@ -9,6 +9,7 @@ import { type MessageMark, MessageRail } from "./MessageRail.tsx";
 import { MessageRow } from "./MessageRow.tsx";
 import { RunStatus } from "./RunStatus.tsx";
 import { ScrollToBottom } from "./ScrollToBottom.tsx";
+import { useStepPhrase } from "./use-step-phrase.ts";
 
 type TranscriptProps = {
 	items: readonly TranscriptItem[];
@@ -62,6 +63,9 @@ export function Transcript({
 		[items],
 	);
 
+	// 状态行的播报文案：算在这里，交给下面滚动区之外那个常驻的 live region。
+	const phrase = useStepPhrase(activity);
+
 	// 一次提问会来回好几个 loop，它们是同一轮：并成一块才能在收起时只占一行。
 	const blocks = useMemo(() => groupTranscript(items), [items]);
 
@@ -93,19 +97,22 @@ export function Transcript({
 		[],
 	);
 
+	// 当前这一步的身份：activity 每次 emit 都是新对象，用这个字符串做依赖才不会在无关刷新时重跑。
+	const step = activity === null ? null : `${activity.kind}:${activity.tool ?? ""}:${activity.startedAt}`;
+
 	// 贴底时跟着新内容走：每次内容变化只读写一次布局，不做逐条测量的重活。
 	useLayoutEffect(() => {
 		const node = scrollRef.current;
-		// items 的长度读在这里：它是让这个效果跟着新记录和增量重跑的依赖；
-		// activity 让状态行的出现和消失也把视图带到新高度。
-		if (!node || (items.length === 0 && activity === null)) return;
+		// items 让这个效果跟着新记录和增量重跑；step 代表“当前这一步变了”，
+		// 让状态行的出现、换步和消失也把视图带到新高度。
+		if (!node || (items.length === 0 && step === null)) return;
 		if (!following.current) {
 			// 读者停在上文时只提个醒，绝不抢走正在看的位置。
 			setShowJump(true);
 			return;
 		}
 		node.scrollTop = node.scrollHeight;
-	}, [items, activity]);
+	}, [items, step]);
 
 	// 切换会话直接落到底部：上个会话的滚动位置和暂停状态都不带过来。
 	useLayoutEffect(() => {
@@ -159,6 +166,14 @@ export function Transcript({
 
 	return (
 		<div className="chat-surface">
+			{/*
+			  播报节点必须在滚动容器之外：那个容器本身是 role="log" aria-live="polite"，
+			  嵌进去会重复播报，且运行中 aria-busy=true 会把变更压到整轮结束才呈现。
+			  节点常驻：换步骤只改这里的文字，重挂出来的新节点不会被播报。
+			*/}
+			<span className="sr-only" aria-live="polite">
+				{phrase ?? ""}
+			</span>
 			<div className="transcript-body">
 				<div
 					ref={scrollRef}
@@ -188,7 +203,7 @@ export function Transcript({
 								),
 							)
 						)}
-						<RunStatus activity={activity} />
+						{activity !== null && phrase !== null ? <RunStatus activity={activity} phrase={phrase} /> : null}
 					</div>
 				</div>
 				{/* 只有一条用户消息时没有可去的地方，定位条不占宽度。 */}

@@ -5,6 +5,7 @@ import { diffLines } from "../src/renderer/lib/diff.ts";
 import {
 	formatCost,
 	formatDuration,
+	formatElapsed,
 	formatSessionTime,
 	formatTokens,
 	sessionGroup,
@@ -35,6 +36,21 @@ describe("formatDuration", () => {
 		expect(formatDuration(64_000)).toBe("1m 4s");
 		expect(formatDuration(null)).toBe("");
 		expect(formatDuration(0)).toBe("");
+	});
+});
+
+describe("formatElapsed", () => {
+	it("秒级只给秒", () => {
+		expect(formatElapsed(0)).toBe("0s");
+		expect(formatElapsed(12_400)).toBe("12s");
+	});
+
+	it("分钟级给分和补零的秒", () => {
+		expect(formatElapsed(65_000)).toBe("1m 05s");
+	});
+
+	it("小时级只留整分", () => {
+		expect(formatElapsed(3_725_000)).toBe("1h 02m");
 	});
 });
 

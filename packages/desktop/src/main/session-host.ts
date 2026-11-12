@@ -22,13 +22,13 @@ import type {
 	Platform,
 	PromptImage,
 	ResolvedTheme,
-	RunActivity,
 	SessionSummary,
 	ThinkingLevel,
 	TranscriptItem,
 	UsageSummary,
 } from "../shared/contract.ts";
 import { flowIdOf, PI_ASK_COMPLETED, PI_ASK_STARTED, PI_ASK_SUBMIT, toAskRequest, toSubmitPayload } from "./ask.ts";
+import { idleSteps, type RunSteps, stepActivity, thinkingSteps, toolEnded, toolStarted } from "./run-activity.ts";
 import { deleteSessionFile, listSessionSummaries, renameSessionFile, toSessionSummary } from "./session-files.ts";
 import type { SettingsStore } from "./settings.ts";
 import { itemIdAt, previewLine, toTranscriptItems } from "./transcript.ts";
@@ -53,14 +53,13 @@ type LiveSession = {
 	agent: AgentSession;
 	manager: SessionManager;
 	status: AgentStatus;
-	toolStartedAt: Map<string, number>;
 	toolDurations: Map<string, number>;
 	items: TranscriptItem[];
 	transcriptDirty: boolean;
 	/** 正在生成的那条 assistant 消息；提交前它不在 agent.messages 里，界面靠它先显示。 */
 	partial: AgentMessage | null;
-	/** 当前步骤：思考，还是某个工具；换步骤时计时跟着重置。 */
-	activity: RunActivity | null;
+	/** 正在跑的工具和思考起点；当前这一步由它派生，换步骤时计时自然跟着重置。 */
+	steps: RunSteps;
 	unsubscribe: () => void;
 };
 
@@ -249,12 +248,11 @@ export class SessionHost {
 			agent: session,
 			manager,
 			status: "idle",
-			toolStartedAt: new Map(),
 			toolDurations: new Map(),
 			items: [],
 			transcriptDirty: true,
 			partial: null,
-			activity: null,
+			steps: idleSteps,
 			unsubscribe: () => {},
 		};
 		live.unsubscribe = session.subscribe((event) => this.onSessionEvent(live, event));
@@ -273,10 +271,26 @@ export class SessionHost {
 			} else {
 				live.status = "running";
 				// 预填期也算在思考：状态行从点发送那一帧起就要有话说。
-				live.activity = { kind: "thinking", tool: null, startedAt: Date.now() };
+				live.steps = thinkingSteps(Date.now());
 				this.markState();
-				// prompt 会等到整轮结束；不阻塞 IPC 返回，错误交给下面统一上报。
-				void live.agent.prompt(trimmed, { images: payload }).catch((error: unknown) => this.report(live, error));
+				void live.agent
+					.prompt(trimmed, {
+						images: payload,
+						// 扩展命令或 input handler 吃掉了这次输入时，不会有任何 run 事件回来：
+						// 不在这里收回状态，界面会一直停在“Thinking for 12m”。
+						preflightResult: (disposition) => {
+							if (disposition !== "handled") return;
+							// 扩展 handler 常会自己起一轮（command context 的 sendUserMessage 是 fire-and-forget），
+							// 而这个回调在 handler 返回之后才发出：此时 run 已经在跑，不能把它打回空闲。
+							// 真起跑的那一轮由 agent_start 负责把状态拉回来。
+							if (live.agent.isStreaming) return;
+							live.status = "idle";
+							live.steps = idleSteps;
+							this.markState();
+						},
+					})
+					// prompt 会等到整轮结束；不阻塞 IPC 返回，错误交给下面统一上报。
+					.catch((error: unknown) => this.report(live, error));
 			}
 		} catch (error) {
 			this.report(live, error);
@@ -461,13 +475,21 @@ export class SessionHost {
 			thinkingLevel: live?.agent.thinkingLevel ?? "medium",
 			reasoning: model?.reasoning ?? false,
 			status: live?.status ?? "idle",
-			activity: live?.activity ?? null,
+			activity: live ? stepActivity(live.steps) : null,
 			usage: live ? usageOf(live.agent) : null,
 		};
 	}
 
 	private onSessionEvent(live: LiveSession, event: AgentSessionEvent): void {
 		switch (event.type) {
+			case "agent_start":
+				// 只有这个事件能证明真的起跑了：扩展命令自己发起的 run、自动重试的新一轮、压缩后继续，
+				// 都不经过本类的 prompt()。思考计时也从这里起算，重试那几轮不会跨尝试累加。
+				live.status = "running";
+				live.steps = thinkingSteps(Date.now());
+				this.markState();
+				this.scheduleTranscriptFlush();
+				return;
 			case "message_update":
 				// 每个流式帧带上这条消息的最新快照：它还没进 agent.messages，界面靠它边生成边显示。
 				live.partial = event.message;
@@ -475,10 +497,6 @@ export class SessionHost {
 				this.scheduleTranscriptFlush();
 				return;
 			case "message_start":
-				live.partial = null;
-				this.markStructure();
-				this.scheduleTranscriptFlush();
-				return;
 			case "message_end":
 			case "turn_start":
 			case "turn_end":
@@ -490,8 +508,7 @@ export class SessionHost {
 				if (event.type === "message_end") void this.refreshSessionsQuietly();
 				return;
 			case "tool_execution_start":
-				live.toolStartedAt.set(event.toolCallId, Date.now());
-				live.activity = { kind: "tool", tool: event.toolName, startedAt: Date.now() };
+				live.steps = toolStarted(live.steps, event.toolCallId, event.toolName, Date.now());
 				this.markState();
 				this.markStructure();
 				this.scheduleTranscriptFlush();
@@ -501,16 +518,11 @@ export class SessionHost {
 				this.scheduleTranscriptFlush();
 				return;
 			case "tool_execution_end": {
-				const startedAt = live.toolStartedAt.get(event.toolCallId);
-				if (startedAt !== undefined) {
-					live.toolDurations.set(event.toolCallId, Date.now() - startedAt);
-					live.toolStartedAt.delete(event.toolCallId);
-				}
-				// 手上没工具了，模型就在读结果、想下一步：状态行换成思考，计时从头开始。
-				if (live.toolStartedAt.size === 0 && live.activity?.kind === "tool") {
-					live.activity = { kind: "thinking", tool: null, startedAt: Date.now() };
-					this.markState();
-				}
+				const startedAt = live.steps.tools.get(event.toolCallId)?.startedAt;
+				if (startedAt !== undefined) live.toolDurations.set(event.toolCallId, Date.now() - startedAt);
+				live.steps = toolEnded(live.steps, event.toolCallId, Date.now());
+				// 无条件标脏：并行批次里结束的是哪一件工具，会让显示的那一步换成别的工具或换成思考。
+				this.markState();
 				this.markStructure();
 				this.scheduleTranscriptFlush();
 				return;
@@ -518,7 +530,8 @@ export class SessionHost {
 			case "agent_end":
 				if (!live.agent.isStreaming) live.status = "idle";
 				live.partial = null;
-				live.activity = null;
+				// 这里不清步骤：一轮可能还在继续（自动重试、压缩后继续、排队的消息都会再起一次 run，
+				// 见 coding-agent 的 _handlePostAgentRun），只有 agent_settled 才代表真的结束。
 				this.markStructure();
 				this.markState();
 				this.flushNow();
@@ -526,7 +539,7 @@ export class SessionHost {
 			case "agent_settled":
 				live.status = "idle";
 				live.partial = null;
-				live.activity = null;
+				live.steps = idleSteps;
 				this.markStructure();
 				this.markState();
 				this.flushNow();
@@ -616,7 +629,7 @@ export class SessionHost {
 
 	private report(live: LiveSession, error: unknown): void {
 		live.status = live.agent.isStreaming ? "running" : "idle";
-		if (!live.agent.isStreaming) live.activity = null;
+		if (!live.agent.isStreaming) live.steps = idleSteps;
 		this.notify("error", messageOf(error));
 		this.markStructure();
 		this.markState();
