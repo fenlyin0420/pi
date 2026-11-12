@@ -31,6 +31,8 @@ Other modes exit with an error.
 
 Use `/name` or `--name` to assign a recognizable session name. Run `/session` to verify the current session file, ID, message count, token usage, and cost.
 
+A new session is also titled automatically: Pi sends the first user message to the model the `haiku` [model alias](models.md#model-aliases) maps to and stores the answer as the session name, so the terminal title, the footer, the session picker, and the desktop sidebar show a topic instead of a truncated message. The call runs next to the first turn and never delays it. A name set with `/name`, `--name`, or a rename wins and is kept; a title is written once per session and never replaced. Without a `haiku` alias, or when the call fails, the first message stays the display name.
+
 The session picker lets you search, rename, and delete sessions. It can also show paths, change sorting, and limit results to named sessions. See [Keybindings](keybindings.md#sessions) for its shortcuts.
 
 ## Choose how to branch
