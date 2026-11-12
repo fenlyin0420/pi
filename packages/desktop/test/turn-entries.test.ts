@@ -133,20 +133,18 @@ describe("layoutTurn", () => {
 
 describe("stepPreview", () => {
 	it("思考带正文、按滚动尾巴排，工具用调用摘要", () => {
-		expect(stepPreview([{ kind: "thinking", key: "t", text: "先看失败的用例" }])).toEqual({
+		expect(stepPreview({ kind: "thinking", key: "t", text: "先看失败的用例" })).toEqual({
 			kind: "tail",
 			text: "Thinking · 先看失败的用例",
 		});
-		expect(
-			stepPreview([
-				{ kind: "thinking", key: "t", text: "plan" },
-				{ kind: "tools", key: "x", calls: [call("a"), call("b")] },
-			]),
-		).toEqual({ kind: "plain", text: "read b" });
+		expect(stepPreview({ kind: "tools", key: "x", calls: [call("a"), call("b")] })).toEqual({
+			kind: "plain",
+			text: "read b",
+		});
 	});
 
 	it("正文还没到的思考只说 Thinking", () => {
-		expect(stepPreview([{ kind: "thinking", key: "t", text: " \n " }]).text).toBe("Thinking");
+		expect(stepPreview({ kind: "thinking", key: "t", text: " \n " }).text).toBe("Thinking");
 	});
 
 	it("临时截图的长路径不上预览，只说在读截图", () => {
@@ -154,11 +152,11 @@ describe("stepPreview", () => {
 			...call("x"),
 			summary: "read /tmp/pi-clipboard-f6476fb6-032e-4a84-a65b-d2022a3afbd7.png",
 		};
-		expect(stepPreview([{ kind: "tools", key: "x", calls: [screenshot] }]).text).toBe("read screenshot");
+		expect(stepPreview({ kind: "tools", key: "x", calls: [screenshot] }).text).toBe("read screenshot");
 	});
 
 	it("长思考留最新那段给行尾，旧字交给裁切", () => {
-		const preview = stepPreview([{ kind: "thinking", key: "t", text: `开头\n${"想".repeat(400)}最新这句` }]);
+		const preview = stepPreview({ kind: "thinking", key: "t", text: `开头\n${"想".repeat(400)}最新这句` });
 		expect(preview.text.startsWith("Thinking · …")).toBe(true);
 		expect(preview.text.endsWith("最新这句")).toBe(true);
 		expect(preview.text).not.toContain("\n");
@@ -166,13 +164,13 @@ describe("stepPreview", () => {
 	});
 
 	it("正文每长一点，预览就跟着动", () => {
-		const first = stepPreview([{ kind: "thinking", key: "t", text: "看第一个" }]);
-		const next = stepPreview([{ kind: "thinking", key: "t", text: "看第一个 还是第二个" }]);
+		const first = stepPreview({ kind: "thinking", key: "t", text: "看第一个" });
+		const next = stepPreview({ kind: "thinking", key: "t", text: "看第一个 还是第二个" });
 		expect(first.text).not.toBe(next.text);
 	});
 
 	it("没有环节时说 Working", () => {
-		expect(stepPreview([])).toEqual({ kind: "plain", text: "Working" });
+		expect(stepPreview(null)).toEqual({ kind: "plain", text: "Working" });
 	});
 });
 

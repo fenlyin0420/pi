@@ -105,11 +105,10 @@ const CLIPBOARD_TEMP = /pi-clipboard-[0-9a-f-]+\.\w+/;
 export type StepPreview = { kind: "tail"; text: string } | { kind: "plain"; text: string };
 
 /**
- * 运行中的预览：这一步在做的事。思考给正文最新写下的一段，工具给一行调用摘要，
+ * 运行中的预览：这一环在做的事。思考给正文最新写下的一段，工具给一行调用摘要，
  * 临时截图只说“在读截图”。
  */
-export function stepPreview(blocks: readonly ActivityBlock[]): StepPreview {
-	const block = blocks.at(-1);
+export function stepPreview(block: ActivityBlock | null): StepPreview {
 	if (!block) return { kind: "plain", text: "Working" };
 	if (block.kind === "thinking") {
 		const tail = lineTail(block.text, PREVIEW_CHARS);

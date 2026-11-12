@@ -675,7 +675,6 @@
 
 /* Running labels stay readable; the small marker carries the live feedback
    so long tool names never flash between two text colours. */
-.tool-activity-label.running,
 .tool-row-name.running {
   color: var(--ds-text-secondary);
 }

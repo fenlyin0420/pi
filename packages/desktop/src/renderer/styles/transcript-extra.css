@@ -163,23 +163,29 @@
 }
 
 /*
-  运行中的预览要吃满整行：标签拿走剩余宽度，正文靠右排，超长时从左渗出去被裁掉——
-  最新那几个字因此总是贴着运行标记，读者看到的就是模型此刻写下的那一句。
+  标题下面那一行：当前这一步的预览。左边让出图标的位（14px + 标题的 5px 间隔），与标题文字同左。
+  思考的尾巴靠右排、左边渐隐——最新那几个字就贴着行尾；工具摘要从头读，超长时在右边渐隐收尾。
 */
-.turn-activity.active > .tool-activity-header > .tool-activity-label {
-  flex: 1 1 auto;
+.turn-activity-preview {
+  margin: 1px 0 3px 19px;
+  overflow: hidden;
+  color: var(--ds-text-secondary);
+  font-size: var(--text-sm-plus);
+  white-space: nowrap;
 }
 
-.tool-activity-preview {
+.turn-activity-preview.tail {
   display: flex;
   justify-content: flex-end;
-  overflow: hidden;
-  /* 被裁断的那頭用渐隐收尾，看着像句子还在左面，而不是被刀切掉。 */
   mask-image: linear-gradient(90deg, transparent, #000 2.5ch);
 }
 
-.tool-activity-preview > * {
+.turn-activity-preview.tail > * {
   flex: none;
+}
+
+.turn-activity-preview.plain {
+  mask-image: linear-gradient(270deg, transparent, #000 2.5ch);
 }
 
 /* 阅读带宽与 token 里的 --chat-content-max-width 对齐，横向留白不随窗口缩放抖动。 */
@@ -421,8 +427,9 @@
 /* ---------- 运行状态行 ---------- */
 
 /*
-  贴在对话尾部的运行状态：发送那一帧出现，整轮结束消失。每一步换一句文案、重新计时，
-  文字走已有的 .text-shimmer 扫光；秒表只重渲染自己，不牵动对话区。
+  贴在对话尾部的运行状态：发送那一帧出现，整轮结束消失。文案每八秒换一句、与当前步骤无关，
+  秒表是整轮的总时长，文字走已有的 .text-shimmer 扫光；具体在做什么由上面那条活动行预览。
+  秒表只重渲染自己，不牵动对话区。
 */
 .run-status {
   display: flex;

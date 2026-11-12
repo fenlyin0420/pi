@@ -1,4 +1,4 @@
-// 一轮回答的活动行：整轮的思考与工具调用折进这里，标题一行说明数量或当前在做什么。
+// 一轮回答的活动行：整轮的思考与工具调用折进这里，标题一行只报数量，跑着时下面多一行预览。
 
 import { useId, useState } from "react";
 import { IconChevronRight, IconZap } from "../../icons.tsx";
@@ -10,15 +10,15 @@ import { ToolRow } from "./ToolRow.tsx";
 
 type TurnActivityProps = {
 	blocks: readonly ActivityBlock[];
-	/** 这一轮还在跑、而这条链是最后一条：标题换成当前步骤的预览，带运行标记。 */
+	/** 这一轮还在跑、而这条链是最后一条：标题多一个运行标记，下面多一行预览。 */
 	running: boolean;
 	showToolDetails: boolean;
 	onOpenExternal: (url: string) => void;
 };
 
 /**
- * 一整轮的过程行。默认折叠成一行：静态时给“几个工具 · 几段思考 · 耗时”，
- * 运行中给当前这一步的预览（思考带正文最新一段、工具带调用摘要，文字走扫光）；
+ * 一整轮的过程行。折叠时只占一行标题，报数量：先工具后思考，结束后再带耗时；
+ * 运行中标题下面多一行，预览当前这一步（思考带正文最新一段、工具带调用摘要，文字走扫光）。
  * 展开后按原顺序铺开思考与工具。
  */
 export function TurnActivity({ blocks, running, showToolDetails, onOpenExternal }: TurnActivityProps) {
@@ -26,7 +26,7 @@ export function TurnActivity({ blocks, running, showToolDetails, onOpenExternal 
 	const bodyId = useId();
 	const duration = running ? 0 : totalDuration(blocks);
 	return (
-		<div className={cx("tool-activity-group", "turn-activity", open && "open", running && "active")}>
+		<div className={cx("tool-activity-group", "turn-activity", open && "open")}>
 			<button
 				type="button"
 				className="tool-activity-header"
@@ -37,15 +37,14 @@ export function TurnActivity({ blocks, running, showToolDetails, onOpenExternal 
 				<span className="tool-activity-icon" aria-hidden>
 					<IconZap size={14} />
 				</span>
-				<span className={cx("tool-activity-label", running && "running")}>
-					{running ? <RunPreview preview={stepPreview(blocks)} /> : activitySummary(blocks)}
-				</span>
+				<span className="tool-activity-label">{activitySummary(blocks)}</span>
 				{running ? <span className="activity-marker" aria-hidden /> : null}
 				{duration > 0 ? <span className="tool-activity-count">{`· ${formatDuration(duration)}`}</span> : null}
 				<span className="tool-activity-caret" aria-hidden>
 					<IconChevronRight size={12} />
 				</span>
 			</button>
+			{running ? <RunPreview preview={stepPreview(blocks.at(-1) ?? null)} /> : null}
 			{open ? (
 				<div className="tool-activity-collapse">
 					<div className="tool-activity-collapse-inner">
@@ -69,10 +68,13 @@ export function TurnActivity({ blocks, running, showToolDetails, onOpenExternal 
 	);
 }
 
-/** 运行中的预览：正文按滚动尾巴排满一行，短摘要照常左对齐。 */
+/** 运行中的预览：思考的尾巴靠右排满一行，短摘要照常左对齐。 */
 function RunPreview({ preview }: { preview: StepPreview }) {
-	const text = <ShimmerText text={preview.text} />;
-	return preview.kind === "tail" ? <span className="tool-activity-preview">{text}</span> : text;
+	return (
+		<div className={cx("turn-activity-preview", preview.kind)}>
+			<ShimmerText text={preview.text} />
+		</div>
+	);
 }
 
 /** 累计耗时只加已记录到的那部分，还在跑的工具不参与统计。 */
