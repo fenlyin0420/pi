@@ -78,7 +78,7 @@ These variables are read by Pi itself:
 
 | Variable | Description |
 |----------|-------------|
-| `PI_CODING_AGENT_DIR` | Override the config directory; default is `~/.pi/agent` |
+| `PI_CODING_AGENT_DIR` | Override the config directory; default is `~/.pi/agent`. Pi also exports this to extensions when it is unset, so host-scoped extension config such as `<agent-dir>/extensions/pi-lens.json` resolves |
 | `PI_CODING_AGENT_SESSION_DIR` | Override session storage; overridden by `--session-dir` |
 | `PI_PACKAGE_DIR` | Override the package directory, useful for Nix/Guix store paths |
 | `PI_OFFLINE` | Disable automatic network activity, including model catalog refreshes |
