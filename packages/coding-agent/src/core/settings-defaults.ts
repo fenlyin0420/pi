@@ -66,7 +66,7 @@ export const SETTINGS_DEFAULTS = {
 		maxWallMs: 2_700_000,
 		maxJobs: 8,
 	},
-	cacheWarming: "streaming",
+	cacheWarming: "idle",
 	tuiMode: "fullscreen",
 	editorMode: "emacs",
 	fullscreenExitOutput: "transcript",

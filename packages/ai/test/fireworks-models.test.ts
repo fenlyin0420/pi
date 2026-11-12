@@ -3,7 +3,7 @@ import type { AddressInfo } from "node:net";
 import { Type } from "typebox";
 import { afterEach, describe, expect, it } from "vitest";
 import { stream as streamAnthropic } from "../src/api/anthropic-messages.ts";
-import { getModel, getModels, normalizeContext, streamSimple } from "../src/compat.ts";
+import { getModel, normalizeContext, streamSimple } from "../src/compat.ts";
 import { findEnvKeys, getEnvApiKey } from "../src/env-api-keys.ts";
 import { getSupportedThinkingLevels } from "../src/models.ts";
 import type { Context, Model, Tool } from "../src/types.ts";
@@ -159,18 +159,25 @@ describe("Fireworks models", () => {
 		expect(getSupportedThinkingLevels(getModel("fireworks", modelId))).toEqual(levels);
 	});
 
-	// Regression for #9323: effort metadata replaced the verified budget fallback.
-	// The last toggle-only Messages model is gone from models.dev, so every
-	// reasoning Messages model now advertises effort and forces adaptive thinking.
-	it("forces adaptive thinking for every reasoning Messages model", () => {
-		const messagesModels = getModels("fireworks").filter(
-			(model): model is Model<"anthropic-messages"> => model.api === "anthropic-messages" && model.reasoning,
-		);
-
-		expect(messagesModels.length).toBeGreaterThan(0);
-		for (const model of messagesModels) {
-			expect(model.compat?.forceAdaptiveThinking, model.id).toBe(true);
-		}
+	it("keeps non-adaptive Messages models on budget-based thinking", async () => {
+		// Use a fixed fixture: the live catalog no longer lists toggle-only Messages models.
+		const model = createFireworksModel();
+		expect(model.compat?.forceAdaptiveThinking).toBeUndefined();
+		let payload: Record<string, unknown> | undefined;
+		await streamSimple(
+			model,
+			{ messages: [{ role: "user", content: "test", timestamp: 0 }] },
+			{
+				apiKey: "test-fireworks-key",
+				reasoning: "high",
+				onPayload: (value) => {
+					payload = value as Record<string, unknown>;
+					throw new Error("payload captured");
+				},
+			},
+		).result();
+		expect(payload?.thinking).toEqual({ type: "enabled", budget_tokens: 16384, display: "summarized" });
+		expect(payload?.output_config).toBeUndefined();
 	});
 
 	it("resolves FIREWORKS_API_KEY from the environment", () => {
