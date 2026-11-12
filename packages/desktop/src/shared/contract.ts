@@ -81,7 +81,15 @@ export type AssistantPart =
 	| { type: "tool"; call: ToolCallView };
 
 export type TranscriptItem =
-	| { kind: "user"; id: string; text: string; timestamp: number; imageCount: number }
+	| {
+			kind: "user";
+			id: string;
+			text: string;
+			timestamp: number;
+			imageCount: number;
+			/** 这一轮带上的文件路径；正文里的附件块在映射时已经剥掉。 */
+			files: string[];
+	  }
 	| {
 			kind: "assistant";
 			id: string;
@@ -143,7 +151,7 @@ export type DesktopCommand =
 	| { type: "openRecentProject"; path: string }
 	| { type: "newSession" }
 	| { type: "openSession"; id: string }
-	| { type: "prompt"; text: string; images?: PromptImage[] }
+	| { type: "prompt"; text: string; attachments?: readonly PromptAttachment[] }
 	| { type: "steer"; text: string }
 	| { type: "abort" }
 	| { type: "renameSession"; id: string; title: string }
@@ -160,7 +168,17 @@ export type DesktopCommand =
 	| { type: "openExternal"; url: string }
 	| { type: "revealPath"; path: string };
 
-export type PromptImage = { data: string; mimeType: string; name?: string };
+/**
+ * 输入区的一份附件。图片连正文一起带走，模型直接看得到；其余文件只给路径，
+ * 提示里列成 `<attached-files>` 块，由 agent 自己的文件工具去读。
+ * 粘贴进来的图片没有磁盘路径，path 为 null。
+ */
+export type PromptAttachment =
+	| { kind: "image"; name: string; path: string | null; mimeType: string; data: string; size: number }
+	| { kind: "file"; name: string; path: string; size: number };
+
+/** 一次提示最多带几个附件；选择器、拖入和托盘共用这一个上限。 */
+export const MAX_ATTACHMENTS = 8;
 
 /** pi-ask 的一道题里可选的答案。 */
 export type AskOptionView = {
@@ -219,9 +237,14 @@ export type DesktopEvent =
 export type DesktopBridge = {
 	getState(): Promise<DesktopState>;
 	send(command: DesktopCommand): Promise<void>;
+	/** 读路径变成附件；不给路径时打开原生文件选择器。读不出的文件由 main 提示，这里只收结果。 */
+	attachFiles(paths?: readonly string[]): Promise<PromptAttachment[]>;
+	/** 拖进窗口的文件在磁盘上的位置；渲染进程自己拿不到 File.path。 */
+	pathForFile(file: File): string;
 	onEvent(listener: (event: DesktopEvent) => void): () => void;
 };
 
 export const IPC_GET_STATE = "pi-desktop:get-state";
+export const IPC_ATTACH_FILES = "pi-desktop:attach-files";
 export const IPC_COMMAND = "pi-desktop:command";
 export const IPC_EVENT = "pi-desktop:event";

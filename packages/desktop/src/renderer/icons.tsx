@@ -21,6 +21,7 @@ import {
 	Moon,
 	PanelLeftClose,
 	PanelLeftOpen,
+	Paperclip,
 	Pencil,
 	Pin,
 	PinOff,
@@ -66,6 +67,7 @@ export const IconMinimize = icon(Minimize2);
 export const IconMoon = icon(Moon);
 export const IconPanelLeftClose = icon(PanelLeftClose);
 export const IconPanelLeftOpen = icon(PanelLeftOpen);
+export const IconPaperclip = icon(Paperclip);
 export const IconPencil = icon(Pencil);
 export const IconPin = icon(Pin);
 export const IconPinOff = icon(PinOff);

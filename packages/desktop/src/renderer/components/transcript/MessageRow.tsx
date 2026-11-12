@@ -2,7 +2,8 @@
 
 import { memo } from "react";
 import type { TranscriptItem } from "../../../shared/contract.ts";
-import { IconImage } from "../../icons.tsx";
+import { IconFile, IconImage } from "../../icons.tsx";
+import { baseName } from "../../lib/format.ts";
 import { cx } from "../../ui.tsx";
 
 type MessageRowProps = {
@@ -23,11 +24,21 @@ const UserRow = memo(function UserRow({ item }: { item: Extract<TranscriptItem, 
 		<article className="message-row user" aria-label="Your message" data-item-id={item.id}>
 			<div className="message-col">
 				<div className="message-bubble">
-					<div className="message-user-text selectable">{item.text}</div>
-					{item.imageCount > 0 ? (
-						<span className="message-attachment">
-							<IconImage size={13} />
-							<span>{`${item.imageCount} image${item.imageCount > 1 ? "s" : ""}`}</span>
+					{item.text ? <div className="message-user-text selectable">{item.text}</div> : null}
+					{item.files.length > 0 || item.imageCount > 0 ? (
+						<span className="message-attachments">
+							{item.files.map((path) => (
+								<span className="message-attachment" key={path} title={path}>
+									<IconFile size={13} aria-hidden="true" />
+									<span>{baseName(path)}</span>
+								</span>
+							))}
+							{item.imageCount > 0 ? (
+								<span className="message-attachment">
+									<IconImage size={13} aria-hidden="true" />
+									<span>{`${item.imageCount} image${item.imageCount > 1 ? "s" : ""}`}</span>
+								</span>
+							) : null}
 						</span>
 					) : null}
 				</div>

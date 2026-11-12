@@ -9,6 +9,7 @@ import {
 	createEventBus,
 	SessionManager,
 } from "@earendil-works/pi-coding-agent";
+import { formatAttachedFiles, splitAttachedFiles } from "../shared/attached-files.ts";
 import type {
 	AgentStatus,
 	AgentView,
@@ -20,7 +21,7 @@ import type {
 	DesktopState,
 	ModelView,
 	Platform,
-	PromptImage,
+	PromptAttachment,
 	ResolvedTheme,
 	SessionSummary,
 	ThinkingLevel,
@@ -141,7 +142,7 @@ export class SessionHost {
 				await this.openById(command.id);
 				return this.flushNow();
 			case "prompt":
-				await this.prompt(command.text, command.images ?? []);
+				await this.prompt(command.text, command.attachments ?? []);
 				return;
 			case "steer":
 				await this.steer(command.text);
@@ -260,9 +261,12 @@ export class SessionHost {
 		return live;
 	}
 
-	private async prompt(text: string, images: readonly PromptImage[]): Promise<void> {
-		const trimmed = text.trim();
-		if (!trimmed && images.length === 0) return;
+	private async prompt(text: string, attachments: readonly PromptAttachment[]): Promise<void> {
+		const images = attachments.filter((item) => item.kind === "image");
+		// 普通文件只把路径告诉模型：agent 自己有读文件的手，整份正文不必塞进上下文
+		const files = attachments.flatMap((item) => (item.kind === "file" ? [item.path] : []));
+		const trimmed = [text.trim(), formatAttachedFiles(files)].filter(Boolean).join("\n\n");
+		if (!trimmed) return;
 		const live = this.activeSession() ?? (await this.createSession());
 		const payload = images.map(toImageContent);
 		try {
@@ -677,7 +681,7 @@ function usageOf(agent: AgentSession): UsageSummary {
 	};
 }
 
-function toImageContent(image: PromptImage): ImageContent {
+function toImageContent(image: Extract<PromptAttachment, { kind: "image" }>): ImageContent {
 	return { type: "image", data: image.data, mimeType: image.mimeType };
 }
 
@@ -694,7 +698,7 @@ function upsertSummary(list: readonly SessionSummary[], summary: SessionSummary)
 function titleOf(messages: readonly { role: string }[]): string {
 	const firstUser = messages.find((message) => message.role === "user");
 	if (!firstUser) return "";
-	const text = textOf(firstUser);
+	const text = splitAttachedFiles(textOf(firstUser)).text;
 	return previewLine(text);
 }
 

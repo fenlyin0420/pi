@@ -1,7 +1,7 @@
 // 输入框工具栏：左侧模型与思考等级，右侧上下文占用、费用和发送/停止。
 
 import type { AgentView } from "../../../shared/contract.ts";
-import { IconArrowUp, IconChevronDown, IconStop } from "../../icons.tsx";
+import { IconArrowUp, IconChevronDown, IconPaperclip, IconStop } from "../../icons.tsx";
 import { formatCost, formatTokens } from "../../lib/format.ts";
 import { cx } from "../../ui.tsx";
 import { thinkingLevelLabel } from "./ThinkingPicker.tsx";
@@ -11,10 +11,13 @@ type ComposerToolbarProps = {
 	running: boolean;
 	/** 有正文或附件时才能发送。 */
 	canSend: boolean;
+	/** 附件未到上限时才能再挑：到上限后回形针禁用。 */
+	canAttach: boolean;
 	/** 模型支持思考、且用户没有关掉思考显示时才给等级入口。 */
 	showThinkingLevel: boolean;
 	modelPickerOpen: boolean;
 	thinkingPickerOpen: boolean;
+	onAttachFiles: () => void;
 	onOpenModelPicker: (anchor: HTMLElement) => void;
 	onOpenThinkingPicker: (anchor: HTMLElement) => void;
 	onSend: () => void;
@@ -26,9 +29,11 @@ export function ComposerToolbar({
 	agent,
 	running,
 	canSend,
+	canAttach,
 	showThinkingLevel,
 	modelPickerOpen,
 	thinkingPickerOpen,
+	onAttachFiles,
 	onOpenModelPicker,
 	onOpenThinkingPicker,
 	onSend,
@@ -40,6 +45,16 @@ export function ComposerToolbar({
 	return (
 		<div className="composer-toolbar">
 			<div className="composer-left">
+				<button
+					type="button"
+					className="icon-btn composer-attach-btn"
+					aria-label="Attach files"
+					title={canAttach ? "Attach files" : "Attachment limit reached"}
+					disabled={!canAttach}
+					onClick={onAttachFiles}
+				>
+					<IconPaperclip size={14} aria-hidden="true" />
+				</button>
 				<div className="composer-model-thinking">
 					<button
 						type="button"

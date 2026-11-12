@@ -47,7 +47,26 @@ describe("toTranscriptItems", () => {
 			}),
 			{ streamingIndex: null },
 		);
-		expect(items[0]).toEqual({ kind: "user", id: itemIdAt(0), text: "look", timestamp: 1, imageCount: 1 });
+		expect(items[0]).toEqual({
+			kind: "user",
+			id: itemIdAt(0),
+			text: "look",
+			timestamp: 1,
+			imageCount: 1,
+			files: [],
+		});
+	});
+
+	it("正文里的附件块换成路径清单，气泡不再显示块本身", () => {
+		const items = toTranscriptItems(
+			messages({
+				role: "user",
+				content: "read this\n\n<attached-files>\n/tmp/report.pdf\n/tmp/a.ts\n</attached-files>",
+				timestamp: 1,
+			}),
+			{ streamingIndex: null },
+		);
+		expect(items[0]).toMatchObject({ text: "read this", files: ["/tmp/report.pdf", "/tmp/a.ts"] });
 	});
 
 	it("把思考块和工具调用按顺序展开成 parts", () => {

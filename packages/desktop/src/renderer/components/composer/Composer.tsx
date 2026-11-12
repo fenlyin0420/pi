@@ -1,10 +1,11 @@
 // 输入区：草稿、附件、命令与引用面板、工具栏和运行态切换都收在这里。
 
 import { type ClipboardEvent, type DragEvent, useEffect, useMemo, useRef, useState } from "react";
-import type { AgentView, ModelView, PromptImage, ThinkingLevel } from "../../../shared/contract.ts";
+import type { AgentView, DesktopBridge, ModelView, PromptAttachment, ThinkingLevel } from "../../../shared/contract.ts";
+import { MAX_ATTACHMENTS } from "../../../shared/contract.ts";
 import { matchSlashCommands, type SlashAction, type SlashCommand, slashQuery } from "../../lib/slash-commands.ts";
 import { cx, Kbd } from "../../ui.tsx";
-import { AttachmentTray, type ComposerAttachment, MAX_ATTACHMENTS, readImageFiles } from "./AttachmentTray.tsx";
+import { AttachmentTray, type ComposerAttachment, readImageFiles } from "./AttachmentTray.tsx";
 import { ComposerInput, type ComposerPaletteKeys } from "./ComposerInput.tsx";
 import { ComposerToolbar } from "./ComposerToolbar.tsx";
 import { MentionPalette, mentionQuery, useMentionSearch, withMention } from "./MentionPalette.tsx";
@@ -23,7 +24,9 @@ type ComposerProps = {
 	models: readonly ModelView[];
 	/** 用户是否要看思考内容；关掉时连等级入口一起收起。 */
 	thinking: boolean;
-	onSend: (text: string, images?: PromptImage[]) => void;
+	/** 选文件与把拖入的文件换算成磁盘路径；两个都由主进程那边的桥提供。 */
+	attach: Pick<DesktopBridge, "attachFiles" | "pathForFile">;
+	onSend: (text: string, attachments: readonly PromptAttachment[]) => void;
 	onSteer: (text: string) => void;
 	onAbort: () => void;
 	onSetModel: (model: string) => void;
@@ -61,6 +64,7 @@ export function Composer({
 	agent,
 	models,
 	thinking,
+	attach,
 	onSend,
 	onSteer,
 	onAbort,
@@ -183,20 +187,33 @@ export function Composer({
 			return;
 		}
 		if (!text && attachments.length === 0) return;
-		onSend(text, attachments.length > 0 ? attachments.map((item) => item.image) : undefined);
+		onSend(
+			text,
+			attachments.map((item) => item.attachment),
+		);
 		resetText();
 		setAttachments([]);
 	}
 
-	async function addImages(files: readonly File[]) {
-		const images = await readImageFiles(files);
-		if (images.length === 0) return;
-		const added = images.map((image) => {
-			nextAttachmentId.current += 1;
-			return { id: nextAttachmentId.current, image };
+	function addAttachments(items: readonly PromptAttachment[]) {
+		if (items.length === 0) return;
+		setAttachments((current) => {
+			// 同一个文件拖两次只留一份：有路径的按路径认，粘贴进来的图片没有路径，各算各的
+			const known = new Set(current.flatMap((item) => (item.attachment.path ? [item.attachment.path] : [])));
+			const added = items.flatMap((attachment) => {
+				if (attachment.path && known.has(attachment.path)) return [];
+				if (attachment.path) known.add(attachment.path);
+				nextAttachmentId.current += 1;
+				return [{ id: nextAttachmentId.current, attachment }];
+			});
+			// 超出的部分丢掉：回形针在上限处已经禁用，这里只兜一次拖入或粘贴带进来的超额
+			return [...current, ...added].slice(0, MAX_ATTACHMENTS);
 		});
-		// 超出上限的图片直接丢掉：托盘本来也只显示得下这么多
-		setAttachments((current) => [...current, ...added].slice(0, MAX_ATTACHMENTS));
+	}
+
+	/** 回形针：原生选择器挑出的文件（读不了的文件由 main 提示）。 */
+	function pickAttachments() {
+		void attach.attachFiles().then(addAttachments);
 	}
 
 	function handlePaste(event: ClipboardEvent<HTMLTextAreaElement>) {
@@ -204,7 +221,7 @@ export function Composer({
 		if (!files.some((file) => file.type.startsWith("image/"))) return;
 		// 有图片就接管粘贴，否则截图会以空文本的形式落进正文
 		event.preventDefault();
-		void addImages(files);
+		void readImageFiles(files).then(addAttachments);
 	}
 
 	function handleDragOver(event: DragEvent<HTMLDivElement>) {
@@ -224,7 +241,14 @@ export function Composer({
 	function handleDrop(event: DragEvent<HTMLDivElement>) {
 		event.preventDefault();
 		setDropTarget(false);
-		void addImages(Array.from(event.dataTransfer.files));
+		const files = Array.from(event.dataTransfer.files);
+		// 从系统里拖来的一定有磁盘路径，交给 main 统一读；浏览器拖来的图片没有路径，退回读 dataURL
+		const paths = files.map((file) => attach.pathForFile(file)).filter((path) => path.length > 0);
+		if (paths.length > 0) {
+			void attach.attachFiles(paths).then(addAttachments);
+			return;
+		}
+		void readImageFiles(files).then(addAttachments);
 	}
 
 	const palette: ComposerPaletteKeys | null =
@@ -291,9 +315,11 @@ export function Composer({
 						agent={agent}
 						running={running}
 						canSend={value.trim().length > 0 || attachments.length > 0}
+						canAttach={attachments.length < MAX_ATTACHMENTS}
 						showThinkingLevel={thinking && agent.reasoning}
 						modelPickerOpen={modelAnchor !== null}
 						thinkingPickerOpen={thinkingAnchor !== null}
+						onAttachFiles={pickAttachments}
 						onOpenModelPicker={openModelPicker}
 						onOpenThinkingPicker={openThinkingPicker}
 						onSend={submit}

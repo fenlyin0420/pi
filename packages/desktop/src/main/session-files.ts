@@ -3,6 +3,7 @@
 import { unlinkSync } from "node:fs";
 import type { SessionInfo } from "@earendil-works/pi-coding-agent";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
+import { splitAttachedFiles } from "../shared/attached-files.ts";
 import type { SessionSummary } from "../shared/contract.ts";
 
 const TITLE_LIMIT = 120;
@@ -44,14 +45,15 @@ export function deleteSessionFile(path: string): void {
 function sessionTitle(info: SessionInfo): string {
 	const name = info.name?.trim();
 	if (name) return name;
-	const firstMessage = info.firstMessage.trim().replace(/\s+/g, " ");
+	// 首条消息里可能带着附件路径清单：标题只留用户写的话
+	const firstMessage = splitAttachedFiles(info.firstMessage).text.trim().replace(/\s+/g, " ");
 	if (!firstMessage) return "Untitled";
 	return truncate(firstMessage, TITLE_LIMIT);
 }
 
 /** 取整段对话的末尾一行做预览，跳过空行和纯空白。 */
 function previewText(allMessagesText: string): string {
-	const lines = allMessagesText.split("\n");
+	const lines = splitAttachedFiles(allMessagesText).text.split("\n");
 	for (let index = lines.length - 1; index >= 0; index -= 1) {
 		const line = lines[index]?.trim();
 		if (line) return truncate(line.replace(/\s+/g, " "), PREVIEW_LIMIT);

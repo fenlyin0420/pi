@@ -175,7 +175,8 @@ export function App() {
 								agent={desktop.agent}
 								models={state.models}
 								thinking={settings.showThinking}
-								onSend={(text, images) => send({ type: "prompt", text, images })}
+								attach={window.piDesktop}
+								onSend={(text, attachments) => send({ type: "prompt", text, attachments })}
 								onSteer={(text) => send({ type: "steer", text })}
 								onAbort={() => send({ type: "abort" })}
 								onSetModel={(model) => send({ type: "setModel", model })}

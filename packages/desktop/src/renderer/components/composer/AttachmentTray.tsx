@@ -1,35 +1,43 @@
-// 附件托盘：待发送图片的缩略图与删除入口，以及把文件读成 PromptImage 的转换。
+// 附件托盘：待发送的图片与文件，以及把没有磁盘路径的图片读成附件描述的转换。
 
-import type { PromptImage } from "../../../shared/contract.ts";
-import { IconClose } from "../../icons.tsx";
-
-/** 一次提示最多带几张图。 */
-export const MAX_ATTACHMENTS = 6;
+import type { PromptAttachment } from "../../../shared/contract.ts";
+import { IconClose, IconFile } from "../../icons.tsx";
+import { formatBytes } from "../../lib/format.ts";
 
 /** dataURL 的前缀只是媒介描述，契约里的 data 只要 base64 正文。 */
 const DATA_URL_PREFIX = /^data:[^,]*,/;
 
-/** 托盘里的一张图：id 由添加时分配，同一张图连贴两次也各有自己的位置。 */
-export type ComposerAttachment = { id: number; image: PromptImage };
+/** 托盘里的一份附件：id 由添加时分配，同一个文件加两次也各有自己的位置。 */
+export type ComposerAttachment = { id: number; attachment: PromptAttachment };
 
 type AttachmentTrayProps = {
 	attachments: readonly ComposerAttachment[];
 	onRemove: (id: number) => void;
 };
 
-/** 把文件读成模型能看的图片；非图片文件和读不出来的文件都跳过。 */
-export async function readImageFiles(files: Iterable<File>): Promise<PromptImage[]> {
-	const images: PromptImage[] = [];
+/**
+ * 没有磁盘路径的图片读成附件：粘贴板截图、从浏览器里拖来的图片都走这条。
+ * 非图片内容不接管；附件里 path 为 null。
+ */
+export async function readImageFiles(files: Iterable<File>): Promise<PromptAttachment[]> {
+	const images: PromptAttachment[] = [];
 	for (const file of files) {
 		if (!file.type.startsWith("image/")) continue;
 		const url = await readAsDataUrl(file).catch(() => "");
 		if (!DATA_URL_PREFIX.test(url)) continue;
-		images.push({ data: url.replace(DATA_URL_PREFIX, ""), mimeType: file.type, name: file.name || undefined });
+		images.push({
+			kind: "image",
+			name: file.name || "Pasted image",
+			path: null,
+			mimeType: file.type,
+			data: url.replace(DATA_URL_PREFIX, ""),
+			size: file.size,
+		});
 	}
 	return images;
 }
 
-/** 读取单个文件为 dataURL；读不出来时抛出，由 readImageFiles 当作跳过。 */
+/** 读取单个文件为 dataURL；读不出来时抛出，由调用方当作跳过。 */
 function readAsDataUrl(file: File): Promise<string> {
 	return new Promise((resolve, reject) => {
 		const reader = new FileReader();
@@ -39,29 +47,46 @@ function readAsDataUrl(file: File): Promise<string> {
 	});
 }
 
-/** 缩略图条；没有图片时不渲染，输入框保持原来的上间距。 */
+/** 附件条：图片是缩略图，其他文件是带名字和大小的 chip；没有附件时不渲染。 */
 export function AttachmentTray({ attachments, onRemove }: AttachmentTrayProps) {
 	if (attachments.length === 0) return null;
 	return (
 		<div className="composer-attachments">
-			{attachments.map(({ id, image }) => (
-				<figure className="composer-attachment" key={id}>
-					<img
-						className="composer-attachment-image"
-						src={`data:${image.mimeType};base64,${image.data}`}
-						alt={image.name ?? "Attached image"}
-					/>
-					<button
-						type="button"
-						className="composer-attachment-remove"
-						aria-label="Remove image"
-						title="Remove image"
-						onClick={() => onRemove(id)}
-					>
-						<IconClose size={11} aria-hidden="true" />
-					</button>
-				</figure>
-			))}
+			{attachments.map(({ id, attachment }) =>
+				attachment.kind === "image" ? (
+					<figure className="composer-attachment" key={id}>
+						<img
+							className="composer-attachment-image"
+							src={`data:${attachment.mimeType};base64,${attachment.data}`}
+							alt={attachment.name}
+						/>
+						<button
+							type="button"
+							className="composer-attachment-remove"
+							aria-label={`Remove ${attachment.name}`}
+							title="Remove image"
+							onClick={() => onRemove(id)}
+						>
+							<IconClose size={11} aria-hidden="true" />
+						</button>
+					</figure>
+				) : (
+					<span className="composer-attachment-file" key={id} title={attachment.path}>
+						<IconFile size={13} aria-hidden="true" />
+						<span className="composer-attachment-file-name">{attachment.name}</span>
+						<span className="composer-attachment-file-size">{formatBytes(attachment.size)}</span>
+						<button
+							type="button"
+							className="composer-attachment-file-remove"
+							aria-label={`Remove ${attachment.name}`}
+							title="Remove file"
+							onClick={() => onRemove(id)}
+						>
+							<IconClose size={11} aria-hidden="true" />
+						</button>
+					</span>
+				),
+			)}
 		</div>
 	);
 }

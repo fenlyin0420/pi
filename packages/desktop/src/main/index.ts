@@ -2,7 +2,8 @@
 
 import { app, BrowserWindow, dialog, ipcMain, nativeTheme, shell } from "electron";
 import type { DesktopCommand, DesktopEvent, MenuAction, Platform, ResolvedTheme } from "../shared/contract.ts";
-import { IPC_COMMAND, IPC_EVENT, IPC_GET_STATE } from "../shared/contract.ts";
+import { IPC_ATTACH_FILES, IPC_COMMAND, IPC_EVENT, IPC_GET_STATE } from "../shared/contract.ts";
+import { readAttachments } from "./attachments.ts";
 import { searchProjectFiles } from "./file-search.ts";
 import { installMenu } from "./menu.ts";
 import { SessionHost } from "./session-host.ts";
@@ -19,9 +20,9 @@ function resolvedTheme(): ResolvedTheme {
 	return configured;
 }
 
-/** 系统窗口按钮的底色由 main 画，主题一变就得跟着换。 */
+/** 系统窗口按钮的底色由 main 画，主题一变就得跟着换。只有 Windows 开了 WCO，别处调用会抛错。 */
 function syncTitleBarOverlay(): void {
-	if (process.platform === "darwin") return;
+	if (process.platform !== "win32") return;
 	if (!mainWindow || mainWindow.isDestroyed()) return;
 	mainWindow.setTitleBarOverlay(titleBarOverlay(resolvedTheme()));
 }
@@ -41,6 +42,12 @@ const host = new SessionHost(process.env.PI_DESKTOP_CWD ?? process.cwd(), {
 		return result.canceled ? null : (result.filePaths[0] ?? null);
 	},
 });
+
+/** 原生文件选择器：取消时返回空列表，附件读取那边就什么都不加。 */
+async function pickAttachmentPaths(): Promise<string[]> {
+	const result = await dialog.showOpenDialog({ properties: ["openFile", "multiSelections"] });
+	return result.canceled ? [] : result.filePaths;
+}
 
 async function dispatch(command: DesktopCommand): Promise<void> {
 	try {
@@ -82,6 +89,13 @@ app.whenReady().then(async () => {
 	});
 
 	ipcMain.handle(IPC_GET_STATE, () => host.buildState());
+	// 附件：renderer 没给路径就是要原生选择器（工具栏的回形针），给了路径就是拖进窗口的文件。
+	ipcMain.handle(IPC_ATTACH_FILES, async (_event, paths?: readonly string[]) => {
+		const targets = paths ?? (await pickAttachmentPaths());
+		const { attachments, rejected } = await readAttachments(targets);
+		for (const message of rejected) send({ type: "toast", level: "warning", message });
+		return attachments;
+	});
 	ipcMain.handle(IPC_COMMAND, async (_event, command: DesktopCommand) => {
 		await dispatch(command);
 	});

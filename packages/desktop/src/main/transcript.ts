@@ -1,6 +1,7 @@
 // 会话消息到 transcript 契约的纯映射。pi 类型只做 type-only 引入，运行时不依赖 pi。
 
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
+import { splitAttachedFiles } from "../shared/attached-files.ts";
 import type { AssistantPart, ToolCallView, TranscriptItem, TurnUsage } from "../shared/contract.ts";
 
 const SUMMARY_LIMIT = 140;
@@ -43,12 +44,15 @@ export function toTranscriptItems(messages: readonly AgentMessage[], options: Tr
 				const images = Array.isArray(message.content)
 					? message.content.filter((block) => block.type === "image").length
 					: 0;
+				// 附件块是给模型看的路径清单，气泡里换成 chips，正文只留用户自己写的
+				const { text, files } = splitAttachedFiles(joinText(message.content));
 				items.push({
 					kind: "user",
 					id,
-					text: joinText(message.content),
+					text,
 					timestamp: message.timestamp,
 					imageCount: images,
+					files,
 				});
 				break;
 			}
