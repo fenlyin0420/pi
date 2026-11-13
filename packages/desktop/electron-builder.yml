@@ -13,6 +13,8 @@ directories:
 files:
   - out/**/*
   - package.json
+  # 运行时窗口图标（main 按 out/main 的相对路径取），必须随 asar 一起进包。
+  - resources/**/*
   # 源映射与 bun 专用入口只在开发时用得上，不进安装包。
   - "!**/*.map"
   - "!**/node_modules/@earendil-works/pi-coding-agent/dist/bun/**"
@@ -20,6 +22,8 @@ asar: true
 
 win:
   executableName: pi-desktop
+  # exe 与 NSIS 安装向导的图标，源图就在 buildResources 目录里。
+  icon: build/icon.ico
   target:
     - target: nsis
       arch:

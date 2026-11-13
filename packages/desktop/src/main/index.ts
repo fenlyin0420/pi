@@ -29,6 +29,10 @@ const platform = process.platform as Platform;
 const settings = new SettingsStore(app.getPath("userData"));
 let mainWindow: BrowserWindow | null = null;
 
+// 和 electron-builder.yml 的 appId 保持一致：快捷方式带这个 AUMID，应用不声明就会被
+// Windows 归到另一个任务栏分组，显示的是默认 electron 图标。
+if (process.platform === "win32") app.setAppUserModelId("dev.fenlyin.pi-desktop");
+
 function resolvedTheme(): ResolvedTheme {
 	const configured = settings.get().theme;
 	if (configured === "system") return nativeTheme.shouldUseDarkColors ? "dark" : "light";

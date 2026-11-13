@@ -11,6 +11,9 @@ import type { SettingsStore, WindowState } from "./settings.ts";
 const MIN_WIDTH = 900;
 const MIN_HEIGHT = 600;
 const SAVE_DELAY_MS = 300;
+// 窗口图标：开发时在仓库里，打包后在 asar 的同一相对路径下（electron-builder 的
+// files 收了 resources/）。macOS 用 app bundle 的图标，这个字段被忽略。
+const ICON_PATH = join(import.meta.dirname, "../../resources/icon.png");
 
 export type WindowHooks = {
 	theme(): ResolvedTheme;
@@ -33,6 +36,7 @@ export function createMainWindow(settings: SettingsStore, hooks: WindowHooks): B
 		titleBarStyle: mac ? "hiddenInset" : "default",
 		trafficLightPosition: mac ? { x: 14, y: 13 } : undefined,
 		backgroundColor: hooks.theme() === "dark" ? "#181818" : "#ffffff",
+		icon: ICON_PATH,
 		autoHideMenuBar: !mac,
 		webPreferences: {
 			preload: join(import.meta.dirname, "../preload/index.cjs"),
