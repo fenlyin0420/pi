@@ -1,8 +1,23 @@
 // Electron 入口：装配设置、主题、会话中枢、窗口与菜单，并把 IPC 两个方向接起来。
 
 import { app, BrowserWindow, dialog, ipcMain, nativeTheme, shell } from "electron";
-import type { DesktopCommand, DesktopEvent, MenuAction, Platform, ResolvedTheme } from "../shared/contract.ts";
-import { IPC_ATTACH_FILES, IPC_COMMAND, IPC_EVENT, IPC_GET_STATE } from "../shared/contract.ts";
+import type {
+	DesktopCommand,
+	DesktopEvent,
+	FileOpenResult,
+	MenuAction,
+	Platform,
+	ResolvedTheme,
+} from "../shared/contract.ts";
+import {
+	IPC_ATTACH_FILES,
+	IPC_COMMAND,
+	IPC_EVENT,
+	IPC_GET_STATE,
+	IPC_MESSAGE_IMAGE,
+	IPC_OPEN_ATTACHMENT,
+} from "../shared/contract.ts";
+import { readImageView } from "./attachment-open.ts";
 import { readAttachments } from "./attachments.ts";
 import { searchProjectFiles } from "./file-search.ts";
 import { installMenu } from "./menu.ts";
@@ -60,6 +75,12 @@ async function dispatch(command: DesktopCommand): Promise<void> {
 			case "revealPath":
 				shell.showItemInFolder(command.path);
 				return;
+			case "openPath": {
+				// openPath 用错误字符串报失败（空串是成功），同一个通道里转成 toast。
+				const failure = await shell.openPath(command.path);
+				if (failure) send({ type: "toast", level: "error", message: failure });
+				return;
+			}
 			case "searchFiles": {
 				const workspace = host.getWorkspace();
 				const files = workspace === null ? [] : await searchProjectFiles(workspace, command.query);
@@ -97,6 +118,17 @@ app.whenReady().then(async () => {
 		for (const message of rejected) send({ type: "toast", level: "warning", message });
 		return attachments;
 	});
+	ipcMain.handle(IPC_OPEN_ATTACHMENT, async (_event, path: string): Promise<FileOpenResult> => {
+		const image = await readImageView(path);
+		if (image) return { kind: "image", image };
+		const failure = await shell.openPath(path);
+		if (!failure) return { kind: "external" };
+		send({ type: "toast", level: "error", message: failure });
+		return { kind: "failed" };
+	});
+	ipcMain.handle(IPC_MESSAGE_IMAGE, (_event, sessionId: string, messageIndex: number, imageIndex: number) =>
+		host.messageImage(sessionId, messageIndex, imageIndex),
+	);
 	ipcMain.handle(IPC_COMMAND, async (_event, command: DesktopCommand) => {
 		await dispatch(command);
 	});

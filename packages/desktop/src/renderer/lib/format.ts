@@ -102,3 +102,10 @@ export function baseName(path: string): string {
 	const parts = path.split(/[\\/]/);
 	return parts[parts.length - 1] || path;
 }
+
+/** 附件卡片上的类型字样：取扩展名的大写，没有扩展名时给 FILE。 */
+export function fileType(name: string): string {
+	const dot = name.lastIndexOf(".");
+	if (dot <= 0 || dot === name.length - 1) return "FILE";
+	return name.slice(dot + 1).toUpperCase();
+}

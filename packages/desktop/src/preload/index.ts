@@ -2,12 +2,22 @@
 
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { DesktopBridge, DesktopEvent } from "../shared/contract.ts";
-import { IPC_ATTACH_FILES, IPC_COMMAND, IPC_EVENT, IPC_GET_STATE } from "../shared/contract.ts";
+import {
+	IPC_ATTACH_FILES,
+	IPC_COMMAND,
+	IPC_EVENT,
+	IPC_GET_STATE,
+	IPC_MESSAGE_IMAGE,
+	IPC_OPEN_ATTACHMENT,
+} from "../shared/contract.ts";
 
 const bridge: DesktopBridge = {
 	getState: () => ipcRenderer.invoke(IPC_GET_STATE),
 	send: (command) => ipcRenderer.invoke(IPC_COMMAND, command),
 	attachFiles: (paths) => ipcRenderer.invoke(IPC_ATTACH_FILES, paths),
+	openAttachment: (path) => ipcRenderer.invoke(IPC_OPEN_ATTACHMENT, path),
+	readMessageImage: (sessionId, messageIndex, imageIndex) =>
+		ipcRenderer.invoke(IPC_MESSAGE_IMAGE, sessionId, messageIndex, imageIndex),
 	// 渲染进程拿不到 File.path，只能由 preload 侧的 webUtils 换算成磁盘路径。
 	pathForFile: (file) => webUtils.getPathForFile(file),
 	onEvent: (listener) => {

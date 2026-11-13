@@ -7,7 +7,7 @@ import type { PromptAttachment } from "../shared/contract.ts";
 import { MAX_ATTACHMENTS } from "../shared/contract.ts";
 
 /** 单张图片读进内存的上限：再大就让用户先换一张，省得 IPC 上搬几百兆 base64。 */
-const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 /** 认图片只看文件头，不读整份文件。 */
 const SNIFF_BYTES = 4_100;
 
@@ -54,12 +54,12 @@ async function readAttachment(path: string, rejected: string[]): Promise<PromptA
 	}
 }
 
-/** 文件头：判断图片格式只需要前几 KB，大文件不能整份读进来。 */
-async function readHead(path: string): Promise<Buffer> {
+/** 读文件开头的一段：判断图片格式只要前几 KB，预览长文本也只需要开头一段，大文件不能整份读进来。 */
+export async function readHead(path: string, bytes: number = SNIFF_BYTES): Promise<Buffer> {
 	const handle = await open(path, "r");
 	try {
-		const buffer = Buffer.alloc(SNIFF_BYTES);
-		const { bytesRead } = await handle.read(buffer, 0, SNIFF_BYTES, 0);
+		const buffer = Buffer.alloc(bytes);
+		const { bytesRead } = await handle.read(buffer, 0, bytes, 0);
 		return buffer.subarray(0, bytesRead);
 	} finally {
 		await handle.close();

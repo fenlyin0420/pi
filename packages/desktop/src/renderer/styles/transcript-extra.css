@@ -130,9 +130,9 @@
 
 /*
   活动行复用工具分组的壳（.tool-activity-group / .tool-activity-header），
-  只补行内的排布：思考与中途草稿直接铺开，不再各自套一层折叠头。
+  只补行内的排布：一段思考自己折成一行标题（默认收起），中途草稿直接铺开。
 */
-.turn-activity-body > .turn-activity-thinking {
+.turn-activity-body > .thinking-fold {
   margin: 6px 0 2px;
 }
 
@@ -140,26 +140,74 @@
   margin: 4px 0 8px;
 }
 
-.turn-activity-body > .turn-activity-thinking:first-child,
+.turn-activity-body > .thinking-fold:first-child,
 .turn-activity-body > .turn-activity-text:first-child {
   margin-top: 2px;
 }
 
 /*
-  展开后的过程可能比一屏还长：标题行吸在滚动容器顶部，关闭折叠的箭头始终在手边，
-  不用翻回上面再关。底色必须不透明，正文才能从它后面滚过去而不透出来；
-  悬停底色是半透明的，所以叠在底色上而不是替掉它。
+  展开后的过程里，每一段思考也各自折成一行标题，默认收起：一段思考常比它周围的
+  工具调用长得多，铺开会把整条过程撑满，翻到后面的工具结果要跨过好几屏。
+  折叠头与工具卡片同一套行内几何：内容宽、圆角、悬停底色出血 4px。
 */
-.turn-activity.open > .tool-activity-header {
-  position: sticky;
-  top: 0;
-  /* 正文就在同一条活动链里、排在标题后面：给标题一层叠放，它才盖得住正文。 */
-  z-index: 1;
-  background-color: var(--ds-bg-primary);
+.thinking-fold {
+  min-width: 0;
 }
 
-.turn-activity.open > .tool-activity-header:hover {
-  background-image: linear-gradient(var(--ds-bg-hover), var(--ds-bg-hover));
+.thinking-fold-header {
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 24px;
+  align-items: center;
+  gap: 4px;
+  margin: 0 -4px;
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
+  color: var(--ds-text-muted);
+  font-size: var(--text-sm-plus);
+  text-align: left;
+}
+
+.thinking-fold-header:hover {
+  background: var(--ds-bg-hover);
+  color: var(--ds-text-secondary);
+}
+
+.thinking-fold-label {
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+}
+
+/* 箭头紧跟标题，与活动行同一条规矩：不推到行尾（见 .tool-activity-caret）。 */
+.thinking-fold-caret {
+  display: inline-flex;
+  flex: none;
+  opacity: 0.65;
+  transition: transform var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.thinking-fold.open > .thinking-fold-header > .thinking-fold-caret {
+  transform: rotate(90deg);
+}
+
+/* 正文不额外缩进：折叠头的文字起点就是正文的左边缘（两边都让出 4px 出血）。 */
+.thinking-fold-body {
+  margin: 4px 0 6px;
+}
+
+/*
+  展开后的过程可能比一屏还长：吸顶的是标题外面那一层整行走廊，关闭折叠的箭头始终在手边，
+  不用翻回上面再关。标题按钮本身只有内容宽（见 .tool-activity-header），所以底色铺在走廊上：
+  它必须不透明，正文才能从旁边滚过去而不透出来；悬停底色照旧叠在按钮自己身上。
+*/
+.turn-activity.open > .turn-activity-head {
+  position: sticky;
+  top: 0;
+  /* 正文就在同一条活动链里、排在标题后面：给走廊一层叠放，它才盖得住正文。 */
+  z-index: 1;
+  background-color: var(--ds-bg-primary);
 }
 
 /*

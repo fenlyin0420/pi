@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { diffLines } from "../src/renderer/lib/diff.ts";
 import {
 	baseName,
+	fileType,
 	formatBytes,
 	formatCost,
 	formatDuration,
@@ -161,5 +162,18 @@ describe("baseName", () => {
 
 	it("没有分隔符时原样返回", () => {
 		expect(baseName("file.md")).toBe("file.md");
+	});
+});
+
+describe("fileType", () => {
+	it("取扩展名的大写", () => {
+		expect(fileType("GPU-Z Sensor Log.txt")).toBe("TXT");
+		expect(fileType("shot.PNG")).toBe("PNG");
+	});
+
+	it("没有扩展名、隐藏文件或只以点结尾时给 FILE", () => {
+		expect(fileType("Makefile")).toBe("FILE");
+		expect(fileType(".gitignore")).toBe("FILE");
+		expect(fileType("trailing.")).toBe("FILE");
 	});
 });

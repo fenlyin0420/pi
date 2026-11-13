@@ -8,16 +8,6 @@
   display: flex;
   gap: 12px;
   padding: 12px 0;
-  /* Skip layout/paint for far-offscreen rows in long transcripts. */
-  content-visibility: auto;
-  contain-intrinsic-size: auto 140px;
-  /* Paint containment clips descendants to the padding box, which squared off
-     the deliberate bleed of the disclosure row chrome: both disclosure headers
-     pull their hover fill 4px past the column edge, and the two collapse-rail
-     controls occupy separate 14px lanes in the gutter. 34px covers the outer
-     lane. .tool-activity-group keeps its own clip for the subagent card
-     chrome. */
-  overflow-clip-margin: 34px;
 }
 
 .message-row.user {
@@ -2066,49 +2056,6 @@
   overflow-wrap: anywhere;
 }
 
-.message-attachments {
-  display: inline-flex;
-  max-width: 100%;
-  flex-wrap: wrap;
-  gap: 5px;
-  /* The chips continue the body line instead of heading it. */
-  margin-left: 4px;
-  vertical-align: middle;
-}
-
-.message-row.user .message-attachments {
-  /* Percentage max-width inflates the shrink-to-fit user plate. */
-  max-width: none;
-}
-
-.message-attachment {
-  display: inline-flex;
-  min-width: 0;
-  align-items: center;
-  gap: 5px;
-  border-radius: var(--radius-md);
-  background: var(--ds-tile-deep);
-  padding: 4px 7px;
-  color: var(--ds-text-secondary);
-  font-size: var(--text-sm-plus);
-  line-height: var(--leading-compact);
-}
-
-.message-attachment span {
-  max-width: 260px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* A user-message image is a chip like any other attachment; its preview card
-   appears on hover or focus and is rendered outside the message row. */
-.message-attachment-image-chip {
-  display: inline-flex;
-  min-width: 0;
-  align-items: center;
-}
-
 .message-row.assistant .message-bubble,
 .message-row.system .message-bubble,
 .message-row.tool .message-bubble {
@@ -2293,27 +2240,18 @@
   width: 100%;
   min-width: 0;
   margin: 7px 0;
-  /* Skip layout/paint for collapsed groups far offscreen (D247). */
-  content-visibility: auto;
-  contain-intrinsic-size: auto 40px;
-  /* Clips the same disclosure chrome as .message-row — at the column's left
-     edge, and at its right for a run row's head — so it relaxes its clip by
-     the same amount; with either one left tight the fill is squared off. */
-  overflow-clip-margin: 8px;
 }
 
 /*
- * A disclosure header is a row, not a chip. A content-sized `inline-flex`
- * header (the whole process, an ordinary group, a subagent card) stopped at
- * its own label, so the tool call never used the conversation width: it stayed
- * narrow next to full-width prose and did not change when the band was dragged
- * wider, and a long label overran the chip because only the level-specific
- * overrides below carried an ellipsis. The row claims the band like every
- * other transcript row; the label ellipsizes and the caret trails it.
+ * The disclosure header is a chip sized to its own content: the label and the
+ * caret form one short run at the left edge, so the toggle sits next to what
+ * it toggles instead of at the far end of the band. `max-width` keeps a long
+ * label inside the band, where it ellipsizes.
  */
 .tool-activity-header {
   display: flex;
-  width: 100%;
+  width: fit-content;
+  max-width: 100%;
   min-width: 0;
   min-height: 26px;
   align-items: center;
@@ -2339,7 +2277,7 @@
   color: var(--ds-text-muted);
 }
 
-/* Long labels ellipsize inside the band-wide header instead of overrunning it. */
+/* A long label ellipsizes at the header's `max-width` instead of overrunning it. */
 .tool-activity-label {
   min-width: 0;
   flex: 0 1 auto;
@@ -2367,11 +2305,10 @@
   flex: none;
 }
 
-/* The caret closes the row, so a short label keeps it at the trailing edge. */
+/* The caret follows the label; nothing pushes it to the trailing edge. */
 .tool-activity-caret {
   display: inline-flex;
   flex: none;
-  margin-inline-start: auto;
   color: var(--ds-text-muted);
   opacity: 0.65;
   transition: transform var(--motion-duration-fast) var(--motion-ease-out);
