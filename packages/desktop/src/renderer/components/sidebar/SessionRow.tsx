@@ -1,16 +1,14 @@
-// 侧栏的一行会话：两行截断的标题、更新时间、运行中脉冲点、置顶图标，右键菜单给出改名/置顶/删除。
+// 侧栏的一行会话：两行截断的标题、运行中的加载圈、未读圆点、置顶图标，右键菜单给出改名/置顶/删除。
 
 import { memo } from "react";
 import type { SessionSummary } from "../../../shared/contract.ts";
 import { IconPencil, IconPin, IconPinOff, IconTrash } from "../../icons.tsx";
-import { formatSessionTime } from "../../lib/format.ts";
 import { cx, useContextMenu } from "../../ui.tsx";
+import { RunningStatus } from "./RunningStatus.tsx";
 
 type SessionRowProps = {
 	session: SessionSummary;
 	active: boolean;
-	/** 分组用的时间基准，由侧栏统一每 60s 推进一次，行内不挂定时器。 */
-	now: number;
 	onOpen: (id: string) => void;
 	onRename: (session: SessionSummary) => void;
 	onDelete: (session: SessionSummary) => void;
@@ -18,13 +16,12 @@ type SessionRowProps = {
 };
 
 /**
- * 一行会话。memo 只在会话对象、选中态或时间基准变化时重渲染，拖动侧栏宽度这类
- * 纯父组件状态不会波及整列列表。
+ * 一行会话。memo 只在会话对象或选中态变化时重渲染，拖动侧栏宽度这类纯父组件状态
+ * 不会波及整列列表。
  */
 export const SessionRow = memo(function SessionRow({
 	session,
 	active,
-	now,
 	onOpen,
 	onRename,
 	onDelete,
@@ -64,9 +61,8 @@ export const SessionRow = memo(function SessionRow({
 				])
 			}
 		>
-			{running ? (
-				<span className="thread-item-status running" role="img" aria-label="Running" title="Running" />
-			) : null}
+			<RunningStatus running={running} />
+			{!running && session.unread ? <span className="thread-item-unread" role="img" aria-label="Unread" /> : null}
 			<button
 				type="button"
 				className="thread-item-main"
@@ -81,9 +77,6 @@ export const SessionRow = memo(function SessionRow({
 					{session.title}
 				</span>
 			</button>
-			<div className="thread-item-meta">
-				<span className="thread-item-last-reply">{formatSessionTime(session.updatedAt, now)}</span>
-			</div>
 			{menu.node}
 		</li>
 	);

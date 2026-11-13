@@ -43,39 +43,6 @@
   white-space: nowrap;
 }
 
-.thread-item-meta {
-  /* The action and date overlap in one slot; opacity keeps its width stable. */
-  display: grid;
-  width: max-content;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-items: end;
-}
-
-.thread-item-meta > * {
-  grid-area: 1 / 1;
-}
-
-.thread-item-last-reply {
-  color: var(--ds-text-muted);
-  font-size: var(--text-sm);
-  white-space: nowrap;
-  transition:
-    opacity var(--motion-duration-fast) var(--motion-ease-out),
-    visibility var(--motion-duration-fast) var(--motion-ease-out);
-}
-
-.thread-item:hover .thread-item-last-reply,
-.thread-item:focus-within .thread-item-last-reply {
-  opacity: 0;
-  visibility: hidden;
-}
-
-.thread-item-meta.is-menu-open .thread-item-last-reply {
-  opacity: 0;
-  visibility: hidden;
-}
-
 .thread-item:hover,
 .thread-item.active,
 .project-group > .sidebar-session-group-header:hover {

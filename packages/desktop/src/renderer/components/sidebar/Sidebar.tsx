@@ -24,7 +24,8 @@ import {
 	IconSun,
 } from "../../icons.tsx";
 import { sessionGroup } from "../../lib/format.ts";
-import { Button, cx, Dialog, Field, IconButton, Kbd, Spinner } from "../../ui.tsx";
+import { Button, cx, Dialog, Field, IconButton, Kbd } from "../../ui.tsx";
+import { RunningStatus } from "./RunningStatus.tsx";
 import { SessionRow } from "./SessionRow.tsx";
 import { WorkspaceRow } from "./WorkspaceRow.tsx";
 
@@ -228,11 +229,7 @@ export function Sidebar({
 						)}
 						<span>{section.label}</span>
 						<span className="sidebar-group-count">{section.sessions.length}</span>
-						{groupRunning ? (
-							<span className="sidebar-group-status" role="img" aria-label="Running" title="Running">
-								<Spinner size={12} />
-							</span>
-						) : null}
+						<RunningStatus running={groupRunning} />
 					</button>
 				</div>
 				<div className={cx("sidebar-session-group-body", groupCollapsed && "is-collapsed")}>
@@ -242,7 +239,6 @@ export function Sidebar({
 								key={session.id}
 								session={session}
 								active={session.id === state.activeSessionId}
-								now={now}
 								onOpen={openSession}
 								onRename={beginRename}
 								onDelete={setDeleteTarget}
