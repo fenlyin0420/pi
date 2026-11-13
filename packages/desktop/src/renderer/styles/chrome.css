@@ -635,10 +635,17 @@
   transition: padding-left var(--motion-duration-fast) var(--motion-ease-in);
 }
 
+/*
+ * The lanes stay draggable. Marking them no-drag carved their gaps, padding and
+ * trailing slack out of the window-drag surface, so a press that landed on the
+ * 8px gap after the dock toggle, on the 36px buffer before the window controls,
+ * or on any slack beside a button silently did nothing. Only the controls
+ * themselves opt out (see `.ct-icon-btn` below); a child of a drag region is
+ * draggable by default, so the lane bodies drag again while every button keeps
+ * its clicks.
+ */
 .conversation-topbar .ct-left,
 .conversation-topbar .ct-right {
-  -webkit-app-region: no-drag;
-  app-region: no-drag;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -821,6 +828,14 @@
   line-height: var(--leading-compact);
 }
 
+/* The only no-drag leaf of the top bar: every icon button. A child of a drag
+   region drags by default, so the buttons' seats, tiles and the gaps between
+   them are part of the window-drag surface while the clicks still land. */
+.conversation-topbar .ct-icon-btn {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
 /* One geometry and one seat for every chrome icon control: the topbar's dock
    toggle, the viewport-fixed work-panel toggle, the preview/route-band lane
    actions, and the work-panel header's create and maximize controls. The seat is
@@ -984,10 +999,10 @@
   display: flex;
   align-items: center;
   /*
-   * Out of flow, so .ct-left's no-drag box no longer covers it: .ct-left starts
-   * at the padding edge (x=124 collapsed) while this sits at x=88. Without its
-   * own carve-out the button falls inside the top bar's drag region, which on
-   * macOS swallows the click and keeps the arrow cursor instead of the pointer.
+   * Out of flow, so it sits outside every lane: without its own carve-out the
+   * button falls inside the top bar's drag region, which swallows the click and
+   * keeps the arrow cursor instead of the pointer. On macOS that read as a dead
+   * button rather than a draggable area.
    */
   -webkit-app-region: no-drag;
   app-region: no-drag;
@@ -1293,9 +1308,11 @@
   }
 }
 
+/* The band itself drags: its 8px lead gutter reads as titlebar, not as a
+ * control. Only the three buttons opt out. */
 .window-controls {
-  -webkit-app-region: no-drag;
-  app-region: no-drag;
+  -webkit-app-region: drag;
+  app-region: drag;
   pointer-events: auto;
   position: fixed;
   top: 0;
