@@ -15,6 +15,7 @@
 		"dist:dir": "electron-vite build && electron-builder --win --x64 --dir",
 		"typecheck": "tsc -p tsconfig.json --noEmit",
 		"clean": "shx rm -rf out release",
+		"icons": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/make-icons.ps1",
 		"test": "vitest --run"
 	},
 	"dependencies": {
