@@ -1,4 +1,4 @@
-// 无边框窗口的标题栏：整条是拖动区，左侧折叠侧栏，中间标题与模型状态，右侧搜索/设置。
+// 无边框窗口的标题栏：整条是拖动区，左侧折叠侧栏，中间标题与运行状态，右侧搜索/设置。
 // 最小化/最大化/关闭由系统的窗口按钮画（Window Controls Overlay），这里不再自绘。
 
 import type { AgentStatus, Platform } from "../../shared/contract.ts";
@@ -9,7 +9,6 @@ import { cx, IconButton } from "../ui.tsx";
 export function Titlebar({
 	platform,
 	sessionTitle,
-	modelName,
 	status,
 	sidebarCollapsed,
 	onToggleSidebar,
@@ -18,7 +17,6 @@ export function Titlebar({
 }: {
 	platform: Platform;
 	sessionTitle: string;
-	modelName: string | null;
 	status: AgentStatus;
 	sidebarCollapsed: boolean;
 	onToggleSidebar: () => void;
@@ -42,7 +40,6 @@ export function Titlebar({
 				</IconButton>
 				<div className="ct-title-wrap" title={sessionTitle}>
 					<h1 className="ct-title">{sessionTitle}</h1>
-					{modelName ? <span className="ct-model">{modelName}</span> : null}
 					<span
 						className={cx("ct-status", running && "is-running")}
 						role="img"

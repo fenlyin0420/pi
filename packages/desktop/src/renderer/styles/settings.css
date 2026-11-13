@@ -66,18 +66,6 @@
   white-space: nowrap;
 }
 
-/* 模型名比标题低一档，宽度不够时先被截断，标题保住自己的可读长度。 */
-.conversation-topbar .ct-model {
-  min-width: 0;
-  flex: 0 1 auto;
-  overflow: hidden;
-  color: var(--ds-text-muted);
-  font-size: var(--text-xs);
-  line-height: var(--leading-compact);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 /* 运行状态点：空闲是安静的灰点，运行中换成成功色并轻微呼吸。 */
 .conversation-topbar .ct-status {
   width: 6px;

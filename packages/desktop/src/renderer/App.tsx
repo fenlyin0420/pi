@@ -170,7 +170,6 @@ export function App() {
 									desktop.workspaces.find((entry) => entry.path === desktop.workspace)?.name ??
 									"pi"
 								}
-								modelName={desktop.agent.modelName}
 								status={desktop.agent.status}
 								sidebarCollapsed={collapsed}
 								onToggleSidebar={() => updateSettings({ sidebarCollapsed: !collapsed })}
