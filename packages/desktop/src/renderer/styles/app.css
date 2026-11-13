@@ -641,25 +641,18 @@
   which is right for its absolutely positioned bar and wrong for ours: as a
   relative box it pulls the whole strip 120px off the left edge, so with the
   sidebar collapsed the only remaining toggle sits at x=-108 and cannot be
-  clicked. The platform selector is what outranks chrome.css.
-
-  Windows also keeps clear of the native buttons Electron draws in the
-  top-right corner (Window Controls Overlay): `titlebar-area-*` are viewport
-  lengths, so the inset is the viewport width minus the area they leave us.
-  138px is the fallback (three 46px buttons) when the env vars are missing.
+  clicked. The platform selector is what outranks chrome.css. The buttons
+  themselves are drawn at the end of `.ct-right`, so the strip needs no band of
+  its own.
 */
-:root[data-platform="win32"] .main-pane > .conversation-topbar {
-  right: auto;
-  padding-right: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, calc(100vw - 138px)));
-}
-
+:root[data-platform="win32"] .main-pane > .conversation-topbar,
 :root[data-platform="linux"] .main-pane > .conversation-topbar {
   right: auto;
 }
 
 /*
   Same story for the lane padding: 36px of air exists so a floating bar clears
-  the native buttons it does not own. Ours sits in `.ct-right` and ends at the
+  the window buttons it does not own. Ours sits in `.ct-right` and ends at the
   strip's own 12px padding.
 */
 .main-pane > .conversation-topbar .ct-right {

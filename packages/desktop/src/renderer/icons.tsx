@@ -19,6 +19,7 @@ import {
 	LoaderCircle,
 	Maximize2,
 	Minimize2,
+	Minus,
 	Moon,
 	PanelLeftClose,
 	PanelLeftOpen,
@@ -66,6 +67,7 @@ export const IconImage = icon(ImageIcon);
 export const IconLoader = icon(LoaderCircle);
 export const IconMaximize = icon(Maximize2);
 export const IconMinimize = icon(Minimize2);
+export const IconMinus = icon(Minus);
 export const IconMoon = icon(Moon);
 export const IconPanelLeftClose = icon(PanelLeftClose);
 export const IconPanelLeftOpen = icon(PanelLeftOpen);

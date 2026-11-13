@@ -171,10 +171,14 @@ export function App() {
 									"pi"
 								}
 								status={desktop.agent.status}
+								maximized={state.maximized}
 								sidebarCollapsed={collapsed}
 								onToggleSidebar={() => updateSettings({ sidebarCollapsed: !collapsed })}
 								onSearch={() => setPaletteOpen(true)}
 								onOpenSettings={() => setSettingsOpen(true)}
+								onMinimize={() => send({ type: "windowControl", action: "minimize" })}
+								onMaximize={() => send({ type: "windowControl", action: "maximize" })}
+								onClose={() => send({ type: "windowControl", action: "close" })}
 							/>
 							<div className="main-body">
 								<div className="main-column">

@@ -193,6 +193,12 @@
   );
   /* Keep an 8px visual buffer between work-panel actions and window chrome. */
   --ds-window-controls-width: 120px;
+  /* 自绘窗口按钮的灯色（Windows 上画成 macOS 红绿灯）。三颗灯是系统隐喻而不是状态色，
+     所以不借用 error/warning/success——那三个词表达的是失败、警告和成功。深浅色共用一套，
+     macOS 自己也只在描边上区分。 */
+  --ds-window-dot-close: #ff5f57;
+  --ds-window-dot-minimize: #febc2e;
+  --ds-window-dot-maximize: #28c840;
   /* macOS traffic lights sit at the window's top-left. Their footprint is
      native geometry, injected at boot from @pi-desktop/shared (window-chrome.ts)
      so it cannot drift from the position electron/main/bootstrap/window.ts

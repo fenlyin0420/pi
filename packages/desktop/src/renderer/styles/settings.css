@@ -115,8 +115,12 @@
 /* ── 窗口按钮 ─────────────────────────────────────────────────────────────── */
 
 /*
-  三个按钮跟在标题栏右端，处在拖动条内部，因此不能沿用固定在视口角落的那套定位：
+  三颗按钮跟在标题栏右端，处在拖动条内部，因此不能沿用固定在视口角落的那套定位：
   这里把容器改回普通流，宽度由按钮自己决定。
+
+  样子照 macOS 的红绿灯：静止时只有三颗 12px 圆点，鼠标进入这一组才浮出图标，
+  和 macOS 一样、静下来时标题栏里只剩三个色点。20px 的命中区比圆点多出的那 4px
+  是抓取余量，所以按钮自己的悬停底色要压掉，只让圆点变暗一点。
 */
 .conversation-topbar .window-controls {
   position: static;
@@ -125,36 +129,82 @@
   height: auto;
   flex: 0 0 auto;
   align-items: center;
-  gap: 2px;
-  margin-left: 4px;
+  /* 命中区彼此相接：圆点间距由每颗自己内缩的 4px 给，落下来正好是 macOS 的 8px。 */
+  gap: 0;
+  margin-left: 8px;
   padding: 0;
   background: transparent;
   z-index: auto;
 }
 
 .conversation-topbar .window-controls .window-control {
-  width: 30px;
-  height: 26px;
-  border-radius: var(--radius-2xs);
-  color: var(--ds-text-secondary);
-  transition:
-    background var(--motion-duration-fast) var(--motion-ease-out),
-    color var(--motion-duration-fast) var(--motion-ease-out);
+  position: relative;
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  min-width: 0;
+  flex: 0 0 20px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: transparent;
+}
+
+/* 圆点本体：内缩 4px 的伪元素，颜色来自每颗按钮自己的 `--wc-dot`。 */
+.conversation-topbar .window-controls .window-control::before {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border-radius: var(--radius-full);
+  background: var(--wc-dot);
+  /* 一道极淡的描边：纯色圆点落在浅色标题栏上会显得发飘。 */
+  box-shadow: inset 0 0 0 0.5px color-mix(in oklab, var(--gray-1000) 14%, transparent);
+  transition: filter var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.conversation-topbar .window-controls .window-control-close {
+  --wc-dot: var(--ds-window-dot-close);
+}
+
+.conversation-topbar .window-controls .window-control-minimize {
+  --wc-dot: var(--ds-window-dot-minimize);
+}
+
+.conversation-topbar .window-controls .window-control-maximize {
+  --wc-dot: var(--ds-window-dot-maximize);
+}
+
+/* 图标默认不画：整组悬停、或键盘聚焦到某一颗时，三颗一起浮出来。 */
+.conversation-topbar .window-controls .window-control > svg {
+  position: relative;
+  color: color-mix(in oklab, var(--gray-1000) 62%, transparent);
+  opacity: 0;
+  transition: opacity var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.conversation-topbar .window-controls:hover .window-control > svg,
+.conversation-topbar .window-controls .window-control:focus-visible > svg {
+  opacity: 1;
 }
 
 .conversation-topbar .window-controls .window-control:hover {
-  background: var(--ds-bg-hover);
-  color: var(--ds-text-primary);
+  background: transparent;
+  color: transparent;
+}
+
+.conversation-topbar .window-controls .window-control:hover::before {
+  filter: brightness(0.94);
+}
+
+.conversation-topbar .window-controls .window-control:active::before {
+  filter: brightness(0.86);
 }
 
 .conversation-topbar .window-controls .window-control:focus-visible {
   outline: 2px solid var(--ds-focus);
-  outline-offset: -2px;
-}
-
-.conversation-topbar .window-controls .window-control-close:hover {
-  background: var(--ds-error);
-  color: var(--ds-bg-primary);
+  outline-offset: 1px;
 }
 
 /* ── 提示堆叠 ─────────────────────────────────────────────────────────────── */
@@ -500,7 +550,9 @@
   .settings-page,
   .conversation-topbar .ct-status.is-running,
   .conversation-topbar .ct-icon-btn,
-  .conversation-topbar .window-controls .window-control {
+  .conversation-topbar .window-controls .window-control,
+  .conversation-topbar .window-controls .window-control::before,
+  .conversation-topbar .window-controls .window-control > svg {
     animation: none;
     transition: none;
   }

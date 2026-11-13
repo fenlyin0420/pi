@@ -1,27 +1,16 @@
-// 主窗口：窗口按钮交给系统。macOS 用 hiddenInset（原生红绿灯），Windows 用无框 + Window
-// Controls Overlay（系统绘制的三颗按钮），Linux 用完整原生框——Electron 44 在 Linux 上能保留
-// WCO 预留区但画不出按钮（electron#52576），无框会让窗口没有关闭/最小化入口。
+// 主窗口：无框 + 自绘标题栏。macOS 用 hiddenInset（原生红绿灯），Windows 用无框窗口，三颗
+// 按钮由界面画（`windowControl` 命令）——系统绘制的 Window Controls Overlay 画在网页之上，
+// 遮罩、hover、主题色都盖不到它。Linux 用完整原生框。
 // 几何、最大化状态进设置，外部链接一律交给系统浏览器。
 
 import { join } from "node:path";
-import { BrowserWindow, screen, shell, type TitleBarOverlay } from "electron";
+import { BrowserWindow, screen, shell } from "electron";
 import type { ResolvedTheme } from "../shared/contract.ts";
 import type { SettingsStore, WindowState } from "./settings.ts";
 
 const MIN_WIDTH = 900;
 const MIN_HEIGHT = 600;
 const SAVE_DELAY_MS = 300;
-/** 顶栏高度，也是系统窗口按钮的高度：两边要对齐才不会出现台阶。 */
-const TITLEBAR_HEIGHT = 46;
-
-/** 系统绘制的三个窗口按钮：底色和描边跟着主题走。 */
-export function titleBarOverlay(theme: ResolvedTheme): TitleBarOverlay {
-	return {
-		color: theme === "dark" ? "#181818" : "#ffffff",
-		symbolColor: theme === "dark" ? "#ededed" : "#1a1c1f",
-		height: TITLEBAR_HEIGHT,
-	};
-}
 
 export type WindowHooks = {
 	theme(): ResolvedTheme;
@@ -41,8 +30,7 @@ export function createMainWindow(settings: SettingsStore, hooks: WindowHooks): B
 		minHeight: MIN_HEIGHT,
 		show: false,
 		frame: !win,
-		titleBarStyle: mac ? "hiddenInset" : win ? "hidden" : "default",
-		titleBarOverlay: win ? titleBarOverlay(hooks.theme()) : undefined,
+		titleBarStyle: mac ? "hiddenInset" : "default",
 		trafficLightPosition: mac ? { x: 14, y: 13 } : undefined,
 		backgroundColor: hooks.theme() === "dark" ? "#181818" : "#ffffff",
 		autoHideMenuBar: !mac,

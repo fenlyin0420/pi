@@ -23,7 +23,7 @@ import { searchProjectFiles } from "./file-search.ts";
 import { installMenu } from "./menu.ts";
 import { SessionHost } from "./session-host.ts";
 import { SettingsStore } from "./settings.ts";
-import { createMainWindow, titleBarOverlay } from "./window.ts";
+import { createMainWindow } from "./window.ts";
 
 const platform = process.platform as Platform;
 const settings = new SettingsStore(app.getPath("userData"));
@@ -33,13 +33,6 @@ function resolvedTheme(): ResolvedTheme {
 	const configured = settings.get().theme;
 	if (configured === "system") return nativeTheme.shouldUseDarkColors ? "dark" : "light";
 	return configured;
-}
-
-/** 系统窗口按钮的底色由 main 画，主题一变就得跟着换。只有 Windows 开了 WCO，别处调用会抛错。 */
-function syncTitleBarOverlay(): void {
-	if (process.platform !== "win32") return;
-	if (!mainWindow || mainWindow.isDestroyed()) return;
-	mainWindow.setTitleBarOverlay(titleBarOverlay(resolvedTheme()));
 }
 
 function send(event: DesktopEvent): void {
@@ -67,6 +60,9 @@ async function pickAttachmentPaths(): Promise<string[]> {
 async function dispatch(command: DesktopCommand): Promise<void> {
 	try {
 		switch (command.type) {
+			case "windowControl":
+				applyWindowControl(command.action);
+				return;
 			case "openExternal":
 				if (command.url.startsWith("http://") || command.url.startsWith("https://")) {
 					await shell.openExternal(command.url);
@@ -90,10 +86,6 @@ async function dispatch(command: DesktopCommand): Promise<void> {
 			case "listModels":
 				host.listModels();
 				return;
-			case "updateSettings":
-				await host.handle(command);
-				syncTitleBarOverlay();
-				return;
 			default:
 				await host.handle(command);
 				return;
@@ -103,10 +95,19 @@ async function dispatch(command: DesktopCommand): Promise<void> {
 	}
 }
 
+/** 三颗窗口按钮的动作；最大化键在已最大化时退回还原。 */
+function applyWindowControl(action: "minimize" | "maximize" | "close"): void {
+	if (!mainWindow || mainWindow.isDestroyed()) return;
+	if (action === "minimize") mainWindow.minimize();
+	else if (action === "maximize") {
+		if (mainWindow.isMaximized()) mainWindow.unmaximize();
+		else mainWindow.maximize();
+	} else mainWindow.close();
+}
+
 app.whenReady().then(async () => {
 	nativeTheme.on("updated", () => {
 		if (settings.get().theme !== "system") return;
-		syncTitleBarOverlay();
 		send({ type: "state", state: host.buildState() });
 	});
 

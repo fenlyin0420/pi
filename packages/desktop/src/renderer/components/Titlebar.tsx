@@ -1,27 +1,36 @@
-// 无边框窗口的标题栏：整条是拖动区，左侧折叠侧栏，中间标题与运行状态，右侧搜索/设置。
-// 最小化/最大化/关闭由系统的窗口按钮画（Window Controls Overlay），这里不再自绘。
+// 无边框窗口的标题栏：整条是拖动区，左侧折叠侧栏，中间标题与运行状态，右侧搜索/设置，Windows 上
+// 再接三颗自绘的最小化/最大化/关闭。macOS 用原生红绿灯，Linux 用完整原生框，都不在这里画。
 
 import type { AgentStatus, Platform } from "../../shared/contract.ts";
 import { IconPanelLeftClose, IconPanelLeftOpen, IconSearch, IconSettings } from "../icons.tsx";
 import { cx, IconButton } from "../ui.tsx";
+import { WindowControls } from "./WindowControls.tsx";
 
 /** 渲染标题栏。 */
 export function Titlebar({
 	platform,
 	sessionTitle,
 	status,
+	maximized,
 	sidebarCollapsed,
 	onToggleSidebar,
 	onSearch,
 	onOpenSettings,
+	onMinimize,
+	onMaximize,
+	onClose,
 }: {
 	platform: Platform;
 	sessionTitle: string;
 	status: AgentStatus;
+	maximized: boolean;
 	sidebarCollapsed: boolean;
 	onToggleSidebar: () => void;
 	onSearch: () => void;
 	onOpenSettings: () => void;
+	onMinimize: () => void;
+	onMaximize: () => void;
+	onClose: () => void;
 }) {
 	const running = status === "running";
 	// 快捷键标签跟着平台走：macOS 用 ⌘，其余平台用 Ctrl。
@@ -62,6 +71,14 @@ export function Titlebar({
 						<IconSettings size={15} />
 					</IconButton>
 				</div>
+				{platform === "win32" ? (
+					<WindowControls
+						maximized={maximized}
+						onMinimize={onMinimize}
+						onMaximize={onMaximize}
+						onClose={onClose}
+					/>
+				) : null}
 			</div>
 		</div>
 	);
