@@ -230,6 +230,15 @@
   text-transform: uppercase;
 }
 
+/* 没选 workspace 时的引导：一句说明，宽度跟正文一致，不抢空态的居中节奏。 */
+.chat-empty-hint {
+  max-width: 38ch;
+  margin: 0;
+  color: var(--ds-text-secondary);
+  font-size: var(--text-md);
+  line-height: var(--leading-prose);
+}
+
 .chat-empty-path {
   max-width: 100%;
   overflow: hidden;
@@ -430,6 +439,7 @@
   贴在对话尾部的运行状态：发送那一帧出现，整轮结束消失。文案每八秒换一句、与当前步骤无关，
   秒表是整轮的总时长，文字走已有的 .text-shimmer 扫光；具体在做什么由上面那条活动行预览。
   秒表只重渲染自己，不牵动对话区。
+  上内边距是给“状态行上面没有预览行”的场合留的段距（整轮刚开跑、正文还在写）。
 */
 .run-status {
   display: flex;
@@ -440,6 +450,24 @@
   font-size: var(--text-sm);
   line-height: var(--leading-tight);
   font-variant-numeric: tabular-nums;
+}
+
+/*
+  预览行在场时，状态行是那一块的第三行，不是新起的一段。两者之间原本叠着三层段距：活动分组的
+  7px 下边距、行自己的 12px 下内边距、状态行 10px 上内边距，合起来空出整整一行，文案看着掉到了
+  下面。这三层在“预览行 + 状态行”这一对里收掉，秒表就贴着预览行；其它场合（正文后面、整轮结束
+  后）段距不变。
+*/
+.message-row:has(.turn-activity-preview):has(+ .run-status) {
+  padding-bottom: 0;
+}
+
+.message-row:has(.turn-activity-preview):has(+ .run-status) .tool-activity-group:has(> .turn-activity-preview) {
+  margin-bottom: 0;
+}
+
+.message-row:has(.turn-activity-preview) + .run-status {
+  padding-top: 2px;
 }
 
 .run-status-mark {

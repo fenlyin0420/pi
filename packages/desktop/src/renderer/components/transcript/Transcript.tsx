@@ -15,7 +15,9 @@ import { useStepPhrase } from "./use-step-phrase.ts";
 type TranscriptProps = {
 	items: readonly TranscriptItem[];
 	sessionId: string | null;
-	cwd: string;
+	/** 当前 workspace；null 时给出“先选 workspace”的空态。 */
+	workspace: string | null;
+	onAddWorkspace: () => void;
 	status: AgentStatus;
 	/** 运行中的当前步骤；状态行挂在对话尾部。 */
 	activity: RunActivity | null;
@@ -38,7 +40,8 @@ const STARTING_PROMPTS = ["Summarize this project", "Find a bug and fix it", "Ad
 export function Transcript({
 	items,
 	sessionId,
-	cwd,
+	workspace,
+	onAddWorkspace,
 	status,
 	activity,
 	showThinking,
@@ -76,8 +79,12 @@ export function Transcript({
 	// 一次提问会来回好几个 loop，它们是同一轮：并成一块才能在收起时只占一行。
 	const blocks = useMemo(() => groupTranscript(items), [items]);
 
+	// 这一轮到底还在不在跑：status 在两次 run 之间会翻回 idle（自动重试、排队消息、压缩后继续都还没结束），
+	// 只有 agent_settled 才真结束、那时步骤才清空——所以“活动还在”比 status 更接近整轮的生命周期。
+	const busy = status === "running" || activity !== null;
+
 	// 只有最后一条回答才可能“还在进行中”：中间跑工具时没有流式消息，不能拿它判断整轮结束。
-	const liveTurnKey = status === "running" ? (blocks.findLast((block) => block.kind === "turn")?.key ?? null) : null;
+	const liveTurnKey = busy ? (blocks.findLast((block) => block.kind === "turn")?.key ?? null) : null;
 
 	// 读的是每行的实际位置：折叠块、图片、markdown 长高都会改它，所以只在滚动时读一次。
 	const syncActiveUser = useCallback(() => {
@@ -190,13 +197,13 @@ export function Transcript({
 					className="transcript-scroll"
 					role="log"
 					aria-live="polite"
-					aria-busy={status === "running"}
+					aria-busy={busy}
 					onScroll={handleScroll}
 					onWheel={handleWheel}
 				>
 					<div className={cx("transcript-content", items.length === 0 && "is-empty")}>
 						{items.length === 0 ? (
-							<EmptyConversation cwd={cwd} onPrompt={prompt} />
+							<EmptyConversation workspace={workspace} onAddWorkspace={onAddWorkspace} onPrompt={prompt} />
 						) : (
 							blocks.map((block) =>
 								block.kind === "turn" ? (
@@ -225,13 +232,34 @@ export function Transcript({
 	);
 }
 
-/** 空会话：给出工作目录和几个点开就能发的起始提示。 */
-function EmptyConversation({ cwd, onPrompt }: { cwd: string; onPrompt: (text: string) => void }) {
+/** 空会话：没有 workspace 时先请用户选一个，选好了才给工作目录和起始提示。 */
+function EmptyConversation({
+	workspace,
+	onAddWorkspace,
+	onPrompt,
+}: {
+	workspace: string | null;
+	onAddWorkspace: () => void;
+	onPrompt: (text: string) => void;
+}) {
+	if (workspace === null) {
+		return (
+			<div className="chat-empty">
+				<span className="chat-empty-label">No workspace selected</span>
+				<p className="chat-empty-hint">Pick a workspace in the sidebar, or add a folder to start chatting.</p>
+				<div className="chat-empty-prompts">
+					<button type="button" className="chat-empty-prompt" onClick={onAddWorkspace}>
+						Add workspace…
+					</button>
+				</div>
+			</div>
+		);
+	}
 	return (
 		<div className="chat-empty">
 			<span className="chat-empty-label">Working directory</span>
-			<span className="chat-empty-path" title={cwd}>
-				{cwd}
+			<span className="chat-empty-path" title={workspace}>
+				{workspace}
 			</span>
 			<div className="chat-empty-prompts">
 				{STARTING_PROMPTS.map((text) => (

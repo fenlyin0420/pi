@@ -70,10 +70,18 @@ export function AssistantTurn({
 					),
 				)}
 				{last?.error ? <AssistantError error={last.error} /> : null}
-				{showUsage && !live ? <TurnMeta usage={last?.usage ?? null} model={last?.model ?? null} /> : null}
-				<div className="message-actions">
-					<span className="message-timestamp">{last ? formatClock(last.timestamp) : ""}</span>
-				</div>
+				{/*
+				  用量条和悬浮时间都属于“这一轮交回去了、在等你输入”的时刻。跑的过程中只留文案（尾部状态行），
+				  连 message-actions 那行悬停位也不占：它空着还有 24px 高，会把状态行又顶下去一截。
+				*/}
+				{live ? null : (
+					<>
+						{showUsage ? <TurnMeta usage={last?.usage ?? null} model={last?.model ?? null} /> : null}
+						<div className="message-actions">
+							<span className="message-timestamp">{last ? formatClock(last.timestamp) : ""}</span>
+						</div>
+					</>
+				)}
 			</div>
 		</div>
 	);
