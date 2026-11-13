@@ -24,30 +24,33 @@ hr.sidebar-resize-handle {
 	text-transform: uppercase;
 }
 
-/* 新建会话：占满整行的主按钮，快捷键提示贴右端。 */
+/* 新建会话：主体按钮，比行略窄并居中，虚线边框，内容（图标/文字/快捷键）居中。 */
 .sidebar-new-session {
 	display: flex;
-	width: 100%;
+	width: calc(100% - 24px);
 	flex: 0 0 auto;
 	align-items: center;
+	justify-content: center;
 	gap: 8px;
 	min-height: 34px;
-	margin: 4px 0 8px;
+	margin: 4px auto 8px;
 	padding: 0 8px;
-	border: 0;
+	border: 1px dashed var(--ds-border-strong);
 	border-radius: var(--radius-md);
 	background: var(--ds-tile-hover);
 	color: var(--ds-text-primary);
 	font-size: var(--text-md);
 	line-height: var(--leading-row);
-	text-align: left;
+	text-align: center;
 	transition:
 		background var(--motion-duration-fast) var(--motion-ease-out),
+		border-color var(--motion-duration-fast) var(--motion-ease-out),
 		color var(--motion-duration-fast) var(--motion-ease-out);
 }
 
 .sidebar-new-session:hover:not(:disabled) {
 	background: var(--ds-bg-hover);
+	border-color: var(--ds-text-muted);
 }
 
 .sidebar-new-session:disabled {
@@ -57,7 +60,7 @@ hr.sidebar-resize-handle {
 
 .sidebar-new-session-label {
 	min-width: 0;
-	flex: 1 1 auto;
+	flex: 0 1 auto;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
