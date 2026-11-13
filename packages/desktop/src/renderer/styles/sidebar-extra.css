@@ -143,6 +143,23 @@ hr.sidebar-resize-handle {
 	}
 }
 
+/*
+  未读圆点：会话在后台跑出新内容、用户还没切回去看过。和加载圈同一个左侧槽，
+  但两者不同时出现：在跑时加载圈是更要紧的信号，跑完停下后圆点才露出来。
+  槽宽固定，圆点不改变标题起点。
+*/
+.thread-item > .thread-item-unread {
+	position: absolute;
+	left: 6px;
+	top: 50%;
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: var(--ds-text-primary);
+	transform: translateY(-50%);
+	pointer-events: none;
+}
+
 /* 会话列表：ul/li 的语义保留，行距与 .sidebar-session-groups 的 1px 节奏一致。 */
 .sidebar-session-list {
 	display: flex;

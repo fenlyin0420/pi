@@ -45,6 +45,8 @@ export function toSessionSummary(info: SessionInfo, pinned: boolean, workspace: 
 		messageCount: info.messageCount,
 		pinned,
 		status: "idle",
+		// 磁盘上的会话没有“谁看过”的记录：未读只对这次运行里发生的事有意义。
+		unread: false,
 		model: null,
 		preview: previewText(info.allMessagesText),
 	};
