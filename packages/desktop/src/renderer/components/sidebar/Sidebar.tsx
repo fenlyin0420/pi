@@ -27,6 +27,7 @@ import { sessionGroup } from "../../lib/format.ts";
 import { Button, cx, Dialog, Field, IconButton, Kbd } from "../../ui.tsx";
 import { RunningStatus } from "./RunningStatus.tsx";
 import { SessionRow } from "./SessionRow.tsx";
+import { UnreadDot } from "./UnreadDot.tsx";
 import { WorkspaceRow } from "./WorkspaceRow.tsx";
 
 const MIN_WIDTH = 200;
@@ -211,6 +212,8 @@ export function Sidebar({
 		const groupCollapsed = !searching && collapsedGroups[groupKey] === true;
 		// 分组收起了才由自己报“里面有活”：展开时这个加载圈在会话行上。
 		const groupRunning = groupCollapsed && section.sessions.some(isRunning);
+		// 未读同理：收起时圆点上提到这一行，展开时落在会话行上。
+		const groupUnread = groupCollapsed && section.sessions.some(isUnread);
 		const labelId = `sidebar-group-${groupKey.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
 		return (
 			<section key={section.key} className="sidebar-session-group" aria-labelledby={labelId}>
@@ -229,6 +232,7 @@ export function Sidebar({
 						)}
 						<span>{section.label}</span>
 						<span className="sidebar-group-count">{section.sessions.length}</span>
+						{groupUnread ? <UnreadDot /> : null}
 						<RunningStatus running={groupRunning} />
 					</button>
 				</div>
@@ -261,6 +265,8 @@ export function Sidebar({
 		// 收起时它藏起了自己的会话，所以由它报“里面有活”；展开时加载圈落在会话行（或其收起的
 		// 分组行）上，workspace 行不再重复一次。
 		const running = !expanded && sessions.some(isRunning);
+		// 未读走同一条分层规则：收起时由它报，展开时交给下面的分组行或会话行。
+		const unread = !expanded && sessions.some(isUnread);
 		return (
 			<section key={workspace.path} className="sidebar-workspace">
 				<WorkspaceRow
@@ -268,6 +274,7 @@ export function Sidebar({
 					active={active}
 					expanded={expanded}
 					running={running}
+					unread={unread}
 					sessionCount={sessions.length}
 					onSelect={selectWorkspace}
 					onToggle={toggleWorkspace}
@@ -453,6 +460,11 @@ export function Sidebar({
 /** 正在跑一轮回答的会话：侧栏在它所在的那一行显示加载圈。 */
 function isRunning(session: SessionSummary): boolean {
 	return session.status === "running";
+}
+
+/** 后台跑出新回答、用户还没切回去看过的会话：侧栏在它所在的那一行显示圆点。 */
+function isUnread(session: SessionSummary): boolean {
+	return session.unread;
 }
 
 /** 置顶区在最前，其余按更新时间落到今天/昨天/过去 7 天/更早四档。 */

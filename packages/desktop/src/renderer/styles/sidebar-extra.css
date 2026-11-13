@@ -144,18 +144,22 @@ hr.sidebar-resize-handle {
 }
 
 /*
-  未读圆点：会话在后台跑出新内容、用户还没切回去看过。和加载圈同一个左侧槽，
-  但两者不同时出现：在跑时加载圈是更要紧的信号，跑完停下后圆点才露出来。
-  槽宽固定，圆点不改变标题起点。
+  未读圆点：会话在后台跑出新内容、用户还没切回去看过。同一个未读只在一层出现：
+  会话行可见时落在会话行，被收起的分组或 workspace 藏起来才上提到那一行。
+  父行里它跟着打字排在行尾；会话行里它落在标题左侧的缩进槽，跑着时让位给加载圈。
 */
-.thread-item > .thread-item-unread {
+.unread-dot {
+	width: 6px;
+	height: 6px;
+	flex: 0 0 auto;
+	border-radius: 50%;
+	background: var(--ds-text-primary);
+}
+
+.thread-item > .unread-dot {
 	position: absolute;
 	left: 6px;
 	top: 50%;
-	width: 6px;
-	height: 6px;
-	border-radius: 50%;
-	background: var(--ds-text-primary);
 	transform: translateY(-50%);
 	pointer-events: none;
 }

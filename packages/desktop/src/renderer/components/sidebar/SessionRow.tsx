@@ -5,6 +5,7 @@ import type { SessionSummary } from "../../../shared/contract.ts";
 import { IconPencil, IconPin, IconPinOff, IconTrash } from "../../icons.tsx";
 import { cx, useContextMenu } from "../../ui.tsx";
 import { RunningStatus } from "./RunningStatus.tsx";
+import { UnreadDot } from "./UnreadDot.tsx";
 
 type SessionRowProps = {
 	session: SessionSummary;
@@ -62,7 +63,7 @@ export const SessionRow = memo(function SessionRow({
 			}
 		>
 			<RunningStatus running={running} />
-			{!running && session.unread ? <span className="thread-item-unread" role="img" aria-label="Unread" /> : null}
+			{!running && session.unread ? <UnreadDot /> : null}
 			<button
 				type="button"
 				className="thread-item-main"

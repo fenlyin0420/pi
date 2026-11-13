@@ -4,6 +4,7 @@ import { memo } from "react";
 import type { WorkspaceSummary } from "../../../shared/contract.ts";
 import { IconChevronDown, IconChevronRight, IconFolder } from "../../icons.tsx";
 import { cx, Spinner } from "../../ui.tsx";
+import { UnreadDot } from "./UnreadDot.tsx";
 
 type WorkspaceRowProps = {
 	workspace: WorkspaceSummary;
@@ -12,6 +13,8 @@ type WorkspaceRowProps = {
 	expanded: boolean;
 	/** 它有会话在跑，而且它现在是收起的：展开时这个加载圈下放到会话行，不同时出现在两层。 */
 	running: boolean;
+	/** 它有未读会话，而且它现在是收起的：展开时圆点下放到会话行，不同时出现在两层。 */
+	unread: boolean;
 	sessionCount: number;
 	onSelect: (path: string) => void;
 	onToggle: (path: string) => void;
@@ -23,6 +26,7 @@ export const WorkspaceRow = memo(function WorkspaceRow({
 	active,
 	expanded,
 	running,
+	unread,
 	sessionCount,
 	onSelect,
 	onToggle,
@@ -53,6 +57,7 @@ export const WorkspaceRow = memo(function WorkspaceRow({
 				<span className="sidebar-workspace-name">{workspace.name}</span>
 			</button>
 			{sessionCount > 0 ? <span className="sidebar-group-count">{sessionCount}</span> : null}
+			{unread ? <UnreadDot /> : null}
 			{running ? (
 				<span className="sidebar-workspace-status" role="img" aria-label="Running" title="Running">
 					<Spinner size={12} />
