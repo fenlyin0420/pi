@@ -311,11 +311,6 @@
   color: color-mix(in oklab, var(--ds-error) 70%, var(--ds-text-primary));
 }
 
-/* 用户气泡里的图片数量徽标跟着正文往下排，不挤在同一行。 */
-.message-bubble > .message-attachment {
-  margin-top: 6px;
-}
-
 /* ---------- 逐行 diff ---------- */
 
 /*
@@ -504,4 +499,59 @@
     animation: none;
     opacity: 0.7;
   }
+}
+
+/* ---------- 待送达的插话 ---------- */
+
+/*
+  模型还没取走的那一条：和用户气泡共用一副骨架，换虚线边、压低对比，上方一行 Queued。
+  它不是一条记录（不进 agent.messages、不进定位条），所以也没有 data-item-id。
+*/
+.message-row.user.is-pending {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.message-row.user.is-pending .message-bubble {
+  border: 1px dashed var(--ds-border-default);
+  background: color-mix(in oklab, var(--ds-text-primary) 4%, transparent);
+  color: var(--ds-text-secondary);
+}
+
+.pending-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 2px;
+  color: var(--ds-text-faint);
+  font-size: var(--text-2xs);
+  line-height: var(--leading-tight);
+}
+
+.pending-meta-label {
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* 一条文字按钮：撤回是低频动作，不抢气泡的注意力。 */
+.pending-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 2px 0 6px;
+}
+
+.pending-withdraw {
+  border: 0;
+  background: none;
+  padding: 2px 4px;
+  color: var(--ds-text-faint);
+  font-size: var(--text-2xs);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: color var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.pending-withdraw:hover,
+.pending-withdraw:focus-visible {
+  color: var(--ds-text-secondary);
 }

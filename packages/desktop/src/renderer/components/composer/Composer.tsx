@@ -3,13 +3,16 @@
 import { type ClipboardEvent, type DragEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { AgentView, DesktopBridge, ModelView, PromptAttachment, ThinkingLevel } from "../../../shared/contract.ts";
 import { MAX_ATTACHMENTS } from "../../../shared/contract.ts";
+import { pendingLines } from "../../lib/pending.ts";
 import { matchSlashCommands, type SlashAction, type SlashCommand, slashQuery } from "../../lib/slash-commands.ts";
+import type { DraftRestore } from "../../store.ts";
 import { cx, Kbd } from "../../ui.tsx";
 import { AttachmentTray, type ComposerAttachment, readImageFiles } from "./AttachmentTray.tsx";
 import { ComposerInput, type ComposerPaletteKeys } from "./ComposerInput.tsx";
 import { ComposerToolbar } from "./ComposerToolbar.tsx";
 import { MentionPalette, mentionQuery, useMentionSearch, withMention } from "./MentionPalette.tsx";
 import { ModelPicker } from "./ModelPicker.tsx";
+import { QueuedBar } from "./QueuedBar.tsx";
 import { SlashPalette } from "./SlashPalette.tsx";
 import { ThinkingPicker } from "./ThinkingPicker.tsx";
 
@@ -26,6 +29,10 @@ type ComposerProps = {
 	models: readonly ModelView[];
 	/** 用户是否要看思考内容；关掉时连等级入口一起收起。 */
 	thinking: boolean;
+	/** 撤回的队列文本；seq 变化时写回草稿。 */
+	sessionRestore: DraftRestore | null;
+	/** 撤回当前全部排队消息。 */
+	onWithdrawQueue: () => void;
 	/** 选文件与把拖入的文件换算成磁盘路径；两个都由主进程那边的桥提供。 */
 	attach: Pick<DesktopBridge, "attachFiles" | "pathForFile">;
 	onSend: (text: string, attachments: readonly PromptAttachment[]) => void;
@@ -67,6 +74,8 @@ export function Composer({
 	agent,
 	models,
 	thinking,
+	sessionRestore,
+	onWithdrawQueue,
 	attach,
 	onSend,
 	onSteer,
@@ -95,6 +104,8 @@ export function Composer({
 	const inputRef = useRef<HTMLTextAreaElement | null>(null);
 	const shellRef = useRef<HTMLDivElement | null>(null);
 	const nextAttachmentId = useRef(0);
+	// 已经写回过草稿的撤回消息：同一个 seq 只消费一次。
+	const restoredSeq = useRef(0);
 
 	// 切会话就换草稿：旧草稿在每次输入时已经落盘，这里只负责把目标会话的读回来
 	useEffect(() => {
@@ -106,7 +117,22 @@ export function Composer({
 		setThinkingAnchor(null);
 	}, [storageKey]);
 
+	// 撤回的队列消息回到草稿：它比手上这段更该先被改，所以拼在前面。
+	// 草稿每次改动都落盘，所以这里读 localStorage 拿到的就是当前正文。
+	useEffect(() => {
+		if (!sessionRestore || sessionRestore.seq === restoredSeq.current) return;
+		if (sessionRestore.sessionId !== sessionId) return;
+		restoredSeq.current = sessionRestore.seq;
+		const current = readDraft(storageKey);
+		const next = current.trim() ? `${sessionRestore.text}\n\n${current}` : sessionRestore.text;
+		setValue(next);
+		writeDraft(storageKey, next);
+		inputRef.current?.focus();
+	}, [sessionRestore, sessionId, storageKey]);
+
 	const slash = slashQuery(value);
+	// 下一轮才发的消息排在输入框上方；这一轮内的插话走对话尾部（Transcript 的 PendingRow）。
+	const followUp = useMemo(() => pendingLines(agent.queued.followUp), [agent.queued.followUp]);
 	// 已经是命令时不再认 `@`：`/note @src` 这种正文里的引用等命令面板关了再说
 	const mention = slash === null ? mentionQuery(value) : null;
 	const mentionFiles = useMentionSearch(mention);
@@ -280,6 +306,7 @@ export function Composer({
 	return (
 		<div className="composer-dock composer-dock-docked">
 			<div className="composer-stack">
+				<QueuedBar lines={followUp} onWithdraw={onWithdrawQueue} />
 				{/* biome-ignore lint/a11y/noStaticElementInteractions: 拖放落点只有鼠标动作，键盘路径就是输入框本身 */}
 				<div
 					ref={shellRef}

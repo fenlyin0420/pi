@@ -13,6 +13,9 @@ import type {
 
 export type Toast = { id: number; level: "info" | "warning" | "error"; message: string };
 
+/** 一次待写入草稿的队列文本；seq 递增，同一条文字连提两次也要各生效一次。 */
+export type DraftRestore = { sessionId: string; text: string; seq: number };
+
 export type AppState = {
 	desktop: DesktopState | null;
 	models: ModelView[];
@@ -22,6 +25,8 @@ export type AppState = {
 	menu: { action: MenuAction; seq: number } | null;
 	/** 正在等用户回答的 ask_user 提问。 */
 	ask: AskRequest | null;
+	/** 撒回的队列消息；Composer 消费一次后自行根据 seq 去重。 */
+	draftRestore: DraftRestore | null;
 };
 
 export const INITIAL_STATE: AppState = {
@@ -31,10 +36,12 @@ export const INITIAL_STATE: AppState = {
 	toasts: [],
 	menu: null,
 	ask: null,
+	draftRestore: null,
 };
 
 let toastId = 0;
 let menuSeq = 0;
+let restoreSeq = 0;
 
 /**
  * 事件折叠。结构变化走 transcript 快照，流式增量只改目标 part，未命中的事件一律忽略：
@@ -62,6 +69,12 @@ export function reduceEvent(state: AppState, event: DesktopEvent): AppState {
 			return { ...state, ask: event.request };
 		case "askClosed":
 			return state.ask?.flowId === event.flowId ? { ...state, ask: null } : state;
+		case "draftRestore":
+			restoreSeq += 1;
+			return {
+				...state,
+				draftRestore: { sessionId: event.sessionId, text: event.text, seq: restoreSeq },
+			};
 		case "toast":
 			toastId += 1;
 			return {

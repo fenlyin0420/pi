@@ -19,9 +19,11 @@ import type {
 	DesktopEvent,
 	DesktopSettings,
 	DesktopState,
+	ImageView,
 	ModelView,
 	Platform,
 	PromptAttachment,
+	QueuedMessages,
 	ResolvedTheme,
 	SessionSummary,
 	ThinkingLevel,
@@ -30,6 +32,7 @@ import type {
 } from "../shared/contract.ts";
 import { folderName, samePath } from "../shared/paths.ts";
 import { flowIdOf, PI_ASK_COMPLETED, PI_ASK_STARTED, PI_ASK_SUBMIT, toAskRequest, toSubmitPayload } from "./ask.ts";
+import { imageViewOf } from "./message-images.ts";
 import { idleSteps, type RunSteps, stepActivity, thinkingSteps, toolEnded, toolStarted } from "./run-activity.ts";
 import { deleteSessionFile, listSessionSummaries, renameSessionFile, sessionTimes } from "./session-files.ts";
 import type { SettingsStore } from "./settings.ts";
@@ -40,6 +43,8 @@ const TRANSCRIPT_FLUSH_MS = 32;
 /** 快照合并窗口；会话列表和状态变化不需要每事件一份。 */
 const STATE_FLUSH_MS = 48;
 const UNTITLED = "New session";
+/** 没有活动会话时的空队列：常量复用，免得每帧造新对象打穿 renderer 的 memo。 */
+const EMPTY_QUEUE: QueuedMessages = { steering: [], followUp: [] };
 
 export type HostDeps = {
 	settings: SettingsStore;
@@ -64,6 +69,8 @@ type LiveSession = {
 	partial: AgentMessage | null;
 	/** 正在跑的工具和思考起点；当前这一步由它派生，换步骤时计时自然跟着重置。 */
 	steps: RunSteps;
+	/** 已提交、还没送达模型的消息，来自 queue_update；界面靠它显形。 */
+	queued: { steering: string[]; followUp: string[] };
 	unsubscribe: () => void;
 };
 
@@ -78,6 +85,8 @@ export class SessionHost {
 	/** 侧栏列出的 workspace（项目目录），顺序即加入顺序。 */
 	private workspaces: string[];
 	private readonly live = new Map<string, LiveSession>();
+	/** 后台跑出新内容、用户还没切回去看过的会话；切过去就清掉。 */
+	private readonly unread = new Set<string>();
 	private summaries: SessionSummary[] = [];
 	private activeId: string | null = null;
 	private transcriptTimer: NodeJS.Timeout | null = null;
@@ -117,7 +126,7 @@ export class SessionHost {
 		};
 	}
 
-	/** 首次装载：读出 workspace 列表，选中上次那一个，并把它最近的会话打开。 */
+	/** 首次装载：读出 workspace 列表，选中上次那一个；会话只由用户打开或新建。 */
 	async start(): Promise<void> {
 		const settings = this.deps.settings.get();
 		this.workspaces = settings.workspaces;
@@ -125,8 +134,6 @@ export class SessionHost {
 		const requested = this.cwd ?? settings.activeWorkspace;
 		if (requested !== null) this.focusWorkspace(requested);
 		await this.refreshSessions();
-		const recent = this.cwd === null ? undefined : this.newestIn(this.cwd);
-		if (recent?.path) await this.openById(recent.id);
 		this.flushNow();
 	}
 
@@ -154,6 +161,9 @@ export class SessionHost {
 				return;
 			case "steer":
 				await this.steer(command.text);
+				return;
+			case "withdrawQueue":
+				this.withdrawQueue();
 				return;
 			case "abort":
 				await this.abort();
@@ -198,17 +208,23 @@ export class SessionHost {
 		this.deps.emit({ type: "models", models: buildModelViews(this.activeSession()?.agent) });
 	}
 
-	/** 选中一个 workspace：登记进列表、设为当前，再把它的会话列出来。 */
+	/** 用户消息里的第 index 张图片，答内置查看器：粘贴进来的图没有磁盘路径，只能从消息块里取。 */
+	messageImage(sessionId: string, messageIndex: number, imageIndex: number): ImageView | null {
+		const message = this.live.get(sessionId)?.agent.messages[messageIndex];
+		return message ? imageViewOf(message, imageIndex) : null;
+	}
+
+	/**
+	 * 选中一个 workspace：登记进列表、设为当前，刷新它的会话列表。
+	 * 已经打开的会话不动：换 workspace 只换“新会话开在哪、列表展开谁”，不换正在看的那一页。
+	 */
 	private async selectWorkspace(path: string): Promise<void> {
 		this.registerWorkspace(path);
-		// 点已经在用的那一行不重置当前会话，只刷新列表。
+		// 点已经在用的那一行只刷新列表。
 		if (this.cwd !== null && samePath(this.cwd, path, this.deps.platform)) return this.flushNow();
 		this.cwd = path;
-		this.activeId = null;
 		this.deps.settings.setActiveWorkspace(path);
 		await this.refreshSessions();
-		const recent = this.newestIn(path);
-		if (recent?.path) await this.openById(recent.id);
 		this.flushNow();
 	}
 
@@ -227,13 +243,6 @@ export class SessionHost {
 		if (this.cwd !== null && samePath(this.cwd, path, this.deps.platform)) return;
 		this.cwd = path;
 		this.deps.settings.setActiveWorkspace(path);
-	}
-
-	/** 某个 workspace 最近活动的那条落盘会话；没有就 undefined。 */
-	private newestIn(workspace: string): SessionSummary | undefined {
-		return this.summaries.find(
-			(session) => session.path !== null && samePath(session.workspace, workspace, this.deps.platform),
-		);
 	}
 
 	private activeSession(): LiveSession | undefined {
@@ -261,6 +270,7 @@ export class SessionHost {
 			this.focusWorkspace(existing.cwd);
 			this.activeId = existing.id;
 			existing.transcriptDirty = true;
+			this.markRead(existing.id);
 			this.markStructure();
 			this.markState();
 			return;
@@ -274,6 +284,7 @@ export class SessionHost {
 		this.focusWorkspace(workspace);
 		const live = await this.createLive(SessionManager.open(target), workspace);
 		this.activeId = live.id;
+		this.markRead(live.id);
 		this.markStructure();
 		this.markState();
 	}
@@ -302,6 +313,7 @@ export class SessionHost {
 			transcriptDirty: true,
 			partial: null,
 			steps: idleSteps,
+			queued: { steering: [], followUp: [] },
 			unsubscribe: () => {},
 		};
 		live.unsubscribe = session.subscribe((event) => this.onSessionEvent(live, event));
@@ -370,6 +382,18 @@ export class SessionHost {
 		this.markState();
 	}
 
+	/**
+	 * 撤回所有排队消息。clearQueue 只能整批清，所以界面上的按钮也是“撤回全部”；
+	 * 清完之后的队列变化会再发一次 queue_update，待送达的气泡随之消失。
+	 */
+	private withdrawQueue(): void {
+		const live = this.activeSession();
+		if (!live) return;
+		const { steering, followUp } = live.agent.clearQueue();
+		const text = [...steering, ...followUp].join("\n\n");
+		if (text) this.deps.emit({ type: "draftRestore", sessionId: live.id, text });
+	}
+
 	private async rename(id: string, title: string): Promise<void> {
 		const name = title.trim();
 		if (!name) return;
@@ -394,6 +418,7 @@ export class SessionHost {
 			this.live.delete(id);
 			if (this.activeId === id) this.activeId = null;
 		}
+		this.unread.delete(id);
 		if (path) {
 			try {
 				deleteSessionFile(path);
@@ -454,6 +479,20 @@ export class SessionHost {
 		}
 	}
 
+	/** 后台会话落地一条助手消息：记成未读，侧栏那一行画圆点。切到它就由 markRead 清掉。 */
+	private markUnread(id: string): void {
+		if (id === this.activeId || this.unread.has(id)) return;
+		this.unread.add(id);
+		this.summaries = this.summaries.map((session) => (session.id === id ? { ...session, unread: true } : session));
+		this.markState();
+	}
+
+	/** 用户正在看的会话不算未读：切过去、新建或它自己落地消息都走这里。 */
+	private markRead(id: string): void {
+		if (!this.unread.delete(id)) return;
+		this.summaries = this.summaries.map((session) => (session.id === id ? { ...session, unread: false } : session));
+	}
+
 	/** 每个 workspace 的磁盘会话 + 内存里还没落盘的会话，按最近修改排序。 */
 	private async refreshSessions(): Promise<void> {
 		const pinned = new Set(this.deps.settings.get().pinnedSessions);
@@ -483,6 +522,7 @@ export class SessionHost {
 			return {
 				...base,
 				status: live.status,
+				unread: this.unread.has(live.id),
 				model: model ? `${model.provider}/${model.id}` : base.model,
 				pinned: this.deps.settings.get().pinnedSessions.includes(live.id),
 			};
@@ -504,6 +544,7 @@ export class SessionHost {
 			messageCount: messages.length,
 			pinned: this.deps.settings.get().pinnedSessions.includes(live.id),
 			status: live.status,
+			unread: this.unread.has(live.id),
 			model: model ? `${model.provider}/${model.id}` : null,
 			preview: previewLine(lastText),
 		};
@@ -537,6 +578,7 @@ export class SessionHost {
 			status: live?.status ?? "idle",
 			activity: live ? stepActivity(live.steps) : null,
 			usage: live ? usageOf(live.agent) : null,
+			queued: live?.queued ?? EMPTY_QUEUE,
 		};
 	}
 
@@ -560,12 +602,20 @@ export class SessionHost {
 			case "message_end":
 			case "turn_start":
 			case "turn_end":
-			case "queue_update":
 				// 消息落地（或被丢弃）：收起流式快照，让已提交的消息自己占位。
 				live.partial = null;
 				this.markStructure();
 				this.scheduleTranscriptFlush();
-				if (event.type === "message_end") void this.refreshSessionsQuietly();
+				if (event.type === "message_end") {
+					// 用户不在这个会话里，回答写在后台：侧栏给它记一个未读圆点。
+					if (event.message.role === "assistant") this.markUnread(live.id);
+					void this.refreshSessionsQuietly();
+				}
+				return;
+			case "queue_update":
+				// 队列变化不改记录，只改“还没送达”的那一层：两个数组原样存下来，界面自己投影。
+				live.queued = { steering: [...event.steering], followUp: [...event.followUp] };
+				this.markState();
 				return;
 			case "tool_execution_start":
 				live.steps = toolStarted(live.steps, event.toolCallId, event.toolName, Date.now());

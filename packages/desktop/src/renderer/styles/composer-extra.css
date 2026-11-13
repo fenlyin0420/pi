@@ -186,3 +186,73 @@
 	align-items: center;
 	gap: 4px;
 }
+
+/* 下一轮才发的消息：输入框上方一条窄条，单行截断，右侧一个整批撤回入口。 */
+.queued-bar {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin: 0 0 6px;
+	padding: 6px 10px;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--radius-lg);
+	background: var(--ds-bg-elevated-opaque);
+	color: var(--ds-text-secondary);
+	font-size: var(--text-2xs);
+	line-height: var(--leading-tight);
+}
+
+.queued-bar-label {
+	flex: 0 0 auto;
+	color: var(--ds-text-faint);
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+}
+
+.queued-bar-list {
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.queued-bar-item {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+}
+
+.queued-bar-text {
+	overflow: hidden;
+	min-width: 0;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.queued-bar-files {
+	flex: 0 0 auto;
+	color: var(--ds-text-faint);
+	font-variant-numeric: tabular-nums;
+}
+
+.queued-bar-withdraw {
+	flex: 0 0 auto;
+	border: 0;
+	background: none;
+	padding: 2px 4px;
+	color: var(--ds-text-faint);
+	font-size: inherit;
+	cursor: pointer;
+	border-radius: var(--radius-sm);
+	transition: color var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.queued-bar-withdraw:hover,
+.queued-bar-withdraw:focus-visible {
+	color: var(--ds-text-secondary);
+}
