@@ -2,7 +2,7 @@
 
 import { memo } from "react";
 import type { WorkspaceSummary } from "../../../shared/contract.ts";
-import { IconChevronDown, IconChevronRight, IconFolder, IconPlus } from "../../icons.tsx";
+import { IconFolder, IconFolderOpen, IconPlus } from "../../icons.tsx";
 import { cx, useContextMenu } from "../../ui.tsx";
 import { RunningStatus } from "./RunningStatus.tsx";
 import { UnreadDot } from "./UnreadDot.tsx";
@@ -21,7 +21,10 @@ type WorkspaceRowProps = {
 	onNewSession: (path: string) => void;
 };
 
-/** 一行 workspace。整行就是一个按钮：点目录名或箭头都展开/折叠，不再分两个热区。 */
+/**
+ * 一行 workspace。整行就是一个按钮，不再有单独的箭头：目录图标本身就是开关，
+ * 开着的夹子表示展开、合着的夹子表示折叠，颜色上折叠更黑、展开更灰。
+ */
 export const WorkspaceRow = memo(function WorkspaceRow({
 	workspace,
 	active,
@@ -52,10 +55,9 @@ export const WorkspaceRow = memo(function WorkspaceRow({
 					])
 				}
 			>
-				<span className="sidebar-workspace-chevron" aria-hidden="true">
-					{expanded ? <IconChevronDown size={12} /> : <IconChevronRight size={12} />}
+				<span className="sidebar-workspace-icon" aria-hidden="true">
+					{expanded ? <IconFolderOpen size={14} /> : <IconFolder size={14} />}
 				</span>
-				<IconFolder size={13} aria-hidden="true" />
 				<span className="sidebar-workspace-name">{workspace.name}</span>
 				{unread ? <UnreadDot /> : null}
 				<RunningStatus running={running} />

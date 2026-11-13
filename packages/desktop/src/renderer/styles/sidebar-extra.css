@@ -71,8 +71,9 @@ hr.sidebar-resize-handle {
 	min-width: 0;
 }
 
-/* 整行就是一个按钮：目录名吃掉剩余宽度，展开箭头在左、未读和加载圈在右。 */
+/* 整行就是一个按钮：目录名吃掉剩余宽度，目录图标在左、未读和加载圈在右。 */
 .sidebar-workspace-row {
+	position: relative;
 	display: flex;
 	width: 100%;
 	align-items: center;
@@ -82,7 +83,7 @@ hr.sidebar-resize-handle {
 	padding: 0 6px;
 	border-radius: var(--radius-sm);
 	background: transparent;
-	color: var(--ds-text-secondary);
+	color: var(--ds-text-primary);
 	text-align: left;
 	transition:
 		background var(--motion-duration-fast) var(--motion-ease-out),
@@ -91,22 +92,34 @@ hr.sidebar-resize-handle {
 
 .sidebar-workspace-row:hover {
 	background: var(--ds-bg-hover);
-	color: var(--ds-text-primary);
 }
 
-.sidebar-workspace-row.is-active {
-	background: var(--ds-bg-active);
-	color: var(--ds-text-primary);
+/*
+  激活的 workspace：不再用一块常驻的深色底，目录名也不常驻提亮，
+  只在行首留一根 12px 的灰短线：知道新会话落在哪儿就够了。
+*/
+.sidebar-workspace-row.is-active::before {
+	position: absolute;
+	top: 50%;
+	left: 0;
+	width: 2px;
+	height: 12px;
+	border-radius: var(--radius-round);
+	background: var(--ds-text-muted);
+	transform: translateY(-50%);
+	content: "";
 }
 
-/* 箭头宽度固定：展开与收起切换时目录名不会横向跳动。 */
-.sidebar-workspace-chevron {
+/*
+  目录图标就是展开开关：开着的夹子表示展开、合着的夹子表示折叠。尺寸固定，
+  两种图标切换时目录名不会横向跳动。颜色不随状态变：项目行始终黑，见下。
+*/
+.sidebar-workspace-icon {
 	display: inline-flex;
-	width: 12px;
+	width: 14px;
 	flex: 0 0 auto;
 	align-items: center;
 	justify-content: center;
-	color: var(--ds-text-muted);
 }
 
 .sidebar-workspace-name {
@@ -119,9 +132,27 @@ hr.sidebar-resize-handle {
 	white-space: nowrap;
 }
 
-/* 展开的会话缩进一格，和 workspace 行的目录图标对齐。 */
+/*
+  展开的会话缩进一格，和 workspace 行的目录图标对齐。折叠不用条件渲染而是 0fr：
+  只有盒子一直在，收起和展开才有过渡；内容被裁掉而不是消失，收起时整段 inert。
+*/
 .sidebar-workspace-body {
+	display: grid;
+	grid-template-rows: 1fr;
 	padding-left: 8px;
+	transition: grid-template-rows var(--motion-duration-normal) var(--motion-ease-out);
+}
+
+.sidebar-workspace-body.is-collapsed {
+	grid-template-rows: 0fr;
+	pointer-events: none;
+}
+
+/* 0fr 只在内容能被裁到 0 高时才收得紧。 */
+.sidebar-workspace-clip {
+	min-width: 0;
+	min-height: 0;
+	overflow: hidden;
 }
 
 /*
@@ -195,6 +226,12 @@ hr.sidebar-resize-handle {
 	.sidebar .thread-item-title:hover .thread-item-title-text {
 		animation: none;
 	}
+
+	/* 折叠动画同理：状态靠图标、颜色和显隐表达，不靠过渡。 */
+	.sidebar-workspace-body,
+	.sidebar-session-group-body {
+		transition: none;
+	}
 }
 
 /*
@@ -230,9 +267,29 @@ hr.sidebar-resize-handle {
 	list-style: none;
 }
 
-/* 折叠分组直接不渲染占位，避免空的 body 留下一条缝。 */
+/* 折叠分组同样不拆掉 DOM：0fr 收起，内容被裁掉，展开/折叠都有过渡。 */
+.sidebar-session-group-body {
+	display: grid;
+	grid-template-rows: 1fr;
+	transition: grid-template-rows var(--motion-duration-normal) var(--motion-ease-out);
+}
+
 .sidebar-session-group-body.is-collapsed {
-	display: none;
+	grid-template-rows: 0fr;
+	pointer-events: none;
+}
+
+/*
+  第二层（Pinned / Today / …）也没有箭头：折叠时里面所有会话都藏着，标题画黑；
+  展开时内容就在下面，退成灰。项目行（目录）始终黑，和展开分组的灰形成对比，
+  于是三层一眼分得开：黑目录 = 项目，灰 = 展开中，黑标题 = 折叠着。
+*/
+.sidebar-session-group-title.is-collapsed .sidebar-group-label {
+	color: var(--ds-text-primary);
+}
+
+.sidebar-session-group-title.is-expanded .sidebar-group-label {
+	color: var(--ds-text-muted);
 }
 
 /* 搜索框：本地过滤，样式贴近 composer 的输入底色。 */

@@ -12,17 +12,7 @@ import {
 } from "react";
 import type { DesktopState, SessionSummary, WorkspaceSummary } from "../../../shared/contract.ts";
 import { samePath } from "../../../shared/paths.ts";
-import {
-	IconChevronDown,
-	IconChevronRight,
-	IconClose,
-	IconFolderPlus,
-	IconMoon,
-	IconPlus,
-	IconSearch,
-	IconSettings,
-	IconSun,
-} from "../../icons.tsx";
+import { IconClose, IconFolderPlus, IconMoon, IconPlus, IconSearch, IconSettings, IconSun } from "../../icons.tsx";
 import { sessionGroup } from "../../lib/format.ts";
 import { Button, cx, Dialog, Field, IconButton, Kbd } from "../../ui.tsx";
 import { RunningStatus } from "./RunningStatus.tsx";
@@ -222,34 +212,31 @@ export function Sidebar({
 					<button
 						type="button"
 						id={labelId}
-						className="sidebar-session-group-title"
+						className={cx("sidebar-session-group-title", groupCollapsed ? "is-collapsed" : "is-expanded")}
 						aria-expanded={!groupCollapsed}
 						onClick={() => toggleGroup(groupKey)}
 					>
-						{groupCollapsed ? (
-							<IconChevronRight size={12} aria-hidden="true" />
-						) : (
-							<IconChevronDown size={12} aria-hidden="true" />
-						)}
 						<span className="sidebar-group-label">{section.label}</span>
 						{groupUnread ? <UnreadDot /> : null}
 						<RunningStatus running={groupRunning} />
 					</button>
 				</div>
-				<div className={cx("sidebar-session-group-body", groupCollapsed && "is-collapsed")}>
-					<ul className="sidebar-session-list">
-						{section.sessions.map((session) => (
-							<SessionRow
-								key={session.id}
-								session={session}
-								active={session.id === state.activeSessionId}
-								onOpen={openSession}
-								onRename={beginRename}
-								onDelete={setDeleteTarget}
-								onPin={pinSession}
-							/>
-						))}
-					</ul>
+				<div className={cx("sidebar-session-group-body", groupCollapsed && "is-collapsed")} inert={groupCollapsed}>
+					<div className="sidebar-session-group-clip">
+						<ul className="sidebar-session-list">
+							{section.sessions.map((session) => (
+								<SessionRow
+									key={session.id}
+									session={session}
+									active={session.id === state.activeSessionId}
+									onOpen={openSession}
+									onRename={beginRename}
+									onDelete={setDeleteTarget}
+									onPin={pinSession}
+								/>
+							))}
+						</ul>
+					</div>
 				</div>
 			</section>
 		);
@@ -277,11 +264,12 @@ export function Sidebar({
 					onToggle={toggleWorkspace}
 					onNewSession={newSessionIn}
 				/>
-				{expanded ? (
-					<div className="sidebar-workspace-body">
+				{/* body 始终挂载、用 0fr/1fr 过渡收起，展开与折叠才有动画；收起时整段 inert。 */}
+				<div className={cx("sidebar-workspace-body", !expanded && "is-collapsed")} inert={!expanded}>
+					<div className="sidebar-workspace-clip">
 						{sections.map((section) => renderGroup(workspace.path, section))}
 					</div>
-				) : null}
+				</div>
 			</section>
 		);
 	};
