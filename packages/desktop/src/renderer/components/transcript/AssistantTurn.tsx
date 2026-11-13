@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import type { TranscriptItem } from "../../../shared/contract.ts";
 import { IconZap } from "../../icons.tsx";
+import { formatClock } from "../../lib/format.ts";
 import { layoutTurn } from "../../lib/turn-entries.ts";
 import { cx } from "../../ui.tsx";
 import { Markdown } from "../Markdown.tsx";
@@ -70,6 +71,9 @@ export function AssistantTurn({
 				)}
 				{last?.error ? <AssistantError error={last.error} /> : null}
 				{showUsage && !live ? <TurnMeta usage={last?.usage ?? null} model={last?.model ?? null} /> : null}
+				<div className="message-actions">
+					<span className="message-timestamp">{last ? formatClock(last.timestamp) : ""}</span>
+				</div>
 			</div>
 		</div>
 	);
