@@ -5,7 +5,7 @@ import { IconChevronRight, IconZap } from "../../icons.tsx";
 import { formatDuration } from "../../lib/format.ts";
 import { type ActivityBlock, activitySummary, type StepPreview, stepPreview } from "../../lib/turn-entries.ts";
 import { cx, ShimmerText } from "../../ui.tsx";
-import { Markdown } from "../Markdown.tsx";
+import { ThinkingFold } from "./ThinkingFold.tsx";
 import { ToolRow } from "./ToolRow.tsx";
 
 type TurnActivityProps = {
@@ -27,23 +27,26 @@ export function TurnActivity({ blocks, running, showToolDetails, onOpenExternal 
 	const duration = running ? 0 : totalDuration(blocks);
 	return (
 		<div className={cx("tool-activity-group", "turn-activity", open && "open")}>
-			<button
-				type="button"
-				className="tool-activity-header"
-				aria-expanded={open}
-				aria-controls={bodyId}
-				onClick={() => setOpen(!open)}
-			>
-				<span className="tool-activity-icon" aria-hidden>
-					<IconZap size={14} />
-				</span>
-				<span className="tool-activity-label">{activitySummary(blocks)}</span>
-				{running ? <span className="activity-marker" aria-hidden /> : null}
-				{duration > 0 ? <span className="tool-activity-count">{`· ${formatDuration(duration)}`}</span> : null}
-				<span className="tool-activity-caret" aria-hidden>
-					<IconChevronRight size={12} />
-				</span>
-			</button>
+			{/* 吸顶的是一层整行走廊，标题按钮本身只有内容宽：见 .turn-activity-head。 */}
+			<div className="turn-activity-head">
+				<button
+					type="button"
+					className="tool-activity-header"
+					aria-expanded={open}
+					aria-controls={bodyId}
+					onClick={() => setOpen(!open)}
+				>
+					<span className="tool-activity-icon" aria-hidden>
+						<IconZap size={14} />
+					</span>
+					<span className="tool-activity-label">{activitySummary(blocks)}</span>
+					{running ? <span className="activity-marker" aria-hidden /> : null}
+					{duration > 0 ? <span className="tool-activity-count">{`· ${formatDuration(duration)}`}</span> : null}
+					<span className="tool-activity-caret" aria-hidden>
+						<IconChevronRight size={12} />
+					</span>
+				</button>
+			</div>
 			{running ? <RunPreview preview={stepPreview(blocks.at(-1) ?? null)} /> : null}
 			{open ? (
 				<div className="tool-activity-collapse">
@@ -51,9 +54,7 @@ export function TurnActivity({ blocks, running, showToolDetails, onOpenExternal 
 						<div className="tool-activity-body turn-activity-body" id={bodyId}>
 							{blocks.map((block) =>
 								block.kind === "thinking" ? (
-									<div key={block.key} className="turn-activity-thinking prose-chat thinking-prose">
-										<Markdown source={block.text} onOpenExternal={onOpenExternal} />
-									</div>
+									<ThinkingFold key={block.key} text={block.text} onOpenExternal={onOpenExternal} />
 								) : (
 									block.calls.map((call) => (
 										<ToolRow key={call.id} call={call} showDetails={showToolDetails} />
