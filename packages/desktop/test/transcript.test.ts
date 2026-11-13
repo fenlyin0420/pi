@@ -170,6 +170,23 @@ describe("toTranscriptItems", () => {
 		expect(turn?.kind === "assistant" ? turn.error : null).toBe("boom");
 	});
 
+	it("用户打断落成 interrupted，abort 的原因不归给模型错误", () => {
+		const items = toTranscriptItems(
+			messages(
+				USER,
+				assistant([{ type: "thinking", thinking: "half a thought" }], {
+					stopReason: "aborted",
+					errorMessage: "Operation aborted",
+				}),
+			),
+			{ streamingIndex: null },
+		);
+		const turn = items[1];
+		if (turn?.kind !== "assistant") throw new Error("expected assistant item");
+		expect(turn.interrupted).toBe(true);
+		expect(turn.error).toBeNull();
+	});
+
 	it("bash 执行消息渲染成 notice，失败退出码标记为 error", () => {
 		const items = toTranscriptItems(
 			messages({

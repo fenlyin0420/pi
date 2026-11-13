@@ -59,6 +59,10 @@ export function toTranscriptItems(messages: readonly AgentMessage[], options: Tr
 				break;
 			}
 			case "assistant": {
+				// pi 把用户打断也落成一条 assistant 记录（stopReason "aborted" 加
+				// "Operation aborted" 之类的 errorMessage）。那是状态不是失败：
+				// 界面对它画分隔线，所以这里不把 abort 的原因当成错误交下去。
+				const interrupted = message.stopReason === "aborted";
 				items.push({
 					kind: "assistant",
 					id,
@@ -67,7 +71,8 @@ export function toTranscriptItems(messages: readonly AgentMessage[], options: Tr
 					streaming: index === options.streamingIndex,
 					model: `${message.provider}/${message.model}`,
 					usage: toTurnUsage(message),
-					error: message.errorMessage ?? null,
+					interrupted,
+					error: interrupted ? null : (message.errorMessage ?? null),
 				});
 				break;
 			}

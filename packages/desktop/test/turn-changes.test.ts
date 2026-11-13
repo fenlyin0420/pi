@@ -32,6 +32,7 @@ function item(...parts: AssistantPart[]): AssistantItem {
 		streaming: false,
 		model: null,
 		usage: null,
+		interrupted: false,
 		error: null,
 	};
 }

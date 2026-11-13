@@ -1,7 +1,8 @@
 /*
   对话区的自有样式。messages.css / prose.css / chat-shell.css 已经带着参考实现的
   行、气泡、工具卡片和 markdown 排版，这里只补我们这套 DOM 需要的部分：滚动容器、
-  空会话、系统提示、github 主题的代码底色、流式光标、逐行 diff 的底座和运行状态行。
+  空会话、系统提示、github 主题的代码底色、流式光标、逐行 diff 的底座、运行状态行
+  和打断分隔线。
 */
 
 /* ---------- 滚动容器 ---------- */
@@ -602,4 +603,39 @@
 .pending-withdraw:hover,
 .pending-withdraw:focus-visible {
   color: var(--ds-text-secondary);
+}
+
+/* ---------- 打断分隔线 ---------- */
+
+/*
+  用户打断不是失败：这一轮在一条居中带文字的分隔线上结束，不画错误卡片。
+  `.message-col` 是 `align-items: flex-start` 的列容器，不 stretch 的话这一行会缩到
+  文字宽，两侧的线就没地方长了。
+*/
+.turn-interrupted {
+  display: flex;
+  align-self: stretch;
+  align-items: center;
+  gap: 12px;
+  margin: 6px 0 2px;
+  color: var(--ds-text-faint);
+  font-size: var(--text-xs);
+  line-height: var(--leading-compact);
+  user-select: none;
+}
+
+.turn-interrupted::before,
+.turn-interrupted::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+}
+
+/* 靠文字那头实，向两端渐隐：线从中间往两边淡掉。 */
+.turn-interrupted::before {
+  background: linear-gradient(to left, var(--ds-border-strong), transparent);
+}
+
+.turn-interrupted::after {
+  background: linear-gradient(to right, var(--ds-border-strong), transparent);
 }

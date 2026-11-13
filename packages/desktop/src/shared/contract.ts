@@ -119,6 +119,8 @@ export type TranscriptItem =
 			streaming: boolean;
 			model: string | null;
 			usage: TurnUsage | null;
+			/** 用户打断收尾的这条 loop：界面上画一条分隔线，不当成模型失败。 */
+			interrupted: boolean;
 			error: string | null;
 	  }
 	| { kind: "notice"; id: string; level: "info" | "warning" | "error"; text: string; timestamp: number };
@@ -201,6 +203,8 @@ export type DesktopCommand =
 	| { type: "searchFiles"; requestId: number; query: string }
 	/** 回答一次 ask_user；flowId 取自收到的 ask 事件。 */
 	| { type: "askAnswer"; flowId: string; answers: Record<string, AskAnswer>; note?: string }
+	/** 标题栏右端的三颗窗口按钮：按钮由界面画，动作回 main 执行。 */
+	| { type: "windowControl"; action: "minimize" | "maximize" | "close" }
 	| { type: "openExternal"; url: string }
 	/** 用系统默认程序打开一个文件。 */
 	| { type: "openPath"; path: string }

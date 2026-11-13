@@ -29,7 +29,17 @@ const text = (value: string): AssistantPart => ({ type: "text", text: value });
 const thinking = (value: string): AssistantPart => ({ type: "thinking", text: value });
 
 function assistant(id: string, parts: AssistantPart[], streaming = false): TranscriptItem {
-	return { kind: "assistant", id, parts, timestamp: 0, streaming, model: null, usage: null, error: null };
+	return {
+		kind: "assistant",
+		id,
+		parts,
+		timestamp: 0,
+		streaming,
+		model: null,
+		usage: null,
+		interrupted: false,
+		error: null,
+	};
 }
 
 /** 把构造出来的一轮记录收窄成 layoutTurn 接受的 assistant 数组。 */
@@ -128,6 +138,14 @@ describe("layoutTurn", () => {
 		if (chain.kind !== "activity") return;
 		const keys = chain.blocks.map((block) => block.key);
 		expect(new Set(keys).size).toBe(keys.length);
+	});
+
+	it("被打断的 loop 在原位置留分隔线，后续 loop 接在线下面", () => {
+		const aborted = assistant("a1", [thinking("plan")]);
+		if (aborted.kind !== "assistant") throw new Error("expected assistant item");
+		const items = [{ ...aborted, interrupted: true }, assistant("a2", [text("接着做")])];
+		const entries = layoutTurn(assistantItems(items), true);
+		expect(entries.map((entry) => entry.kind)).toEqual(["activity", "interrupted", "text"]);
 	});
 });
 

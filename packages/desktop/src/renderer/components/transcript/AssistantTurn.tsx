@@ -1,4 +1,5 @@
-// assistant 的一轮回答：整轮的思考与工具折进一行活动链，正文一段段照常显示。
+// assistant 的一轮回答：整轮的思考与工具折进一行活动链，正文一段段照常显示，
+// 被打断的地方留一条分隔线而不是错误卡片。
 
 import { useMemo } from "react";
 import type { TranscriptItem } from "../../../shared/contract.ts";
@@ -52,21 +53,25 @@ export function AssistantTurn({
 	return (
 		<div className="message-row assistant">
 			<div className="message-col">
-				{entries.map((entry, index) =>
-					entry.kind === "text" ? (
-						<div
-							key={entry.key}
-							className={cx(
-								"message-bubble",
-								"assistant-turn-fragment",
-								streaming && entry.key === lastTextKey && "streaming",
-							)}
-						>
-							<div className="prose-chat">
-								<Markdown source={entry.text} onOpenExternal={onOpenExternal} />
+				{entries.map((entry, index) => {
+					if (entry.kind === "interrupted") return <TurnInterrupted key={entry.key} />;
+					if (entry.kind === "text") {
+						return (
+							<div
+								key={entry.key}
+								className={cx(
+									"message-bubble",
+									"assistant-turn-fragment",
+									streaming && entry.key === lastTextKey && "streaming",
+								)}
+							>
+								<div className="prose-chat">
+									<Markdown source={entry.text} onOpenExternal={onOpenExternal} />
+								</div>
 							</div>
-						</div>
-					) : (
+						);
+					}
+					return (
 						<TurnActivity
 							key={entry.key}
 							blocks={entry.blocks}
@@ -74,8 +79,8 @@ export function AssistantTurn({
 							showToolDetails={showToolDetails}
 							onOpenExternal={onOpenExternal}
 						/>
-					),
-				)}
+					);
+				})}
 				{last?.error ? <AssistantError error={last.error} /> : null}
 				{/*
 				  用量条和悬浮时间都属于“这一轮交回去了、在等你输入”的时刻。跑的过程中只留文案（尾部状态行），
@@ -93,6 +98,11 @@ export function AssistantTurn({
 			</div>
 		</div>
 	);
+}
+
+/** 被打断的一轮到这里结束：一条带文字的分隔线，比错误卡片安静。 */
+function TurnInterrupted() {
+	return <div className="turn-interrupted">Interrupted</div>;
 }
 
 /** 一轮失败的原因；错误文本可能很长，块内自己滚动。 */

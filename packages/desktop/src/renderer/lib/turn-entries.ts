@@ -14,7 +14,9 @@ export type ActivityBlock =
 /** 一轮回答按顺序渲染的东西。 */
 export type TurnEntry =
 	| { kind: "text"; key: string; text: string }
-	| { kind: "activity"; key: string; blocks: ActivityBlock[] };
+	| { kind: "activity"; key: string; blocks: ActivityBlock[] }
+	/** 用户在这里打断了一次；后面还有 loop 就接在这条线下面。 */
+	| { kind: "interrupted"; key: string };
 
 /** transcript 的渲染块：一条独立记录，或整轮回答（用户两句话之间的全部 loop）。 */
 export type TranscriptBlock =
@@ -68,7 +70,8 @@ export function buildTurnEntries(parts: readonly AssistantPart[], showThinking: 
 
 /**
  * 一轮回答的折叠：相邻的思考与工具调用并成一条活动行，文本按原位置显示。每个 step 的
- * 过程和它吐出的正文因此相邻，不会把中途的正文挤到最后。
+ * 过程和它吐出的正文因此相邻，不会把中途的正文挤到最后。被打断的 loop 在它自己的位置
+ * 上留一条分隔线：打断之后队列里那些消息还会接着跑，线要停在实际断掉的地方。
  */
 export function layoutTurn(items: readonly AssistantItem[], showThinking: boolean): TurnEntry[] {
 	const entries: TurnEntry[] = [];
@@ -88,6 +91,7 @@ export function layoutTurn(items: readonly AssistantItem[], showThinking: boolea
 			}
 			entries.push({ kind: "activity", key: `${item.id}-${entry.key}`, blocks });
 		}
+		if (item.interrupted) entries.push({ kind: "interrupted", key: `${item.id}-interrupted` });
 	}
 	return entries;
 }

@@ -27,6 +27,7 @@ const ASSISTANT: TranscriptItem = {
 	streaming: true,
 	model: "test/m1",
 	usage: null,
+	interrupted: false,
 	error: null,
 };
 
@@ -92,6 +93,7 @@ describe("reduceEvent", () => {
 				streaming: true,
 				model: "p/m",
 				usage: null,
+				interrupted: false,
 				error: null,
 			},
 		];
