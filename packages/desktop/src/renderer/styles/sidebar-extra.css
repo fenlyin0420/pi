@@ -94,13 +94,38 @@ hr.sidebar-resize-handle {
 	padding-left: 8px;
 }
 
-/* 标题最多两行：单行截断会切掉区分同一项目下多个会话的关键词。 */
+/*
+  标题单行：放不下的部分在右端渐隐，而不是切一刀；鼠标悬停时整段文字从右往左横移露出结尾，
+  渐隐同时撤掉，最后几个字也看得清。距离和时长由 SessionRow 的 measureMarquee 量完写进
+  两个变量：距离决定终点，时长按固定 px/s 换算，所以长短标题都是一个速度；走到终点直接
+  回到起点重来，不来回摆。
+*/
 .sidebar .thread-item-title {
-	display: -webkit-box;
+	display: block;
 	overflow: hidden;
-	-webkit-box-orient: vertical;
-	-webkit-line-clamp: 2;
-	white-space: normal;
+	white-space: nowrap;
+	-webkit-mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent);
+	mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent);
+}
+
+.sidebar .thread-item-title:hover {
+	-webkit-mask-image: none;
+	mask-image: none;
+}
+
+.sidebar .thread-item-title-text {
+	display: inline-block;
+	min-width: 100%;
+}
+
+.sidebar .thread-item-title:hover .thread-item-title-text {
+	animation: sidebar-title-scroll var(--marquee-duration, 0ms) linear infinite;
+}
+
+@keyframes sidebar-title-scroll {
+	to {
+		transform: translateX(calc(-1 * var(--marquee-distance, 0px)));
+	}
 }
 
 /* 项目行里的目录名吃掉剩余宽度，折叠箭头贴右。 */
@@ -109,36 +134,35 @@ hr.sidebar-resize-handle {
 	flex: 1 1 auto;
 }
 
-/* 分组计数：安静的数字，不参与标题截断。 */
-.sidebar-group-count {
-	flex: 0 0 auto;
-	margin-left: auto;
-	color: var(--ds-text-muted);
-	font-size: var(--text-xs);
-	font-variant-numeric: tabular-nums;
+/* 分组标题占满剩余宽度，未读圆点和加载圈因此贴在行尾。 */
+.sidebar-group-label {
+	min-width: 0;
+	flex: 1 1 auto;
+	text-align: left;
 }
 
 /*
-  运行中的加载圈：会话行、它的分组行、workspace 行共用同一个 12px 的槽。
-  同一个会话只在一层出现：会话行看得见就在会话行，被收起的分组或 workspace
-  藏起来才上提到那一行，所以不会同时出现两个。
+  运行中的加载圈：会话行、它的分组行、workspace 行共用同一个 14px 的槽，空的槽也占宽度，
+  有会话在跑时旁边的文字不会错位。同一个会话只在一层出现：会话行看得见就在会话行，
+  被收起的分组或 workspace 藏起来才上提到那一行，所以不会同时出现两个。
 */
-.thread-item-status,
-.sidebar-group-status,
-.sidebar-workspace-status {
+.running-status {
 	display: inline-flex;
+	width: 14px;
+	height: 14px;
 	flex: 0 0 auto;
 	align-items: center;
 	justify-content: center;
-	margin-left: 4px;
 	color: var(--ds-text-muted);
 }
 
-/* 没有动画时，环本身仍然是个缺口，不靠转圈也能认出“在跑”。 */
+/* 没有动画时：环本身仍然是个缺口，标题停住不动，只靠渐隐和 tooltip 看全。 */
 @media (prefers-reduced-motion: reduce) {
-	.sidebar .thread-item-status .spinner,
-	.sidebar .sidebar-group-status .spinner,
-	.sidebar .sidebar-workspace-status .spinner {
+	.sidebar .running-status .spinner {
+		animation: none;
+	}
+
+	.sidebar .thread-item-title:hover .thread-item-title-text {
 		animation: none;
 	}
 }
@@ -146,7 +170,8 @@ hr.sidebar-resize-handle {
 /*
   未读圆点：会话在后台跑出新内容、用户还没切回去看过。同一个未读只在一层出现：
   会话行可见时落在会话行，被收起的分组或 workspace 藏起来才上提到那一行。
-  父行里它跟着打字排在行尾；会话行里它落在标题左侧的缩进槽，跑着时让位给加载圈。
+  默认是行内元素（父行用，排在行尾）；会话行的圆点和加载圈一起包在 .thread-item-status
+  里，同样落在行尾，而且跑着时让位给加载圈。
 */
 .unread-dot {
 	width: 6px;
@@ -156,12 +181,13 @@ hr.sidebar-resize-handle {
 	background: var(--ds-text-primary);
 }
 
-.thread-item > .unread-dot {
-	position: absolute;
-	left: 6px;
-	top: 50%;
-	transform: translateY(-50%);
-	pointer-events: none;
+/* 会话行行尾的状态簇：未读圆点在前、加载圈在后，和父行一样贴在右端。 */
+.thread-item-status {
+	display: inline-flex;
+	flex: 0 0 auto;
+	align-items: center;
+	gap: 4px;
+	padding-right: 4px;
 }
 
 /* 会话列表：ul/li 的语义保留，行距与 .sidebar-session-groups 的 1px 节奏一致。 */
@@ -244,16 +270,4 @@ hr.sidebar-resize-handle {
 	align-items: flex-start;
 	gap: 8px;
 	padding: 6px 0;
-}
-
-/* 底部模型名：只占一行，长名字截断。 */
-.sidebar-footer-model {
-	min-width: 0;
-	margin-left: auto;
-	overflow: hidden;
-	padding: 0 4px;
-	color: var(--ds-text-muted);
-	font-size: var(--text-xs-plus);
-	text-overflow: ellipsis;
-	white-space: nowrap;
 }

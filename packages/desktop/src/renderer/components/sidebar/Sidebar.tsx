@@ -98,7 +98,6 @@ export function Sidebar({
 	const widthVars = { "--ds-sidebar-width": `${width}px` } as CSSProperties;
 	const searching = query.trim().length > 0;
 	const shortcut = state.platform === "darwin" ? "⌘K" : "Ctrl K";
-	const modelLabel = state.agent.modelName ?? state.agent.model ?? "No model";
 	const hasWorkspace = state.workspace !== null;
 
 	useEffect(() => {
@@ -230,8 +229,7 @@ export function Sidebar({
 						) : (
 							<IconChevronDown size={12} aria-hidden="true" />
 						)}
-						<span>{section.label}</span>
-						<span className="sidebar-group-count">{section.sessions.length}</span>
+						<span className="sidebar-group-label">{section.label}</span>
 						{groupUnread ? <UnreadDot /> : null}
 						<RunningStatus running={groupRunning} />
 					</button>
@@ -263,9 +261,8 @@ export function Sidebar({
 		const expanded = searching || (expandedWorkspaces[workspace.path] ?? active);
 		const sections = buildSections(sessions, now);
 		// 收起时它藏起了自己的会话，所以由它报“里面有活”；展开时加载圈落在会话行（或其收起的
-		// 分组行）上，workspace 行不再重复一次。
+		// 分组行）上，workspace 行不再重复一次。未读标记走同一条分层规则。
 		const running = !expanded && sessions.some(isRunning);
-		// 未读走同一条分层规则：收起时由它报，展开时交给下面的分组行或会话行。
 		const unread = !expanded && sessions.some(isUnread);
 		return (
 			<section key={workspace.path} className="sidebar-workspace">
@@ -275,7 +272,6 @@ export function Sidebar({
 					expanded={expanded}
 					running={running}
 					unread={unread}
-					sessionCount={sessions.length}
 					onSelect={selectWorkspace}
 					onToggle={toggleWorkspace}
 				/>
@@ -384,9 +380,6 @@ export function Sidebar({
 							<IconSettings size={14} aria-hidden="true" />
 						</IconButton>
 					</div>
-					<span className="sidebar-footer-model" title={modelLabel}>
-						{modelLabel}
-					</span>
 				</div>
 			</div>
 

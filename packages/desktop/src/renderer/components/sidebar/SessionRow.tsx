@@ -1,11 +1,26 @@
-// 侧栏的一行会话：两行截断的标题、运行中的加载圈、未读圆点、置顶图标，右键菜单给出改名/置顶/删除。
+// 侧栏的一行会话：单行标题（过长时右端渐隐、悬停横移）、行尾的未读圆点与运行中加载圈、置顶图标，
+// 右键菜单给出改名/置顶/删除。
 
-import { memo } from "react";
+import { memo, type PointerEvent as ReactPointerEvent } from "react";
 import type { SessionSummary } from "../../../shared/contract.ts";
 import { IconPencil, IconPin, IconPinOff, IconTrash } from "../../icons.tsx";
 import { cx, useContextMenu } from "../../ui.tsx";
 import { RunningStatus } from "./RunningStatus.tsx";
 import { UnreadDot } from "./UnreadDot.tsx";
+
+/** 标题横移的速度（px/s）：长短只决定时长，看上去始终是同一个速度。 */
+const MARQUEE_SPEED = 45;
+
+/**
+ * 悬停时先量出溢出宽度，把距离和对应时长写进 CSS 变量：动画只在量完之后才拿到参数，第一帧就是对的。
+ * 按距离换算时长而不是固定时长，长标题和短标题才会以同一个速度走。
+ */
+function measureMarquee(event: ReactPointerEvent<HTMLSpanElement>): void {
+	const element = event.currentTarget;
+	const distance = Math.max(0, element.scrollWidth - element.clientWidth);
+	element.style.setProperty("--marquee-distance", `${distance}px`);
+	element.style.setProperty("--marquee-duration", `${Math.round((distance / MARQUEE_SPEED) * 1000)}ms`);
+}
 
 type SessionRowProps = {
 	session: SessionSummary;
@@ -62,8 +77,6 @@ export const SessionRow = memo(function SessionRow({
 				])
 			}
 		>
-			<RunningStatus running={running} />
-			{!running && session.unread ? <UnreadDot /> : null}
 			<button
 				type="button"
 				className="thread-item-main"
@@ -74,10 +87,15 @@ export const SessionRow = memo(function SessionRow({
 				<span
 					className="thread-item-title"
 					title={session.preview ? `${session.title}\n\n${session.preview}` : session.title}
+					onPointerEnter={measureMarquee}
 				>
-					{session.title}
+					<span className="thread-item-title-text">{session.title}</span>
 				</span>
 			</button>
+			<span className="thread-item-status">
+				{!running && session.unread ? <UnreadDot /> : null}
+				<RunningStatus running={running} />
+			</span>
 			{menu.node}
 		</li>
 	);
