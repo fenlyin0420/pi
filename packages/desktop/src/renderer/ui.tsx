@@ -321,21 +321,27 @@ export function useContextMenu(): ContextMenuApi {
 	};
 }
 
-/** 模态框：遮罩 + 居中的卡片，Esc 关闭。 */
+/** 模态框：遮罩 + 居中的卡片，Esc 关闭。没有标题栏时用 label 当无障碍名字。 */
 export function Dialog({
 	open,
 	onClose,
 	title,
+	label,
+	className,
 	children,
 	footer,
 	width = 480,
 }: {
 	open: boolean;
 	onClose: () => void;
-	title: string;
+	/** 卡片标题；不给就不渲染标题栏。 */
+	title?: string;
+	/** 没有标题栏时的无障碍名字。 */
+	label?: string;
+	className?: string;
 	children: ReactNode;
 	footer?: ReactNode;
-	width?: number;
+	width?: number | string;
 }) {
 	useEffect(() => {
 		if (!open) return;
@@ -353,8 +359,14 @@ export function Dialog({
 			role="presentation"
 			onPointerDown={(event) => event.target === event.currentTarget && onClose()}
 		>
-			<div className="dialog" role="dialog" aria-modal="true" aria-label={title} style={{ width }}>
-				<h2 className="dialog-title">{title}</h2>
+			<div
+				className={cx("dialog", className)}
+				role="dialog"
+				aria-modal="true"
+				aria-label={title ?? label}
+				style={{ width }}
+			>
+				{title === undefined ? null : <h2 className="dialog-title">{title}</h2>}
 				<div className="dialog-body">{children}</div>
 				{footer ? <div className="dialog-footer">{footer}</div> : null}
 			</div>

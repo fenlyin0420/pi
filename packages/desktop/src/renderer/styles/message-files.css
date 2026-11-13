@@ -99,40 +99,55 @@
 
 /* ---------- 内置图片查看器 ---------- */
 
-.image-viewer-stage {
-  display: flex;
-  width: 100%;
-  max-height: 70vh;
-  align-items: flex-start;
-  justify-content: center;
-  overflow: auto;
+/*
+  弹窗里只有图：去掉卡片的 padding 和描边，让图从边到边铺满卡片。
+  尺寸跟图走（width: fit-content 由组件传入），上限是遮罩留出的可视区，
+  所以看图时除了图本身没有任何空白。
+*/
+.dialog.image-viewer {
+  padding: 0;
   border: 0;
-  border-radius: var(--radius-md);
-  background: var(--ds-tile-deep);
-  padding: 8px;
+  overflow: hidden;
+}
+
+.image-viewer-stage {
+  display: block;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  /* 图上没有文字，行盒的 baseline 空隙就是白边。 */
+  line-height: 0;
   cursor: zoom-in;
 }
 
 .image-viewer-stage.is-actual {
+  max-width: calc(100vw - 48px);
+  max-height: calc(100vh - 48px);
+  overflow: auto;
   cursor: zoom-out;
 }
 
 .image-viewer-stage:focus-visible {
   outline: 2px solid var(--ds-accent);
-  outline-offset: 1px;
+  outline-offset: -2px;
 }
 
+/* 用视口而不是百分比限制：卡片宽度是 fit-content，百分比会绕回卡片自己。 */
 .image-viewer-image {
-  max-width: 100%;
-  max-height: calc(70vh - 16px);
+  display: block;
+  max-width: calc(100vw - 48px);
+  max-height: calc(100vh - 48px);
   object-fit: contain;
 }
 
+/* 加载中/出错时没有图可铺，这时的留白是这个状态自己需要的。 */
 .image-viewer-state {
   display: flex;
   align-items: center;
   gap: 8px;
   margin: 0;
+  padding: 20px;
   color: var(--ds-text-secondary);
 }
 

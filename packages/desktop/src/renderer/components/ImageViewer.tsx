@@ -1,8 +1,9 @@
 // 内置图片查看器：用户消息里的图片附件点开后在这里看，点图在“适应窗口”和“原始尺寸”之间切换。
+// 弹窗里只有图：没有标题栏、没有按钮、没有内边距，卡片尺寸跟着图走。
 
 import { useState } from "react";
 import type { ImageView } from "../../shared/contract.ts";
-import { Button, cx, Dialog, Spinner } from "../ui.tsx";
+import { cx, Dialog, Spinner } from "../ui.tsx";
 
 /**
  * 装着查看器的那张卡片：打开就立刻有反馈，读不出来时说清是什么问题，
@@ -33,27 +34,9 @@ export function ImageViewer({ state, onClose }: ImageViewerProps) {
 		<Dialog
 			open
 			onClose={onClose}
-			title={state.kind === "ready" ? state.image.name : state.name}
-			width={900}
-			footer={
-				image === null ? null : (
-					<>
-						{path === null ? null : (
-							<>
-								<Button variant="ghost" onClick={() => window.piDesktop.send({ type: "revealPath", path })}>
-									Show in folder
-								</Button>
-								<Button variant="ghost" onClick={() => window.piDesktop.send({ type: "openPath", path })}>
-									Open with default app
-								</Button>
-							</>
-						)}
-						<Button variant="ghost" aria-pressed={actualSize} onClick={toggleSize}>
-							{actualSize ? "Fit to window" : "Actual size"}
-						</Button>
-					</>
-				)
-			}
+			label={state.kind === "ready" ? state.image.name : state.name}
+			className="image-viewer"
+			width="fit-content"
 		>
 			{state.kind === "loading" ? (
 				<p className="image-viewer-state">
