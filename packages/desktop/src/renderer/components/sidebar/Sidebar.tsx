@@ -1,4 +1,4 @@
-// 左侧栏：π 头部、项目切换、本地搜索、按时间分组的会话列表、会话对话框、底部动作与拖拽调宽。
+// 左侧栏：π 头部、workspace 列表（每个 workspace 下挂自己的会话）、本地搜索、会话对话框与拖拽调宽。
 
 import {
 	type CSSProperties,
@@ -10,11 +10,13 @@ import {
 	useRef,
 	useState,
 } from "react";
-import type { DesktopState, SessionSummary } from "../../../shared/contract.ts";
+import type { DesktopState, SessionSummary, WorkspaceSummary } from "../../../shared/contract.ts";
+import { samePath } from "../../../shared/paths.ts";
 import {
 	IconChevronDown,
 	IconChevronRight,
 	IconClose,
+	IconFolderPlus,
 	IconMoon,
 	IconPlus,
 	IconSearch,
@@ -22,9 +24,9 @@ import {
 	IconSun,
 } from "../../icons.tsx";
 import { sessionGroup } from "../../lib/format.ts";
-import { Button, cx, Dialog, Field, IconButton, Kbd } from "../../ui.tsx";
-import { ProjectSwitcher } from "./ProjectSwitcher.tsx";
+import { Button, cx, Dialog, Field, IconButton, Kbd, Spinner } from "../../ui.tsx";
 import { SessionRow } from "./SessionRow.tsx";
+import { WorkspaceRow } from "./WorkspaceRow.tsx";
 
 const MIN_WIDTH = 200;
 const MAX_WIDTH = 520;
@@ -43,8 +45,8 @@ type SidebarProps = {
 	collapsed: boolean;
 	onOpenSession: (id: string) => void;
 	onNewSession: () => void;
-	onOpenProject: () => void;
-	onOpenRecentProject: (path: string) => void;
+	onAddWorkspace: () => void;
+	onSelectWorkspace: (path: string) => void;
 	onRenameSession: (id: string, title: string) => void;
 	onDeleteSession: (id: string) => void;
 	onPinSession: (id: string, pinned: boolean) => void;
@@ -60,8 +62,8 @@ export function Sidebar({
 	collapsed,
 	onOpenSession,
 	onNewSession,
-	onOpenProject,
-	onOpenRecentProject,
+	onAddWorkspace,
+	onSelectWorkspace,
 	onRenameSession,
 	onDeleteSession,
 	onPinSession,
@@ -73,6 +75,8 @@ export function Sidebar({
 	const [query, setQuery] = useState("");
 	const [now, setNow] = useState(() => Date.now());
 	const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+	/** 用户手动折叠/展开过的 workspace；没记录时按“当前 workspace 展开”决定。 */
+	const [expandedWorkspaces, setExpandedWorkspaces] = useState<Record<string, boolean>>({});
 	const [renameTarget, setRenameTarget] = useState<SessionSummary | null>(null);
 	const [renameTitle, setRenameTitle] = useState("");
 	const [deleteTarget, setDeleteTarget] = useState<SessionSummary | null>(null);
@@ -80,11 +84,11 @@ export function Sidebar({
 	const [draftWidth, setDraftWidth] = useState<number | null>(null);
 	const dragRef = useRef<{ pointerId: number; startX: number; startWidth: number; width: number } | null>(null);
 
-	// App 传进来的两个回调是内联箭头函数，每次渲染都换身份；用 ref 转发让行 props 保持引用稳定，
+	// App 传进来的回调是内联箭头函数，每次渲染都换身份；用 ref 转发让列表行 props 保持引用稳定，
 	// 这样 React.memo 在拖动宽度、折叠分组时能跳过整个列表。
-	const latestRowHandlers = useRef({ onOpenSession, onPinSession });
+	const latestRowHandlers = useRef({ onOpenSession, onPinSession, onSelectWorkspace });
 	useEffect(() => {
-		latestRowHandlers.current = { onOpenSession, onPinSession };
+		latestRowHandlers.current = { onOpenSession, onPinSession, onSelectWorkspace };
 	});
 
 	const width = clampWidth(draftWidth ?? state.settings.sidebarWidth);
@@ -93,6 +97,7 @@ export function Sidebar({
 	const searching = query.trim().length > 0;
 	const shortcut = state.platform === "darwin" ? "⌘K" : "Ctrl K";
 	const modelLabel = state.agent.modelName ?? state.agent.model ?? "No model";
+	const hasWorkspace = state.workspace !== null;
 
 	useEffect(() => {
 		const timer = window.setInterval(() => setNow(Date.now()), TICK_MS);
@@ -110,10 +115,23 @@ export function Sidebar({
 		);
 	}, [state.sessions, query]);
 
-	const sections = useMemo(() => buildSections(filtered, now), [filtered, now]);
+	/** 会话按 workspace 归堆，渲染时按 state.workspaces 的顺序取用。 */
+	const sessionsByWorkspace = useMemo(() => {
+		const map = new Map<string, SessionSummary[]>();
+		for (const session of filtered) {
+			const list = map.get(session.workspace);
+			if (list) list.push(session);
+			else map.set(session.workspace, [session]);
+		}
+		return map;
+	}, [filtered]);
 
 	const toggleGroup = useCallback((key: string) => {
 		setCollapsedGroups((previous) => ({ ...previous, [key]: !previous[key] }));
+	}, []);
+
+	const toggleWorkspace = useCallback((path: string) => {
+		setExpandedWorkspaces((previous) => ({ ...previous, [path]: !(previous[path] ?? true) }));
 	}, []);
 
 	const openSession = useCallback((id: string) => latestRowHandlers.current.onOpenSession(id), []);
@@ -121,6 +139,7 @@ export function Sidebar({
 		(id: string, pinned: boolean) => latestRowHandlers.current.onPinSession(id, pinned),
 		[],
 	);
+	const selectWorkspace = useCallback((path: string) => latestRowHandlers.current.onSelectWorkspace(path), []);
 
 	const beginRename = useCallback((session: SessionSummary) => {
 		setRenameTarget(session);
@@ -185,10 +204,13 @@ export function Sidebar({
 		if (next !== width) onResize(next);
 	};
 
-	const renderSection = (section: SessionSection) => {
+	const renderGroup = (workspace: string, section: SessionSection) => {
 		// 搜索时强制展开：命中项被折叠状态藏起来比折叠失效更糟。
-		const groupCollapsed = !searching && collapsedGroups[section.key] === true;
-		const labelId = `sidebar-group-${section.key.toLowerCase().replace(/\s+/g, "-")}`;
+		const groupKey = `${workspace}:${section.key}`;
+		const groupCollapsed = !searching && collapsedGroups[groupKey] === true;
+		// 分组收起了才由自己报“里面有活”：展开时这个加载圈在会话行上。
+		const groupRunning = groupCollapsed && section.sessions.some(isRunning);
+		const labelId = `sidebar-group-${groupKey.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
 		return (
 			<section key={section.key} className="sidebar-session-group" aria-labelledby={labelId}>
 				<div className="sidebar-session-group-header">
@@ -197,7 +219,7 @@ export function Sidebar({
 						id={labelId}
 						className="sidebar-session-group-title"
 						aria-expanded={!groupCollapsed}
-						onClick={() => toggleGroup(section.key)}
+						onClick={() => toggleGroup(groupKey)}
 					>
 						{groupCollapsed ? (
 							<IconChevronRight size={12} aria-hidden="true" />
@@ -206,6 +228,11 @@ export function Sidebar({
 						)}
 						<span>{section.label}</span>
 						<span className="sidebar-group-count">{section.sessions.length}</span>
+						{groupRunning ? (
+							<span className="sidebar-group-status" role="img" aria-label="Running" title="Running">
+								<Spinner size={12} />
+							</span>
+						) : null}
 					</button>
 				</div>
 				<div className={cx("sidebar-session-group-body", groupCollapsed && "is-collapsed")}>
@@ -228,6 +255,36 @@ export function Sidebar({
 		);
 	};
 
+	const renderWorkspace = (workspace: WorkspaceSummary) => {
+		const sessions = sessionsByWorkspace.get(workspace.path) ?? [];
+		// 搜索时只留命中的 workspace，并且强制展开。
+		if (searching && sessions.length === 0) return null;
+		const active = state.workspace !== null && samePath(workspace.path, state.workspace, state.platform);
+		const expanded = searching || (expandedWorkspaces[workspace.path] ?? active);
+		const sections = buildSections(sessions, now);
+		// 收起时它藏起了自己的会话，所以由它报“里面有活”；展开时加载圈落在会话行（或其收起的
+		// 分组行）上，workspace 行不再重复一次。
+		const running = !expanded && sessions.some(isRunning);
+		return (
+			<section key={workspace.path} className="sidebar-workspace">
+				<WorkspaceRow
+					workspace={workspace}
+					active={active}
+					expanded={expanded}
+					running={running}
+					sessionCount={sessions.length}
+					onSelect={selectWorkspace}
+					onToggle={toggleWorkspace}
+				/>
+				{expanded ? (
+					<div className="sidebar-workspace-body">
+						{sections.map((section) => renderGroup(workspace.path, section))}
+					</div>
+				) : null}
+			</section>
+		);
+	};
+
 	return (
 		<aside className="sidebar sidebar-surface" style={widthVars} aria-label="Sessions" inert={collapsed}>
 			<div className="sidebar-header">
@@ -235,20 +292,23 @@ export function Sidebar({
 					π
 				</span>
 				<div className="sidebar-header-actions no-drag">
-					<IconButton label="New session" onClick={onNewSession}>
+					<IconButton
+						label={hasWorkspace ? "New session" : "Select a workspace first"}
+						disabled={!hasWorkspace}
+						onClick={onNewSession}
+					>
 						<IconPlus size={15} aria-hidden="true" />
 					</IconButton>
 				</div>
 			</div>
 
 			<div className="sidebar-body no-drag">
-				<ProjectSwitcher
-					cwd={state.cwd}
-					recentProjects={state.recentProjects}
-					onOpenProject={onOpenProject}
-					onOpenRecentProject={onOpenRecentProject}
-					onOpenSettings={onOpenSettings}
-				/>
+				<div className="sidebar-section-header">
+					<span className="sidebar-section-label">Workspaces</span>
+					<IconButton label="Add workspace" onClick={onAddWorkspace}>
+						<IconFolderPlus size={14} aria-hidden="true" />
+					</IconButton>
+				</div>
 
 				<div className="sidebar-search">
 					<IconSearch size={13} aria-hidden="true" />
@@ -289,21 +349,20 @@ export function Sidebar({
 					</output>
 				) : null}
 
-				<nav className="sidebar-session-groups" aria-label="Session list">
-					{sections.length > 0 ? (
-						sections.map(renderSection)
+				<nav className="sidebar-session-groups" aria-label="Workspaces">
+					{state.workspaces.length > 0 ? (
+						state.workspaces.map(renderWorkspace)
 					) : (
 						<div className="sidebar-empty">
-							<p className="sidebar-session-empty">
-								{searching ? "No sessions match your search." : "No sessions yet."}
-							</p>
-							{searching ? null : (
-								<Button variant="secondary" onClick={onNewSession}>
-									New session
-								</Button>
-							)}
+							<p className="sidebar-session-empty">No workspaces yet.</p>
+							<Button variant="secondary" onClick={onAddWorkspace}>
+								Add workspace
+							</Button>
 						</div>
 					)}
+					{searching && filtered.length === 0 ? (
+						<p className="sidebar-session-empty">No sessions match your search.</p>
+					) : null}
 				</nav>
 
 				<div className="sidebar-footer no-drag">
@@ -393,6 +452,11 @@ export function Sidebar({
 			</Dialog>
 		</aside>
 	);
+}
+
+/** 正在跑一轮回答的会话：侧栏在它所在的那一行显示加载圈。 */
+function isRunning(session: SessionSummary): boolean {
+	return session.status === "running";
 }
 
 /** 置顶区在最前，其余按更新时间落到今天/昨天/过去 7 天/更早四档。 */

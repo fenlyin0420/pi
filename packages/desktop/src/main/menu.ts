@@ -37,7 +37,7 @@ export function installMenu(send: (action: MenuAction) => void): void {
 			label: "File",
 			submenu: [
 				action("New Session", "newSession", "CmdOrCtrl+N"),
-				action("Open Folder…", "openProject", "CmdOrCtrl+O"),
+				action("Add Workspace…", "addWorkspace", "CmdOrCtrl+O"),
 				{ type: "separator" },
 				action("Close Session", "closeSession", "CmdOrCtrl+W"),
 				...(mac

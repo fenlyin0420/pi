@@ -32,7 +32,7 @@ function send(event: DesktopEvent): void {
 	mainWindow.webContents.send(IPC_EVENT, event);
 }
 
-const host = new SessionHost(process.env.PI_DESKTOP_CWD ?? process.cwd(), {
+const host = new SessionHost(process.env.PI_DESKTOP_CWD ?? null, {
 	settings,
 	platform,
 	theme: resolvedTheme,
@@ -61,7 +61,8 @@ async function dispatch(command: DesktopCommand): Promise<void> {
 				shell.showItemInFolder(command.path);
 				return;
 			case "searchFiles": {
-				const files = await searchProjectFiles(host.getCwd(), command.query);
+				const workspace = host.getWorkspace();
+				const files = workspace === null ? [] : await searchProjectFiles(workspace, command.query);
 				send({ type: "files", requestId: command.requestId, files });
 				return;
 			}

@@ -43,8 +43,8 @@ export function App() {
 				case "newSession":
 					send({ type: "newSession" });
 					return;
-				case "openProject":
-					send({ type: "openProject" });
+				case "addWorkspace":
+					send({ type: "addWorkspace" });
 					return;
 				case "settings":
 					setSettingsOpen(true);
@@ -90,7 +90,7 @@ export function App() {
 					return;
 				case "o":
 					event.preventDefault();
-					send({ type: "openProject" });
+					send({ type: "addWorkspace" });
 					return;
 				case "b":
 					event.preventDefault();
@@ -126,8 +126,8 @@ export function App() {
 							collapsed={collapsed}
 							onOpenSession={(id) => send({ type: "openSession", id })}
 							onNewSession={() => send({ type: "newSession" })}
-							onOpenProject={() => send({ type: "openProject" })}
-							onOpenRecentProject={(path) => send({ type: "openRecentProject", path })}
+							onAddWorkspace={() => send({ type: "addWorkspace" })}
+							onSelectWorkspace={(path) => send({ type: "selectWorkspace", path })}
 							onRenameSession={(id, title) => send({ type: "renameSession", id, title })}
 							onDeleteSession={(id) => send({ type: "deleteSession", id })}
 							onPinSession={(id, pinned) => send({ type: "pinSession", id, pinned })}
@@ -150,7 +150,11 @@ export function App() {
 						<div className="main-pane">
 							<Titlebar
 								platform={desktop.platform}
-								sessionTitle={activeSession?.title ?? "pi"}
+								sessionTitle={
+									activeSession?.title ??
+									desktop.workspaces.find((entry) => entry.path === desktop.workspace)?.name ??
+									"pi"
+								}
 								modelName={desktop.agent.modelName}
 								status={desktop.agent.status}
 								sidebarCollapsed={collapsed}
@@ -161,7 +165,8 @@ export function App() {
 							<Transcript
 								items={desktop.transcript}
 								sessionId={desktop.activeSessionId}
-								cwd={desktop.cwd}
+								workspace={desktop.workspace}
+								onAddWorkspace={() => send({ type: "addWorkspace" })}
 								status={desktop.agent.status}
 								activity={desktop.agent.activity}
 								showThinking={settings.showThinking}
@@ -172,6 +177,7 @@ export function App() {
 							/>
 							<Composer
 								sessionId={desktop.activeSessionId}
+								workspace={desktop.workspace}
 								agent={desktop.agent}
 								models={state.models}
 								thinking={settings.showThinking}
@@ -198,7 +204,7 @@ export function App() {
 					settings={settings}
 					agent={desktop?.agent ?? null}
 					theme={theme}
-					cwd={desktop?.cwd}
+					cwd={desktop?.workspace ?? undefined}
 					sessionCount={desktop?.sessions.length}
 					onUpdate={updateSettings}
 					onClose={() => setSettingsOpen(false)}
@@ -206,6 +212,7 @@ export function App() {
 				<CommandPalette
 					open={paletteOpen}
 					sessions={desktop?.sessions ?? []}
+					workspaces={desktop?.workspaces ?? []}
 					onClose={() => setPaletteOpen(false)}
 					onOpenSession={(id) => {
 						setPaletteOpen(false);

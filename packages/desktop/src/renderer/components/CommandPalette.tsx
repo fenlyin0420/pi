@@ -1,22 +1,22 @@
 // ⌘K 命令面板：动作和会话共用一个搜索框，方向键选、回车执行。
 
 import { type KeyboardEvent as ReactKeyboardEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import type { SessionSummary } from "../../shared/contract.ts";
+import type { SessionSummary, WorkspaceSummary } from "../../shared/contract.ts";
 import { IconFolderOpen, IconPanelLeftClose, IconPlus, IconSearch, IconSettings } from "../icons.tsx";
 import { formatSessionTime } from "../lib/format.ts";
 import { cx } from "../ui.tsx";
 
 /** 面板能执行的动作；App 把它们折成对应的命令。 */
-export type PaletteAction = "newSession" | "openProject" | "settings" | "toggleSidebar";
+export type PaletteAction = "newSession" | "addWorkspace" | "settings" | "toggleSidebar";
 
 type Option =
 	| { kind: "action"; id: string; action: PaletteAction; label: string; icon: ReactNode }
-	| { kind: "session"; id: string; session: SessionSummary };
+	| { kind: "session"; id: string; session: SessionSummary; workspace: string };
 
 // 动作组永远排在会话组前面，索引顺序与渲染顺序一致。
 const ACTIONS: readonly { action: PaletteAction; label: string; icon: ReactNode }[] = [
 	{ action: "newSession", label: "New session", icon: <IconPlus size={15} /> },
-	{ action: "openProject", label: "Open folder…", icon: <IconFolderOpen size={15} /> },
+	{ action: "addWorkspace", label: "Add workspace…", icon: <IconFolderOpen size={15} /> },
 	{ action: "settings", label: "Settings", icon: <IconSettings size={15} /> },
 	{ action: "toggleSidebar", label: "Toggle sidebar", icon: <IconPanelLeftClose size={15} /> },
 ];
@@ -27,12 +27,14 @@ const OPTION_ID_PREFIX = "command-palette-option-";
 export function CommandPalette({
 	open,
 	sessions,
+	workspaces,
 	onClose,
 	onOpenSession,
 	onAction,
 }: {
 	open: boolean;
 	sessions: readonly SessionSummary[];
+	workspaces: readonly WorkspaceSummary[];
 	onClose: () => void;
 	onOpenSession: (id: string) => void;
 	onAction: (action: PaletteAction) => void;
@@ -54,7 +56,8 @@ export function CommandPalette({
 		const matchedActions: Option[] = ACTIONS.filter((entry) => entry.label.toLowerCase().includes(needle)).map(
 			(entry) => ({ kind: "action", id: entry.action, action: entry.action, label: entry.label, icon: entry.icon }),
 		);
-		// 会话顺序沿用 main 侧的排序（最近更新在前，置顶已在里面），这里不重排。
+		const names = new Map(workspaces.map((entry) => [entry.path, entry.name]));
+		// 会话跨 workspace 混在同一列：每行带上它自己的 workspace 名，免得同名标题分不清。
 		const matchedSessions: Option[] = sessions
 			.filter(
 				(session) =>
@@ -62,9 +65,14 @@ export function CommandPalette({
 					session.title.toLowerCase().includes(needle) ||
 					session.preview.toLowerCase().includes(needle),
 			)
-			.map((session) => ({ kind: "session", id: session.id, session }));
+			.map((session) => ({
+				kind: "session",
+				id: session.id,
+				session,
+				workspace: names.get(session.workspace) ?? session.workspace,
+			}));
 		return { options: [...matchedActions, ...matchedSessions], actionCount: matchedActions.length };
-	}, [query, sessions]);
+	}, [query, sessions, workspaces]);
 
 	// 过滤后列表可能变短，选中项要跟着收敛，否则回车会落空。
 	useEffect(() => {
@@ -230,6 +238,7 @@ function PaletteRow({ option, index, active, onActivate, onRun }: RowProps) {
 						{option.session.status === "running" ? (
 							<span className="search-item-running" role="img" aria-label="Agent is running" />
 						) : null}
+						<span className="search-item-project">{option.workspace}</span>
 						<span className="search-item-time">{formatSessionTime(option.session.updatedAt)}</span>
 					</span>
 				</>

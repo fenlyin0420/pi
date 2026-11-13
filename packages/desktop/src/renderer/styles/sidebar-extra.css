@@ -11,6 +11,89 @@ hr.sidebar-resize-handle {
 	border: 0;
 }
 
+/* Workspaces 区块的标题行：左边是标签，右边是“加 workspace”按钮。 */
+.sidebar-section-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	min-height: 24px;
+	padding: 2px 2px 0;
+	color: var(--ds-text-muted);
+	font-size: var(--text-xs);
+	letter-spacing: var(--tracking-wide);
+	text-transform: uppercase;
+}
+
+/* 一个 workspace：一行目录头 + 展开后的会话分组。 */
+.sidebar-workspace {
+	min-width: 0;
+}
+
+.sidebar-workspace-row {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	min-height: 28px;
+	border-radius: var(--radius-sm);
+	color: var(--ds-text-secondary);
+	transition:
+		background var(--motion-duration-fast) var(--motion-ease-out),
+		color var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.sidebar-workspace-row:hover {
+	background: var(--ds-bg-hover);
+	color: var(--ds-text-primary);
+}
+
+.sidebar-workspace-row.is-active {
+	background: var(--ds-bg-active);
+	color: var(--ds-text-primary);
+}
+
+/* 箭头只负责展开，宽度固定，点了不会把目录名推走。 */
+.sidebar-workspace-toggle {
+	display: inline-flex;
+	width: 18px;
+	flex: 0 0 auto;
+	align-items: center;
+	justify-content: center;
+	height: 24px;
+	border: 0;
+	padding: 0;
+	border-radius: var(--radius-2xs);
+	background: transparent;
+	color: inherit;
+}
+
+.sidebar-workspace-main {
+	display: flex;
+	min-width: 0;
+	flex: 1 1 auto;
+	align-items: center;
+	gap: 6px;
+	border: 0;
+	padding: 4px 2px;
+	background: transparent;
+	color: inherit;
+	text-align: left;
+}
+
+.sidebar-workspace-name {
+	min-width: 0;
+	flex: 1 1 auto;
+	overflow: hidden;
+	font-size: var(--text-md);
+	line-height: var(--leading-row);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* 展开的会话缩进一格，和 workspace 行的目录图标对齐。 */
+.sidebar-workspace-body {
+	padding-left: 8px;
+}
+
 /* 标题最多两行：单行截断会切掉区分同一项目下多个会话的关键词。 */
 .sidebar .thread-item-title {
 	display: -webkit-box;
@@ -33,6 +116,31 @@ hr.sidebar-resize-handle {
 	color: var(--ds-text-muted);
 	font-size: var(--text-xs);
 	font-variant-numeric: tabular-nums;
+}
+
+/*
+  运行中的加载圈：会话行、它的分组行、workspace 行共用同一个 12px 的槽。
+  同一个会话只在一层出现：会话行看得见就在会话行，被收起的分组或 workspace
+  藏起来才上提到那一行，所以不会同时出现两个。
+*/
+.thread-item-status,
+.sidebar-group-status,
+.sidebar-workspace-status {
+	display: inline-flex;
+	flex: 0 0 auto;
+	align-items: center;
+	justify-content: center;
+	margin-left: 4px;
+	color: var(--ds-text-muted);
+}
+
+/* 没有动画时，环本身仍然是个缺口，不靠转圈也能认出“在跑”。 */
+@media (prefers-reduced-motion: reduce) {
+	.sidebar .thread-item-status .spinner,
+	.sidebar .sidebar-group-status .spinner,
+	.sidebar .sidebar-workspace-status .spinner {
+		animation: none;
+	}
 }
 
 /* 会话列表：ul/li 的语义保留，行距与 .sidebar-session-groups 的 1px 节奏一致。 */

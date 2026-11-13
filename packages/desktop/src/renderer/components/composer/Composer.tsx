@@ -20,6 +20,8 @@ const NO_SESSION = "none";
 
 type ComposerProps = {
 	sessionId: string | null;
+	/** 当前 workspace；null 时输入区关闭，必须先选一个 workspace。 */
+	workspace: string | null;
 	agent: AgentView;
 	models: readonly ModelView[];
 	/** 用户是否要看思考内容；关掉时连等级入口一起收起。 */
@@ -61,6 +63,7 @@ function writeDraft(storageKey: string, value: string): void {
 /** 提示输入区。 */
 export function Composer({
 	sessionId,
+	workspace,
 	agent,
 	models,
 	thinking,
@@ -75,6 +78,9 @@ export function Composer({
 	onNewSession,
 }: ComposerProps) {
 	const running = agent.status === "running";
+	// 没有 workspace 就没有工作目录可发：输入框和工具栏一起关上。
+	const locked = workspace === null;
+	const placeholder = locked ? "Select a workspace to start" : PLACEHOLDER;
 	const storageKey = draftStorageKey(sessionId);
 
 	const [value, setValue] = useState(() => readDraft(storageKey));
@@ -178,6 +184,7 @@ export function Composer({
 	}
 
 	function submit() {
+		if (locked) return;
 		const text = value.trim();
 		if (running) {
 			// 运行中的 Enter 是排队：steer 只带正文，附件留给下一轮提示
@@ -196,7 +203,7 @@ export function Composer({
 	}
 
 	function addAttachments(items: readonly PromptAttachment[]) {
-		if (items.length === 0) return;
+		if (locked || items.length === 0) return;
 		setAttachments((current) => {
 			// 同一个文件拖两次只留一份：有路径的按路径认，粘贴进来的图片没有路径，各算各的
 			const known = new Set(current.flatMap((item) => (item.attachment.path ? [item.attachment.path] : [])));
@@ -217,6 +224,7 @@ export function Composer({
 	}
 
 	function handlePaste(event: ClipboardEvent<HTMLTextAreaElement>) {
+		if (locked) return;
 		const files = Array.from(event.clipboardData.files);
 		if (!files.some((file) => file.type.startsWith("image/"))) return;
 		// 有图片就接管粘贴，否则截图会以空文本的形式落进正文
@@ -225,7 +233,7 @@ export function Composer({
 	}
 
 	function handleDragOver(event: DragEvent<HTMLDivElement>) {
-		if (!event.dataTransfer.types.includes("Files")) return;
+		if (locked || !event.dataTransfer.types.includes("Files")) return;
 		// 不拦截 dragover 就拿不到 drop，高亮和落下都靠这里
 		event.preventDefault();
 		event.dataTransfer.dropEffect = "copy";
@@ -241,6 +249,7 @@ export function Composer({
 	function handleDrop(event: DragEvent<HTMLDivElement>) {
 		event.preventDefault();
 		setDropTarget(false);
+		if (locked) return;
 		const files = Array.from(event.dataTransfer.files);
 		// 从系统里拖来的一定有磁盘路径，交给 main 统一读；浏览器拖来的图片没有路径，退回读 dataURL
 		const paths = files.map((file) => attach.pathForFile(file)).filter((path) => path.length > 0);
@@ -304,7 +313,8 @@ export function Composer({
 						<ComposerInput
 							inputRef={inputRef}
 							value={value}
-							placeholder={PLACEHOLDER}
+							placeholder={placeholder}
+							disabled={locked}
 							palette={palette}
 							onChange={changeValue}
 							onSubmit={submit}
@@ -314,6 +324,7 @@ export function Composer({
 					<ComposerToolbar
 						agent={agent}
 						running={running}
+						locked={locked}
 						canSend={value.trim().length > 0 || attachments.length > 0}
 						canAttach={attachments.length < MAX_ATTACHMENTS}
 						showThinkingLevel={thinking && agent.reasoning}

@@ -9,6 +9,8 @@ import { thinkingLevelLabel } from "./ThinkingPicker.tsx";
 type ComposerToolbarProps = {
 	agent: AgentView;
 	running: boolean;
+	/** 没选中 workspace 时整条工具栏都没得用。 */
+	locked: boolean;
 	/** 有正文或附件时才能发送。 */
 	canSend: boolean;
 	/** 附件未到上限时才能再挑：到上限后回形针禁用。 */
@@ -28,6 +30,7 @@ type ComposerToolbarProps = {
 export function ComposerToolbar({
 	agent,
 	running,
+	locked,
 	canSend,
 	canAttach,
 	showThinkingLevel,
@@ -49,8 +52,8 @@ export function ComposerToolbar({
 					type="button"
 					className="icon-btn composer-attach-btn"
 					aria-label="Attach files"
-					title={canAttach ? "Attach files" : "Attachment limit reached"}
-					disabled={!canAttach}
+					title={locked ? "Select a workspace first" : canAttach ? "Attach files" : "Attachment limit reached"}
+					disabled={locked || !canAttach}
 					onClick={onAttachFiles}
 				>
 					<IconPaperclip size={14} aria-hidden="true" />
@@ -63,6 +66,7 @@ export function ComposerToolbar({
 						aria-expanded={modelPickerOpen}
 						aria-label={`Model: ${agent.modelName ?? "none"}`}
 						title={`Model: ${agent.modelName ?? "none"}`}
+						disabled={locked}
 						onClick={(event) => onOpenModelPicker(event.currentTarget)}
 					>
 						<span className="composer-model-thinking-model">{agent.modelName ?? "No model"}</span>
@@ -78,6 +82,7 @@ export function ComposerToolbar({
 							aria-expanded={thinkingPickerOpen}
 							aria-label={`Thinking level: ${thinkingLevelLabel(agent.thinkingLevel)}`}
 							title={`Thinking level: ${thinkingLevelLabel(agent.thinkingLevel)}`}
+							disabled={locked}
 							onClick={(event) => onOpenThinkingPicker(event.currentTarget)}
 						>
 							<span className="composer-model-thinking-level">{thinkingLevelLabel(agent.thinkingLevel)}</span>
@@ -109,8 +114,8 @@ export function ComposerToolbar({
 						type="button"
 						className="send-btn"
 						aria-label="Send"
-						title={canSend ? "Send" : "Type a message first"}
-						disabled={!canSend}
+						title={locked ? "Select a workspace first" : canSend ? "Send" : "Type a message first"}
+						disabled={locked || !canSend}
 						onClick={onSend}
 					>
 						<IconArrowUp size={15} aria-hidden="true" />

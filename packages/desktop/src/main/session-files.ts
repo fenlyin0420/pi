@@ -1,6 +1,7 @@
 // 会话文件层的读写：列目录、改名、删除。这里不启动 agent，只碰 SessionManager 的持久层。
 
 import { unlinkSync } from "node:fs";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { SessionInfo } from "@earendil-works/pi-coding-agent";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { splitAttachedFiles } from "../shared/attached-files.ts";
@@ -9,17 +10,35 @@ import type { SessionSummary } from "../shared/contract.ts";
 const TITLE_LIMIT = 120;
 const PREVIEW_LIMIT = 160;
 
-/** 目录下的全部会话，按最近修改排序；置顶标记来自桌面偏好。 */
-export async function listSessionSummaries(cwd: string, pinned: ReadonlySet<string>): Promise<SessionSummary[]> {
-	const infos = await SessionManager.list(cwd);
-	return infos.map((info) => toSessionSummary(info, pinned.has(info.id))).sort((a, b) => b.updatedAt - a.updatedAt);
+/** 一个 workspace 目录下的全部会话，按最近修改排序；置顶标记来自桌面偏好。 */
+export async function listSessionSummaries(dir: string, pinned: ReadonlySet<string>): Promise<SessionSummary[]> {
+	const infos = await SessionManager.list(dir);
+	return infos
+		.map((info) => toSessionSummary(info, pinned.has(info.id), dir))
+		.sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+/**
+ * 活会话的时间字段：取消息自带时间戳里最早和最晚的两条。一条消息都没有的新会话才用 now，
+ * 否则内存里的旧会话会被显示成“刚刚”。
+ */
+export function sessionTimes(messages: readonly AgentMessage[], now: number): { createdAt: number; updatedAt: number } {
+	if (messages.length === 0) return { createdAt: now, updatedAt: now };
+	let earliest = Number.POSITIVE_INFINITY;
+	let latest = Number.NEGATIVE_INFINITY;
+	for (const message of messages) {
+		earliest = Math.min(earliest, message.timestamp);
+		latest = Math.max(latest, message.timestamp);
+	}
+	return { createdAt: earliest, updatedAt: latest };
 }
 
 /** 会话在侧栏的展示信息。用户设置的名字优先，否则用首条消息截断。 */
-export function toSessionSummary(info: SessionInfo, pinned: boolean): SessionSummary {
+export function toSessionSummary(info: SessionInfo, pinned: boolean, workspace: string): SessionSummary {
 	return {
 		id: info.id,
 		path: info.path,
+		workspace,
 		title: sessionTitle(info),
 		createdAt: info.created.getTime(),
 		updatedAt: info.modified.getTime(),

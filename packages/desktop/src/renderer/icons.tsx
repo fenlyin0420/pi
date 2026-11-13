@@ -14,6 +14,7 @@ import {
 	FileText,
 	FolderClosed,
 	FolderOpen,
+	FolderPlus,
 	Image as ImageIcon,
 	LoaderCircle,
 	Maximize2,
@@ -60,6 +61,7 @@ export const IconEllipsis = icon(Ellipsis);
 export const IconFile = icon(FileText);
 export const IconFolder = icon(FolderClosed);
 export const IconFolderOpen = icon(FolderOpen);
+export const IconFolderPlus = icon(FolderPlus);
 export const IconImage = icon(ImageIcon);
 export const IconLoader = icon(LoaderCircle);
 export const IconMaximize = icon(Maximize2);

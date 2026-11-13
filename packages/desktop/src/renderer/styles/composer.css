@@ -317,6 +317,12 @@
   cursor: text;
 }
 
+/* 没选中 workspace 时输入框关闭：光标不再暗示可以打字。 */
+.composer-input:disabled {
+  cursor: not-allowed;
+  color: var(--ds-text-muted);
+}
+
 /* Atomic inline attachment chip inside the editable draft. */
 .composer-chip {
   display: inline-flex;

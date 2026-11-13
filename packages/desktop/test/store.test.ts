@@ -7,6 +7,7 @@ import type { DesktopState, SessionSummary, TranscriptItem } from "../src/shared
 const SESSION: SessionSummary = {
 	id: "s1",
 	path: "/tmp/s1.jsonl",
+	workspace: "/tmp",
 	title: "Session",
 	createdAt: 1,
 	updatedAt: 2,
@@ -32,8 +33,8 @@ function state(): DesktopState {
 	return {
 		platform: "linux",
 		theme: "dark",
-		cwd: "/tmp",
-		recentProjects: [],
+		workspace: "/tmp",
+		workspaces: [{ path: "/tmp", name: "tmp" }],
 		sessions: [SESSION],
 		activeSessionId: "s1",
 		transcript: [ASSISTANT],
@@ -55,7 +56,8 @@ function state(): DesktopState {
 			showUsage: true,
 			sidebarWidth: 272,
 			sidebarCollapsed: false,
-			recentProjects: [],
+			workspaces: ["/tmp"],
+			activeWorkspace: "/tmp",
 			pinnedSessions: [],
 		},
 	};
@@ -64,7 +66,7 @@ function state(): DesktopState {
 describe("reduceEvent", () => {
 	it("state 事件整体替换 desktop", () => {
 		const next = reduceEvent(INITIAL_STATE, { type: "state", state: state() });
-		expect(next.desktop?.cwd).toBe("/tmp");
+		expect(next.desktop?.workspace).toBe("/tmp");
 	});
 
 	it("transcript 事件只接受活动会话的结构更新", () => {

@@ -17,6 +17,8 @@ type ComposerInputProps = {
 	inputRef: RefObject<HTMLTextAreaElement | null>;
 	value: string;
 	placeholder: string;
+	/** 没选中 workspace 时关掉输入：聊天必须先有工作目录。 */
+	disabled: boolean;
 	palette: ComposerPaletteKeys | null;
 	onChange: (value: string) => void;
 	onSubmit: () => void;
@@ -28,6 +30,7 @@ export function ComposerInput({
 	inputRef,
 	value,
 	placeholder,
+	disabled,
 	palette,
 	onChange,
 	onSubmit,
@@ -100,6 +103,7 @@ export function ComposerInput({
 				value={value}
 				placeholder={placeholder}
 				aria-label={placeholder}
+				disabled={disabled}
 				spellCheck={false}
 				autoCorrect="off"
 				autoCapitalize="off"

@@ -13,9 +13,9 @@ export type WindowState = {
 	maximized: boolean;
 };
 
-const FILE_VERSION = 1;
+const FILE_VERSION = 2;
 const WRITE_DELAY_MS = 250;
-const RECENT_PROJECT_LIMIT = 10;
+const WORKSPACE_LIMIT = 20;
 const PINNED_LIMIT = 500;
 const MIN_FONT_SCALE = 0.85;
 const MAX_FONT_SCALE = 1.4;
@@ -32,7 +32,8 @@ export const DEFAULT_SETTINGS: DesktopSettings = {
 	showUsage: true,
 	sidebarWidth: 272,
 	sidebarCollapsed: false,
-	recentProjects: [],
+	workspaces: [],
+	activeWorkspace: null,
 	pinnedSessions: [],
 };
 
@@ -82,10 +83,17 @@ export class SettingsStore {
 		this.scheduleWrite();
 	}
 
-	/** 打开的目录进最近列表：去重、置顶、限长。 */
-	rememberProject(path: string): DesktopSettings {
-		const recent = [path, ...this.settings.recentProjects.filter((entry) => entry !== path)];
-		this.settings = normalizeSettings({ ...this.settings, recentProjects: recent });
+	/** 打开的目录进 workspace 列表：去重、按加入顺序，不改变当前选中项。 */
+	addWorkspace(path: string): DesktopSettings {
+		if (this.settings.workspaces.some((entry) => entry === path)) return this.settings;
+		this.settings = normalizeSettings({ ...this.settings, workspaces: [...this.settings.workspaces, path] });
+		this.scheduleWrite();
+		return this.settings;
+	}
+
+	/** 记住当前选中的 workspace；传 null 表示回到“未选择”状态。 */
+	setActiveWorkspace(path: string | null): DesktopSettings {
+		this.settings = normalizeSettings({ ...this.settings, activeWorkspace: path });
 		this.scheduleWrite();
 		return this.settings;
 	}
@@ -127,9 +135,17 @@ function readSettingsFile(file: string): { settings: DesktopSettings; window: Wi
 	}
 	if (!isRecord(raw)) return { settings: DEFAULT_SETTINGS, window: DEFAULT_WINDOW };
 	return {
-		settings: normalizeSettings({ ...DEFAULT_SETTINGS, ...asRecord(raw.settings) }),
+		settings: normalizeSettings({ ...DEFAULT_SETTINGS, ...migrateSettings(asRecord(raw.settings)) }),
 		window: normalizeWindow({ ...DEFAULT_WINDOW, ...asRecord(raw.window) }),
 	};
+}
+
+/** 旧版本只存最近打开过的目录；升级后它正好就是 workspace 列表的内容。 */
+function migrateSettings(raw: Record<string, unknown>): Record<string, unknown> {
+	if (raw.workspaces !== undefined) return raw;
+	const recent = raw.recentProjects;
+	if (!Array.isArray(recent)) return raw;
+	return { ...raw, workspaces: recent };
 }
 
 /** 逐字段收敛：类型不对就用默认值，数值夹到合法区间。 */
@@ -145,7 +161,9 @@ function normalizeSettings(input: DesktopSettings): DesktopSettings {
 			clamp(Number(input.sidebarWidth), MIN_SIDEBAR_WIDTH, MAX_SIDEBAR_WIDTH, DEFAULT_SETTINGS.sidebarWidth),
 		),
 		sidebarCollapsed: Boolean(input.sidebarCollapsed),
-		recentProjects: stringList(input.recentProjects, RECENT_PROJECT_LIMIT),
+		workspaces: stringList(input.workspaces, WORKSPACE_LIMIT),
+		activeWorkspace:
+			typeof input.activeWorkspace === "string" && input.activeWorkspace ? input.activeWorkspace : null,
 		pinnedSessions: stringList(input.pinnedSessions, PINNED_LIMIT),
 	};
 }

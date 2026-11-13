@@ -28,9 +28,10 @@ import type {
 	TranscriptItem,
 	UsageSummary,
 } from "../shared/contract.ts";
+import { folderName, samePath } from "../shared/paths.ts";
 import { flowIdOf, PI_ASK_COMPLETED, PI_ASK_STARTED, PI_ASK_SUBMIT, toAskRequest, toSubmitPayload } from "./ask.ts";
 import { idleSteps, type RunSteps, stepActivity, thinkingSteps, toolEnded, toolStarted } from "./run-activity.ts";
-import { deleteSessionFile, listSessionSummaries, renameSessionFile, toSessionSummary } from "./session-files.ts";
+import { deleteSessionFile, listSessionSummaries, renameSessionFile, sessionTimes } from "./session-files.ts";
 import type { SettingsStore } from "./settings.ts";
 import { itemIdAt, previewLine, toTranscriptItems } from "./transcript.ts";
 
@@ -51,6 +52,8 @@ export type HostDeps = {
 
 type LiveSession = {
 	id: string;
+	/** 会话所属的 workspace（项目目录）：切走的 workspace 仍然活在内存里，且列在自己的块里。 */
+	cwd: string;
 	agent: AgentSession;
 	manager: SessionManager;
 	status: AgentStatus;
@@ -70,7 +73,10 @@ type LiveSession = {
  */
 export class SessionHost {
 	private readonly deps: HostDeps;
-	private cwd: string;
+	/** 当前选中的 workspace；null 表示还没选，此时不能聊天。 */
+	private cwd: string | null;
+	/** 侧栏列出的 workspace（项目目录），顺序即加入顺序。 */
+	private workspaces: string[];
 	private readonly live = new Map<string, LiveSession>();
 	private summaries: SessionSummary[] = [];
 	private activeId: string | null = null;
@@ -82,14 +88,15 @@ export class SessionHost {
 	private readonly bus = createEventBus();
 	private pendingAsk: AskRequest | null = null;
 
-	constructor(cwd: string, deps: HostDeps) {
+	constructor(cwd: string | null, deps: HostDeps) {
 		this.cwd = cwd;
+		this.workspaces = deps.settings.get().workspaces;
 		this.deps = deps;
 		this.bus.on(PI_ASK_STARTED, (data) => this.onAskStarted(data));
 		this.bus.on(PI_ASK_COMPLETED, (data) => this.onAskCompleted(data));
 	}
 
-	getCwd(): string {
+	getWorkspace(): string | null {
 		return this.cwd;
 	}
 
@@ -100,12 +107,8 @@ export class SessionHost {
 		return {
 			platform: this.deps.platform,
 			theme: this.deps.theme(),
-			cwd: this.cwd,
-			recentProjects: settings.recentProjects.map((path) => ({
-				path,
-				name: path.split(/[\\/]/).filter(Boolean).pop() ?? path,
-				lastOpenedAt: 0,
-			})),
+			workspace: this.cwd,
+			workspaces: this.workspaces.map((path) => ({ path, name: folderName(path) })),
 			sessions: this.summaries,
 			activeSessionId: this.activeId,
 			transcript: active ? this.transcriptOf(active) : [],
@@ -114,11 +117,16 @@ export class SessionHost {
 		};
 	}
 
-	/** 首次装载：读会话目录，并恢复最近一个会话，让窗口一打开就是上次的位置。 */
+	/** 首次装载：读出 workspace 列表，选中上次那一个，并把它最近的会话打开。 */
 	async start(): Promise<void> {
+		const settings = this.deps.settings.get();
+		this.workspaces = settings.workspaces;
+		// 开发时用 PI_DESKTOP_CWD 直接指定；否则回到上次选中的 workspace。
+		const requested = this.cwd ?? settings.activeWorkspace;
+		if (requested !== null) this.focusWorkspace(requested);
 		await this.refreshSessions();
-		const recent = this.summaries[0];
-		if (recent?.path) await this.openById(recent.id, recent.path);
+		const recent = this.cwd === null ? undefined : this.newestIn(this.cwd);
+		if (recent?.path) await this.openById(recent.id);
 		this.flushNow();
 	}
 
@@ -127,13 +135,13 @@ export class SessionHost {
 			case "refreshSessions":
 				await this.refreshSessions();
 				return this.flushNow();
-			case "openProject": {
+			case "addWorkspace": {
 				const directory = await this.deps.pickDirectory();
-				if (directory) await this.setCwd(directory);
+				if (directory) await this.selectWorkspace(directory);
 				return;
 			}
-			case "openRecentProject":
-				await this.setCwd(command.path);
+			case "selectWorkspace":
+				await this.selectWorkspace(command.path);
 				return;
 			case "newSession":
 				await this.createSession();
@@ -190,23 +198,56 @@ export class SessionHost {
 		this.deps.emit({ type: "models", models: buildModelViews(this.activeSession()?.agent) });
 	}
 
-	/** 切换项目目录：旧目录的会话保留在内存里，侧栏换成新目录。 */
-	private async setCwd(cwd: string): Promise<void> {
-		if (cwd === this.cwd) return;
-		this.cwd = cwd;
+	/** 选中一个 workspace：登记进列表、设为当前，再把它的会话列出来。 */
+	private async selectWorkspace(path: string): Promise<void> {
+		this.registerWorkspace(path);
+		// 点已经在用的那一行不重置当前会话，只刷新列表。
+		if (this.cwd !== null && samePath(this.cwd, path, this.deps.platform)) return this.flushNow();
+		this.cwd = path;
 		this.activeId = null;
+		this.deps.settings.setActiveWorkspace(path);
 		await this.refreshSessions();
-		this.deps.settings.rememberProject(cwd);
-		if (this.summaries[0]?.path) await this.openById(this.summaries[0].id, this.summaries[0].path);
+		const recent = this.newestIn(path);
+		if (recent?.path) await this.openById(recent.id);
 		this.flushNow();
+	}
+
+	/** 目录进 workspace 列表（去重），并带回最新的列表。 */
+	private registerWorkspace(path: string): void {
+		const settings = this.deps.settings;
+		if (!settings.get().workspaces.some((entry) => samePath(entry, path, this.deps.platform))) {
+			settings.addWorkspace(path);
+		}
+		this.workspaces = settings.get().workspaces;
+	}
+
+	/** 把某个目录设为当前 workspace；只改选中项，不换会话。 */
+	private focusWorkspace(path: string): void {
+		this.registerWorkspace(path);
+		if (this.cwd !== null && samePath(this.cwd, path, this.deps.platform)) return;
+		this.cwd = path;
+		this.deps.settings.setActiveWorkspace(path);
+	}
+
+	/** 某个 workspace 最近活动的那条落盘会话；没有就 undefined。 */
+	private newestIn(workspace: string): SessionSummary | undefined {
+		return this.summaries.find(
+			(session) => session.path !== null && samePath(session.workspace, workspace, this.deps.platform),
+		);
 	}
 
 	private activeSession(): LiveSession | undefined {
 		return this.activeId ? this.live.get(this.activeId) : undefined;
 	}
 
-	private async createSession(): Promise<LiveSession> {
-		const live = await this.createLive(SessionManager.create(this.cwd));
+	/** 新建会话；没有选中 workspace 时只提示不动手——聊天必须先选 workspace。 */
+	private async createSession(): Promise<LiveSession | null> {
+		const workspace = this.cwd;
+		if (workspace === null) {
+			this.notify("info", "Select a workspace first.");
+			return null;
+		}
+		const live = await this.createLive(SessionManager.create(workspace), workspace);
 		this.activeId = live.id;
 		this.summaries = upsertSummary(this.summaries, this.summaryOf(live));
 		this.markState();
@@ -217,24 +258,30 @@ export class SessionHost {
 	private async openById(id: string, path?: string): Promise<void> {
 		const existing = this.live.get(id);
 		if (existing) {
+			this.focusWorkspace(existing.cwd);
 			this.activeId = existing.id;
 			existing.transcriptDirty = true;
 			this.markStructure();
 			this.markState();
 			return;
 		}
-		const target = path ?? this.summaries.find((session) => session.id === id)?.path;
+		const summary = this.summaries.find((session) => session.id === id);
+		const target = path ?? summary?.path;
 		if (!target) return;
-		const live = await this.createLive(SessionManager.open(target));
+		const workspace = summary?.workspace ?? this.cwd;
+		if (workspace === null) return;
+		// 打开别的 workspace 里的会话，顺手把那个 workspace 设为当前：后续提问落在正确的项目里。
+		this.focusWorkspace(workspace);
+		const live = await this.createLive(SessionManager.open(target), workspace);
 		this.activeId = live.id;
 		this.markStructure();
 		this.markState();
 	}
 
-	private async createLive(manager: SessionManager): Promise<LiveSession> {
+	private async createLive(manager: SessionManager, workspace: string): Promise<LiveSession> {
 		// 总线由宿主创建并交给扩展：pi-ask 的 started/submit 两个方向都落在同一个通道上。
 		const services = await createAgentSessionServices({
-			cwd: this.cwd,
+			cwd: workspace,
 			resourceLoaderOptions: { eventBus: this.bus },
 		});
 		const { session, modelFallbackMessage } = await createAgentSessionFromServices({
@@ -246,6 +293,7 @@ export class SessionHost {
 		if (modelFallbackMessage) this.notify("warning", modelFallbackMessage);
 		const live: LiveSession = {
 			id: session.sessionId,
+			cwd: manager.getCwd(),
 			agent: session,
 			manager,
 			status: "idle",
@@ -268,6 +316,7 @@ export class SessionHost {
 		const trimmed = [text.trim(), formatAttachedFiles(files)].filter(Boolean).join("\n\n");
 		if (!trimmed) return;
 		const live = this.activeSession() ?? (await this.createSession());
+		if (!live) return;
 		const payload = images.map(toImageContent);
 		try {
 			if (live.agent.isStreaming) {
@@ -405,19 +454,24 @@ export class SessionHost {
 		}
 	}
 
-	/** 目录下的会话 + 内存里还没落盘的会话，按最近修改排序。 */
+	/** 每个 workspace 的磁盘会话 + 内存里还没落盘的会话，按最近修改排序。 */
 	private async refreshSessions(): Promise<void> {
 		const pinned = new Set(this.deps.settings.get().pinnedSessions);
-		let disk: SessionSummary[] = [];
-		try {
-			disk = await listSessionSummaries(this.cwd, pinned);
-		} catch (error) {
-			this.notify("error", `Failed to list sessions: ${messageOf(error)}`);
-		}
-		const merged = new Map(disk.map((session) => [session.id, session]));
+		const listed = await Promise.all(
+			this.workspaces.map(async (workspace) => {
+				try {
+					return await listSessionSummaries(workspace, pinned);
+				} catch (error) {
+					this.notify("error", `Failed to list sessions in ${workspace}: ${messageOf(error)}`);
+					return [];
+				}
+			}),
+		);
+		const merged = new Map(listed.flat().map((session) => [session.id, session]));
 		for (const live of this.live.values()) {
-			const base = merged.get(live.id);
-			merged.set(live.id, this.summaryOf(live, base));
+			// 活会话列在它自己的 workspace 下；不在列表里的目录不出现。
+			if (!this.workspaces.some((workspace) => samePath(workspace, live.cwd, this.deps.platform))) continue;
+			merged.set(live.id, this.summaryOf(live, merged.get(live.id)));
 		}
 		this.summaries = [...merged.values()].sort(compareSessions);
 		this.markState();
@@ -439,12 +493,14 @@ export class SessionHost {
 				.reverse()
 				.map((message) => textOf(message))
 				.find((text) => text.length > 0) ?? "";
+		const times = sessionTimes(messages, Date.now());
 		return {
 			id: live.id,
 			path: live.agent.sessionFile ?? null,
+			workspace: live.cwd,
 			title: live.manager.getSessionName()?.trim() || titleOf(messages) || UNTITLED,
-			createdAt: Date.now(),
-			updatedAt: Date.now(),
+			createdAt: times.createdAt,
+			updatedAt: times.updatedAt,
 			messageCount: messages.length,
 			pinned: this.deps.settings.get().pinnedSessions.includes(live.id),
 			status: live.status,
@@ -741,5 +797,3 @@ export function buildModelViews(agent: AgentSession | undefined): ModelView[] {
 		}))
 		.sort((a, b) => a.provider.localeCompare(b.provider) || a.name.localeCompare(b.name));
 }
-
-export { toSessionSummary };

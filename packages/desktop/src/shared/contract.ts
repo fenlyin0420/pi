@@ -17,7 +17,10 @@ export type DesktopSettings = {
 	showUsage: boolean;
 	sidebarWidth: number;
 	sidebarCollapsed: boolean;
-	recentProjects: string[];
+	/** 侧栏里列出的 workspace（项目目录），按加入顺序。 */
+	workspaces: string[];
+	/** 当前选中的 workspace；null 表示还没选，此时不能聊天。 */
+	activeWorkspace: string | null;
 	pinnedSessions: string[];
 };
 
@@ -25,6 +28,8 @@ export type DesktopSettings = {
 export type SessionSummary = {
 	id: string;
 	path: string | null;
+	/** 会话属于哪个 workspace（项目目录）；侧栏按它分块。 */
+	workspace: string;
 	title: string;
 	createdAt: number;
 	updatedAt: number;
@@ -36,10 +41,10 @@ export type SessionSummary = {
 	preview: string;
 };
 
-export type ProjectSummary = {
+/** 侧栏里的一个 workspace：一个项目目录，名字取末段目录名。 */
+export type WorkspaceSummary = {
 	path: string;
 	name: string;
-	lastOpenedAt: number;
 };
 
 export type UsageSummary = {
@@ -136,8 +141,9 @@ export type ModelView = {
 export type DesktopState = {
 	platform: Platform;
 	theme: ResolvedTheme;
-	cwd: string;
-	recentProjects: ProjectSummary[];
+	/** 当前选中的 workspace；null 表示还没选，此时不能聊天。 */
+	workspace: string | null;
+	workspaces: WorkspaceSummary[];
 	sessions: SessionSummary[];
 	activeSessionId: string | null;
 	transcript: TranscriptItem[];
@@ -147,8 +153,8 @@ export type DesktopState = {
 
 export type DesktopCommand =
 	| { type: "refreshSessions" }
-	| { type: "openProject" }
-	| { type: "openRecentProject"; path: string }
+	| { type: "addWorkspace" }
+	| { type: "selectWorkspace"; path: string }
 	| { type: "newSession" }
 	| { type: "openSession"; id: string }
 	| { type: "prompt"; text: string; attachments?: readonly PromptAttachment[] }
@@ -214,7 +220,7 @@ export type AskAnswer = {
 	note?: string;
 };
 
-export type MenuAction = "newSession" | "openProject" | "settings" | "search" | "toggleSidebar" | "closeSession";
+export type MenuAction = "newSession" | "addWorkspace" | "settings" | "search" | "toggleSidebar" | "closeSession";
 
 export type DesktopEvent =
 	/** 全量快照：初始化、切换会话、会话列表、设置或状态变化。 */
