@@ -43,6 +43,15 @@
   white-space: nowrap;
 }
 
+/*
+  Pinned-row marker. It is a flex item with a definite 11px width, so a title
+  long enough to overflow would otherwise shrink it to a sliver: keep its box
+  and let the title absorb the missing width.
+*/
+.thread-item-pin {
+  flex: 0 0 auto;
+}
+
 .thread-item:hover,
 .thread-item.active,
 .project-group > .sidebar-session-group-header:hover {
