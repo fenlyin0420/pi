@@ -5,11 +5,13 @@ import type { DesktopSettings, MenuAction } from "../shared/contract.ts";
 import { AskDialog } from "./components/AskDialog.tsx";
 import { CommandPalette, type PaletteAction } from "./components/CommandPalette.tsx";
 import { Composer } from "./components/composer/Composer.tsx";
+import { DiffPanel } from "./components/diff/DiffPanel.tsx";
 import { SettingsPage } from "./components/settings/SettingsPage.tsx";
 import { Sidebar } from "./components/sidebar/Sidebar.tsx";
 import { Titlebar } from "./components/Titlebar.tsx";
 import { ToastHost } from "./components/ToastHost.tsx";
 import { Transcript } from "./components/transcript/Transcript.tsx";
+import type { TurnFileChange } from "./lib/turn-changes.ts";
 import { useDesktop } from "./store.ts";
 import { ThemeContext } from "./ui.tsx";
 
@@ -19,6 +21,12 @@ export function App() {
 	const desktop = state.desktop;
 	const [settingsOpen, setSettingsOpen] = useState(false);
 	const [paletteOpen, setPaletteOpen] = useState(false);
+	/** 右栏打开的 diff：点轮末卡片时把那一轮的文件和选中的文件一起放进来。 */
+	const [diff, setDiff] = useState<{
+		sessionId: string | null;
+		files: readonly TurnFileChange[];
+		path: string;
+	} | null>(null);
 
 	const theme = desktop?.theme ?? "dark";
 	const settings = desktop?.settings;
@@ -76,7 +84,10 @@ export function App() {
 		const onKey = (event: KeyboardEvent) => {
 			const meta = event.metaKey || event.ctrlKey;
 			if (!meta) {
-				if (event.key === "Escape") setPaletteOpen(false);
+				if (event.key === "Escape") {
+					setPaletteOpen(false);
+					setDiff(null);
+				}
 				return;
 			}
 			switch (event.key.toLowerCase()) {
@@ -111,6 +122,10 @@ export function App() {
 	const activeSession = desktop?.sessions.find((session) => session.id === desktop.activeSessionId) ?? null;
 	const collapsed = settings?.sidebarCollapsed ?? false;
 	const running = desktop?.agent.status === "running";
+
+	// 换会话就把右栏收起来：面板里的文件和路径都属于上一个会话。
+	const activeSessionId = desktop?.activeSessionId ?? null;
+	const shownDiff = diff !== null && diff.sessionId === activeSessionId ? diff : null;
 
 	return (
 		<ThemeContext.Provider value={theme}>
@@ -162,35 +177,54 @@ export function App() {
 								onSearch={() => setPaletteOpen(true)}
 								onOpenSettings={() => setSettingsOpen(true)}
 							/>
-							<Transcript
-								items={desktop.transcript}
-								sessionId={desktop.activeSessionId}
-								workspace={desktop.workspace}
-								onAddWorkspace={() => send({ type: "addWorkspace" })}
-								status={desktop.agent.status}
-								activity={desktop.agent.activity}
-								showThinking={settings.showThinking}
-								showUsage={settings.showUsage}
-								showToolDetails={settings.showToolDetails}
-								onOpenExternal={(url) => send({ type: "openExternal", url })}
-								onPrompt={(text) => send({ type: "prompt", text })}
-							/>
-							<Composer
-								sessionId={desktop.activeSessionId}
-								workspace={desktop.workspace}
-								agent={desktop.agent}
-								models={state.models}
-								thinking={settings.showThinking}
-								attach={window.piDesktop}
-								onSend={(text, attachments) => send({ type: "prompt", text, attachments })}
-								onSteer={(text) => send({ type: "steer", text })}
-								onAbort={() => send({ type: "abort" })}
-								onSetModel={(model) => send({ type: "setModel", model })}
-								onSetThinkingLevel={(level) => send({ type: "setThinkingLevel", level })}
-								onRequestModels={() => send({ type: "listModels" })}
-								onOpenSettings={() => setSettingsOpen(true)}
-								onNewSession={() => send({ type: "newSession" })}
-							/>
+							<div className="main-body">
+								<div className="main-column">
+									<Transcript
+										items={desktop.transcript}
+										sessionId={desktop.activeSessionId}
+										workspace={desktop.workspace}
+										onAddWorkspace={() => send({ type: "addWorkspace" })}
+										status={desktop.agent.status}
+										activity={desktop.agent.activity}
+										queued={desktop.agent.queued.steering}
+										onWithdraw={() => send({ type: "withdrawQueue" })}
+										showThinking={settings.showThinking}
+										showUsage={settings.showUsage}
+										showToolDetails={settings.showToolDetails}
+										onOpenExternal={(url) => send({ type: "openExternal", url })}
+										onOpenChanges={(files, path) => setDiff({ sessionId: activeSessionId, files, path })}
+										onPrompt={(text) => send({ type: "prompt", text })}
+									/>
+									<Composer
+										sessionId={desktop.activeSessionId}
+										workspace={desktop.workspace}
+										agent={desktop.agent}
+										models={state.models}
+										thinking={settings.showThinking}
+										sessionRestore={state.draftRestore}
+										onWithdrawQueue={() => send({ type: "withdrawQueue" })}
+										attach={window.piDesktop}
+										onSend={(text, attachments) => send({ type: "prompt", text, attachments })}
+										onSteer={(text) => send({ type: "steer", text })}
+										onAbort={() => send({ type: "abort" })}
+										onSetModel={(model) => send({ type: "setModel", model })}
+										onSetThinkingLevel={(level) => send({ type: "setThinkingLevel", level })}
+										onRequestModels={() => send({ type: "listModels" })}
+										onOpenSettings={() => setSettingsOpen(true)}
+										onNewSession={() => send({ type: "newSession" })}
+									/>
+								</div>
+								{shownDiff !== null ? (
+									<DiffPanel
+										files={shownDiff.files}
+										selected={shownDiff.path}
+										width={settings.diffPanelWidth}
+										onSelect={(path) => setDiff({ ...shownDiff, path })}
+										onResize={(width) => updateSettings({ diffPanelWidth: width })}
+										onClose={() => setDiff(null)}
+									/>
+								) : null}
+							</div>
 						</div>
 					</>
 				) : (

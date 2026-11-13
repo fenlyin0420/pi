@@ -54,6 +54,7 @@ describe("toTranscriptItems", () => {
 			timestamp: 1,
 			imageCount: 1,
 			files: [],
+			messageIndex: 0,
 		});
 	});
 
@@ -146,6 +147,7 @@ describe("toTranscriptItems", () => {
 			path: "src/a.ts",
 			before: "const a = 1;",
 			after: "const a = 2;",
+			truncated: false,
 		});
 
 		const write = toTranscriptItems(

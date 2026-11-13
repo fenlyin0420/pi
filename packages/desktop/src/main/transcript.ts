@@ -2,12 +2,13 @@
 
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { splitAttachedFiles } from "../shared/attached-files.ts";
-import type { AssistantPart, ToolCallView, TranscriptItem, TurnUsage } from "../shared/contract.ts";
+import type { AssistantPart, ToolCallView, ToolDiffView, TranscriptItem, TurnUsage } from "../shared/contract.ts";
 
 const SUMMARY_LIMIT = 140;
 const ARGS_LIMIT = 6_000;
 const RESULT_LIMIT = 24_000;
-const DIFF_LIMIT = 6_000;
+/** 单次改文件的前/后文本上限：轮末卡片和右栏 diff 都从这份文本算，太小会把大文件写成空动作。 */
+const DIFF_LIMIT = 24_000;
 const PREVIEW_LIMIT = 200;
 
 /** 只读结构里用到的块字段；未识别的块类型由 type 过滤掉。 */
@@ -53,6 +54,7 @@ export function toTranscriptItems(messages: readonly AgentMessage[], options: Tr
 					timestamp: message.timestamp,
 					imageCount: images,
 					files,
+					messageIndex: index,
 				});
 				break;
 			}
@@ -211,11 +213,13 @@ function formatArguments(name: string, args: Record<string, unknown>): string {
 }
 
 /** edit/write 的行内 diff 数据来源；其他工具不产生 diff。 */
-function toolDiff(name: string, args: Record<string, unknown>): { path: string; before: string; after: string } | null {
+function toolDiff(name: string, args: Record<string, unknown>): ToolDiffView | null {
 	const path = typeof args.path === "string" ? args.path : "";
 	if (!path) return null;
 	if (name === "write" && typeof args.content === "string") {
-		return { path, before: "", after: truncate(args.content, DIFF_LIMIT) };
+		// write 只带新文：读旧文件的是工具自己，映射层不去碰磁盘，所以旧文按空算（新文件就是全部新增）
+		const after = clip(args.content);
+		return { path, before: "", after: after.text, truncated: after.cut };
 	}
 	if (name !== "edit") return null;
 	const edits = Array.isArray(args.edits) ? args.edits : [];
@@ -228,11 +232,14 @@ function toolDiff(name: string, args: Record<string, unknown>): { path: string; 
 		if (oldText !== null && newText !== null) normalized.push({ oldText, newText });
 	}
 	if (normalized.length === 0) return null;
-	return {
-		path,
-		before: truncate(normalized.map((edit) => edit.oldText).join("\n…\n"), DIFF_LIMIT),
-		after: truncate(normalized.map((edit) => edit.newText).join("\n…\n"), DIFF_LIMIT),
-	};
+	const before = clip(normalized.map((edit) => edit.oldText).join("\n…\n"));
+	const after = clip(normalized.map((edit) => edit.newText).join("\n…\n"));
+	return { path, before: before.text, after: after.text, truncated: before.cut || after.cut };
+}
+
+/** 截到 diff 上限，并报出是否截过：界面据此说明“看到的只是开头一段”。 */
+function clip(text: string): { text: string; cut: boolean } {
+	return text.length > DIFF_LIMIT ? { text: `${text.slice(0, DIFF_LIMIT)}…`, cut: true } : { text, cut: false };
 }
 
 function isReplaceEdit(value: unknown): value is { oldText: string; newText: string } {

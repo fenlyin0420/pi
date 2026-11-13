@@ -32,6 +32,47 @@
   min-height: 0;
 }
 
+/*
+  The pane keeps its titlebar across the full width and splits the rest into
+  chat column + optional diff panel from the turn's changed-files card. Before
+  the panel there is no split element at all: the transcript and the composer
+  are the pane's own children, so both live in a row wrapper now and the
+  panel takes its width on the right without shrinking the chat below its
+  floor.
+*/
+.main-body {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.main-column {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+}
+
+/*
+  The panel's width is a setting (--ds-diff-width, written by DiffPanel's drag
+  handle); the clamp happens in the renderer, not here, so the stored value and
+  what is painted cannot disagree.
+*/
+.main-body > .diff-panel {
+  flex: 0 0 var(--ds-diff-width, 480px);
+}
+
+/*
+  chat-shell.css gives the chat surface a 450px floor because it used to own the
+  whole pane. Beside the diff panel that floor plus the panel's 320px no longer
+  fit a narrow window, so the column takes the loss instead of overflowing.
+*/
+.main-column > .chat-surface {
+  min-width: 0;
+}
+
 /* Boot placeholder: the shell is painted but there is no desktop state yet. */
 .app-loading {
   display: flex;
@@ -624,7 +665,8 @@
   padding-right: 0;
 }
 
-.main-pane > .composer-dock {
+.main-pane > .composer-dock,
+.main-column > .composer-dock {
   position: relative;
   inset: auto;
   flex: 0 0 auto;

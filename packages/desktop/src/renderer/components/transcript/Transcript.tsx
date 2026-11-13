@@ -3,11 +3,14 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { AgentStatus, RunActivity, TranscriptItem } from "../../../shared/contract.ts";
 import { oneLine } from "../../lib/format.ts";
+import { pendingLines } from "../../lib/pending.ts";
+import type { TurnFileChange } from "../../lib/turn-changes.ts";
 import { groupTranscript } from "../../lib/turn-entries.ts";
 import { cx } from "../../ui.tsx";
 import { AssistantTurn } from "./AssistantTurn.tsx";
 import { type MessageMark, MessageRail } from "./MessageRail.tsx";
 import { MessageRow } from "./MessageRow.tsx";
+import { PendingRow } from "./PendingRow.tsx";
 import { RunStatus } from "./RunStatus.tsx";
 import { ScrollToBottom } from "./ScrollToBottom.tsx";
 import { useStepPhrase } from "./use-step-phrase.ts";
@@ -21,10 +24,14 @@ type TranscriptProps = {
 	status: AgentStatus;
 	/** 运行中的当前步骤；状态行挂在对话尾部。 */
 	activity: RunActivity | null;
+	/** 已提交、还没被模型取走的插话正文；贴在对话尾部。 */
+	queued: readonly string[];
+	onWithdraw: () => void;
 	showThinking: boolean;
 	showUsage: boolean;
 	showToolDetails: boolean;
 	onOpenExternal: (url: string) => void;
+	onOpenChanges: (changes: readonly TurnFileChange[], path: string) => void;
 	onPrompt: (text: string) => void;
 };
 
@@ -44,10 +51,13 @@ export function Transcript({
 	onAddWorkspace,
 	status,
 	activity,
+	queued,
+	onWithdraw,
 	showThinking,
 	showUsage,
 	showToolDetails,
 	onOpenExternal,
+	onOpenChanges,
 	onPrompt,
 }: TranscriptProps) {
 	const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -78,6 +88,9 @@ export function Transcript({
 
 	// 一次提问会来回好几个 loop，它们是同一轮：并成一块才能在收起时只占一行。
 	const blocks = useMemo(() => groupTranscript(items), [items]);
+
+	// 队列里的原始文本 → 一行行气泡；附件块在这里剥掉。
+	const pending = useMemo(() => pendingLines(queued), [queued]);
 
 	// 这一轮到底还在不在跑：status 在两次 run 之间会翻回 idle（自动重试、排队消息、压缩后继续都还没结束），
 	// 只有 agent_settled 才真结束、那时步骤才清空——所以“活动还在”比 status 更接近整轮的生命周期。
@@ -122,14 +135,14 @@ export function Transcript({
 		const node = scrollRef.current;
 		// items 让这个效果跟着新记录和增量重跑；step 代表“当前这一步变了”，
 		// 让状态行的出现、换步和消失也把视图带到新高度。
-		if (!node || (items.length === 0 && step === null)) return;
+		if (!node || (items.length === 0 && step === null && pending.length === 0)) return;
 		if (!following.current) {
 			// 读者停在上文时只提个醒，绝不抢走正在看的位置。
 			setShowJump(true);
 			return;
 		}
 		node.scrollTop = node.scrollHeight;
-	}, [items, step]);
+	}, [items, step, pending.length]);
 
 	// 切换会话直接落到底部：上个会话的滚动位置和暂停状态都不带过来。
 	useLayoutEffect(() => {
@@ -201,8 +214,8 @@ export function Transcript({
 					onScroll={handleScroll}
 					onWheel={handleWheel}
 				>
-					<div className={cx("transcript-content", items.length === 0 && "is-empty")}>
-						{items.length === 0 ? (
+					<div className={cx("transcript-content", items.length === 0 && pending.length === 0 && "is-empty")}>
+						{items.length === 0 && pending.length === 0 ? (
 							<EmptyConversation workspace={workspace} onAddWorkspace={onAddWorkspace} onPrompt={prompt} />
 						) : (
 							blocks.map((block) =>
@@ -215,12 +228,14 @@ export function Transcript({
 										showUsage={showUsage}
 										showToolDetails={showToolDetails}
 										onOpenExternal={openExternal}
+										onOpenChanges={onOpenChanges}
 									/>
 								) : (
-									<MessageRow key={block.key} item={block.item} />
+									<MessageRow key={block.key} item={block.item} sessionId={sessionId} />
 								),
 							)
 						)}
+						<PendingRow lines={pending} onWithdraw={onWithdraw} />
 						{activity !== null ? <RunStatus /> : null}
 					</div>
 				</div>

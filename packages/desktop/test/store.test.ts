@@ -14,6 +14,7 @@ const SESSION: SessionSummary = {
 	messageCount: 2,
 	pinned: false,
 	status: "idle",
+	unread: false,
 	model: null,
 	preview: "",
 };
@@ -46,6 +47,7 @@ function state(): DesktopState {
 			status: "running",
 			activity: null,
 			usage: null,
+			queued: { steering: [], followUp: [] },
 		},
 		settings: {
 			theme: "dark",
@@ -56,6 +58,7 @@ function state(): DesktopState {
 			showUsage: true,
 			sidebarWidth: 272,
 			sidebarCollapsed: false,
+			diffPanelWidth: 480,
 			workspaces: ["/tmp"],
 			activeWorkspace: "/tmp",
 			pinnedSessions: [],
@@ -136,5 +139,23 @@ describe("reduceEvent", () => {
 		const second = reduceEvent(first, { type: "menu", action: "settings" });
 		expect(second.menu?.action).toBe("settings");
 		expect(second.menu?.seq).toBe((first.menu?.seq ?? 0) + 1);
+	});
+
+	it("draftRestore 用递增的 seq 标记同一条文字的重复撒回", () => {
+		const first = reduceEvent(INITIAL_STATE, { type: "draftRestore", sessionId: "s1", text: "改一下" });
+		const second = reduceEvent(first, { type: "draftRestore", sessionId: "s1", text: "改一下" });
+		expect(second.draftRestore?.text).toBe("改一下");
+		expect(second.draftRestore?.seq).toBe((first.draftRestore?.seq ?? 0) + 1);
+	});
+
+	it("队列随 state 快照到达，不在 transcript 里", () => {
+		const snapshot = state();
+		const queued = { steering: ["先别改 schema"], followUp: ["写完补测试"] };
+		const next = reduceEvent(INITIAL_STATE, {
+			type: "state",
+			state: { ...snapshot, agent: { ...snapshot.agent, queued } },
+		});
+		expect(next.desktop?.agent.queued).toEqual(queued);
+		expect(next.desktop?.transcript).toEqual(snapshot.transcript);
 	});
 });

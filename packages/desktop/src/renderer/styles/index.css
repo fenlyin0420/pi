@@ -22,5 +22,7 @@
 @import "./app.css";
 @import "./sidebar-extra.css";
 @import "./transcript-extra.css";
+@import "./changes.css";
 @import "./composer-extra.css";
+@import "./message-files.css";
 @import "./settings.css";

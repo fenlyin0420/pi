@@ -4,10 +4,12 @@ import { useMemo } from "react";
 import type { TranscriptItem } from "../../../shared/contract.ts";
 import { IconZap } from "../../icons.tsx";
 import { formatClock } from "../../lib/format.ts";
+import { type TurnFileChange, turnChanges } from "../../lib/turn-changes.ts";
 import { layoutTurn } from "../../lib/turn-entries.ts";
 import { cx } from "../../ui.tsx";
 import { Markdown } from "../Markdown.tsx";
 import { TurnActivity } from "./TurnActivity.tsx";
+import { TurnChangesCard } from "./TurnChangesCard.tsx";
 import { TurnMeta } from "./TurnMeta.tsx";
 
 type AssistantTurnProps = {
@@ -19,6 +21,8 @@ type AssistantTurnProps = {
 	showUsage: boolean;
 	showToolDetails: boolean;
 	onOpenExternal: (url: string) => void;
+	/** 点轮末的已编辑文件卡片：右栏打开这一轮的文件，定位到 path。 */
+	onOpenChanges: (changes: readonly TurnFileChange[], path: string) => void;
 };
 
 /**
@@ -32,8 +36,11 @@ export function AssistantTurn({
 	showUsage,
 	showToolDetails,
 	onOpenExternal,
+	onOpenChanges,
 }: AssistantTurnProps) {
 	const entries = useMemo(() => layoutTurn(items, showThinking), [items, showThinking]);
+	// 这一轮改过哪些文件：轮末卡片的全部内容，跑的过程中不算（卡片只在结束后出现）。
+	const changes = useMemo(() => turnChanges(items), [items]);
 	// 正文还在流式才亮光标：中途跑工具时没有流式正文，光标得减。
 	const streaming = items.some((item) => item.streaming);
 	const last = items.at(-1);
@@ -76,6 +83,7 @@ export function AssistantTurn({
 				*/}
 				{live ? null : (
 					<>
+						{changes.length > 0 ? <TurnChangesCard changes={changes} onOpen={onOpenChanges} /> : null}
 						{showUsage ? <TurnMeta usage={last?.usage ?? null} model={last?.model ?? null} /> : null}
 						<div className="message-actions">
 							<span className="message-timestamp">{last ? formatClock(last.timestamp) : ""}</span>

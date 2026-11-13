@@ -21,6 +21,8 @@ const MIN_FONT_SCALE = 0.85;
 const MAX_FONT_SCALE = 1.4;
 const MIN_SIDEBAR_WIDTH = 200;
 const MAX_SIDEBAR_WIDTH = 560;
+const MIN_DIFF_WIDTH = 320;
+const MAX_DIFF_WIDTH = 900;
 
 /** 默认值即产品默认：深色跟随系统、正文 1.0 字号、会话栏展开。 */
 export const DEFAULT_SETTINGS: DesktopSettings = {
@@ -32,6 +34,7 @@ export const DEFAULT_SETTINGS: DesktopSettings = {
 	showUsage: true,
 	sidebarWidth: 272,
 	sidebarCollapsed: false,
+	diffPanelWidth: 480,
 	workspaces: [],
 	activeWorkspace: null,
 	pinnedSessions: [],
@@ -161,6 +164,9 @@ function normalizeSettings(input: DesktopSettings): DesktopSettings {
 			clamp(Number(input.sidebarWidth), MIN_SIDEBAR_WIDTH, MAX_SIDEBAR_WIDTH, DEFAULT_SETTINGS.sidebarWidth),
 		),
 		sidebarCollapsed: Boolean(input.sidebarCollapsed),
+		diffPanelWidth: Math.round(
+			clamp(Number(input.diffPanelWidth), MIN_DIFF_WIDTH, MAX_DIFF_WIDTH, DEFAULT_SETTINGS.diffPanelWidth),
+		),
 		workspaces: stringList(input.workspaces, WORKSPACE_LIMIT),
 		activeWorkspace:
 			typeof input.activeWorkspace === "string" && input.activeWorkspace ? input.activeWorkspace : null,

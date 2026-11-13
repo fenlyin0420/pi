@@ -17,6 +17,8 @@ export type DesktopSettings = {
 	showUsage: boolean;
 	sidebarWidth: number;
 	sidebarCollapsed: boolean;
+	/** 右侧 diff 面板宽度；面板没打开时也记着，下次打开用同一个宽度。 */
+	diffPanelWidth: number;
 	/** 侧栏里列出的 workspace（项目目录），按加入顺序。 */
 	workspaces: string[];
 	/** 当前选中的 workspace；null 表示还没选，此时不能聊天。 */
@@ -36,6 +38,8 @@ export type SessionSummary = {
 	messageCount: number;
 	pinned: boolean;
 	status: AgentStatus;
+	/** 切走之后它又跑出了新内容：侧栏行上画一个圆点，切回去看过就清掉。 */
+	unread: boolean;
 	model: string | null;
 	/** 最近一条消息的单行摘要，列表悬停和搜索结果里用。 */
 	preview: string;
@@ -66,6 +70,15 @@ export type TurnUsage = {
 	durationMs: number | null;
 };
 
+/** 一次改文件调用的前后文本：行内 diff、整轮的已编辑文件卡片和右栏面板共用。 */
+export type ToolDiffView = {
+	path: string;
+	before: string;
+	after: string;
+	/** 原文或新文超过 diff 上限：只保留了开头那一段。 */
+	truncated: boolean;
+};
+
 /** 工具调用在界面上的两种粗粒度载荷：一行摘要和展开后的正文。 */
 export type ToolCallView = {
 	id: string;
@@ -76,7 +89,8 @@ export type ToolCallView = {
 	/** 展开后的参数与结果正文，按工具类型生成。 */
 	argsText: string;
 	resultText: string;
-	diff: { path: string; before: string; after: string } | null;
+	/** 改文件类工具的原文/新文；truncated 表示任一侧被 diff 上限截过。 */
+	diff: ToolDiffView | null;
 	durationMs: number | null;
 };
 
@@ -94,6 +108,8 @@ export type TranscriptItem =
 			imageCount: number;
 			/** 这一轮带上的文件路径；正文里的附件块在映射时已经剥掉。 */
 			files: string[];
+			/** 这条消息在会话里的下标；内置查看器按它取图片块。 */
+			messageIndex: number;
 	  }
 	| {
 			kind: "assistant";
@@ -106,6 +122,15 @@ export type TranscriptItem =
 			error: string | null;
 	  }
 	| { kind: "notice"; id: string; level: "info" | "warning" | "error"; text: string; timestamp: number };
+
+/**
+ * 已提交、模型还没取走的用户消息。两组按送达边界分开：steering 在下一个 step 边界送达，
+ * followUp 等这一轮结束。正文是原始文本，附件块由界面自己剥（见 renderer/lib/pending.ts）。
+ */
+export type QueuedMessages = {
+	steering: readonly string[];
+	followUp: readonly string[];
+};
 
 /** 当前这一步在做的事；startedAt 是这一步自己的起点，换一步就换一个值。 */
 export type RunActivity = {
@@ -124,6 +149,8 @@ export type AgentView = {
 	/** 运行中的当前步骤；空闲时为 null。 */
 	activity: RunActivity | null;
 	usage: UsageSummary | null;
+	/** 已排队、还没送达模型的消息；空闲时也可能有（abort 之后留着等下一轮）。 */
+	queued: QueuedMessages;
 };
 
 export type ModelView = {
@@ -159,6 +186,8 @@ export type DesktopCommand =
 	| { type: "openSession"; id: string }
 	| { type: "prompt"; text: string; attachments?: readonly PromptAttachment[] }
 	| { type: "steer"; text: string }
+	/** 撤回全部排队消息，文字由 main 用 draftRestore 交回输入框。 */
+	| { type: "withdrawQueue" }
 	| { type: "abort" }
 	| { type: "renameSession"; id: string; title: string }
 	| { type: "deleteSession"; id: string }
@@ -172,6 +201,8 @@ export type DesktopCommand =
 	/** 回答一次 ask_user；flowId 取自收到的 ask 事件。 */
 	| { type: "askAnswer"; flowId: string; answers: Record<string, AskAnswer>; note?: string }
 	| { type: "openExternal"; url: string }
+	/** 用系统默认程序打开一个文件。 */
+	| { type: "openPath"; path: string }
 	| { type: "revealPath"; path: string };
 
 /**
@@ -185,6 +216,18 @@ export type PromptAttachment =
 
 /** 一次提示最多带几个附件；选择器、拖入和托盘共用这一个上限。 */
 export const MAX_ATTACHMENTS = 8;
+
+/**
+ * 内置图片查看器显示一张图需要的数据：data URL 自带媒介类型。
+ * path 是图片在磁盘上的位置：粘贴进来的图片没有文件依赖它，此时为 null，没有“用外部程序打开”可做。
+ */
+export type ImageView = { path: string | null; name: string; dataUrl: string };
+
+/**
+ * 点开用户消息里一个附件的结果：图片给内置查看器，其余已经交给系统默认程序。
+ * failed 表示系统也打不开，原因已经用 toast 报过了。
+ */
+export type FileOpenResult = { kind: "image"; image: ImageView } | { kind: "external" } | { kind: "failed" };
 
 /** pi-ask 的一道题里可选的答案。 */
 export type AskOptionView = {
@@ -238,7 +281,9 @@ export type DesktopEvent =
 	/** pi-ask 开始提问；同一时刻最多一个。 */
 	| { type: "ask"; request: AskRequest }
 	/** 提问已经结束（提交、取消或超时），界面上那一张应当收起。 */
-	| { type: "askClosed"; flowId: string };
+	| { type: "askClosed"; flowId: string }
+	/** 撤回的队列消息回到输入框；草稿在 renderer 的 localStorage 里，所以只能这样送回来。 */
+	| { type: "draftRestore"; sessionId: string; text: string };
 
 export type DesktopBridge = {
 	getState(): Promise<DesktopState>;
@@ -247,10 +292,16 @@ export type DesktopBridge = {
 	attachFiles(paths?: readonly string[]): Promise<PromptAttachment[]>;
 	/** 拖进窗口的文件在磁盘上的位置；渲染进程自己拿不到 File.path。 */
 	pathForFile(file: File): string;
+	/** 点开用户消息里的一个附件：图片回给内置查看器，其余由 main 交给系统默认程序。 */
+	openAttachment(path: string): Promise<FileOpenResult>;
+	/** 取会话里某条用户消息的第 n 张图片（粘贴进来的图没有磁盘路径，只能从消息里读）。 */
+	readMessageImage(sessionId: string, messageIndex: number, imageIndex: number): Promise<ImageView | null>;
 	onEvent(listener: (event: DesktopEvent) => void): () => void;
 };
 
 export const IPC_GET_STATE = "pi-desktop:get-state";
 export const IPC_ATTACH_FILES = "pi-desktop:attach-files";
+export const IPC_OPEN_ATTACHMENT = "pi-desktop:open-attachment";
+export const IPC_MESSAGE_IMAGE = "pi-desktop:message-image";
 export const IPC_COMMAND = "pi-desktop:command";
 export const IPC_EVENT = "pi-desktop:event";
