@@ -1,0 +1,35 @@
+---
+# 打包配置：把 out/ 与运行时依赖收进 Windows 安装包，产物在 release/。
+
+# 安装后 exe 名为 pi-desktop.exe，开始菜单与桌面快捷方式都叫 pi Desktop。
+appId: dev.fenlyin.pi-desktop
+productName: pi Desktop
+directories:
+  output: release
+  buildResources: build
+
+# renderer 已经由 vite 打成了 out/renderer 的静态文件，这里只需要自己的 out/ 和生产依赖。
+# main 把 electron 与 pi SDK 都标成 external，SDK 必须原样留在 node_modules 里给运行时解析。
+files:
+  - out/**/*
+  - package.json
+  # 源映射与 bun 专用入口只在开发时用得上，不进安装包。
+  - "!**/*.map"
+  - "!**/node_modules/@earendil-works/pi-coding-agent/dist/bun/**"
+asar: true
+
+win:
+  executableName: pi-desktop
+  target:
+    - target: nsis
+      arch:
+        - x64
+
+# 向导式安装：可以选目录，装完给开始菜单和桌面各留一个快捷方式。
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: pi Desktop

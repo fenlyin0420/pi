@@ -29,6 +29,7 @@
 		"desktop:dev": "npm --prefix packages/desktop run dev",
 		"desktop:build": "npm --prefix packages/desktop run build",
 		"desktop:preview": "npm --prefix packages/desktop run preview",
+		"desktop:dist": "npm --prefix packages/desktop run dist",
 		"check:desktop": "npm --prefix packages/desktop run typecheck",
 		"generate:models": "npm --prefix packages/ai run generate-models",
 		"hydrate:model-data": "npm --prefix packages/ai run hydrate-model-data",
