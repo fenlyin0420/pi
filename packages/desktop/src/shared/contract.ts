@@ -182,7 +182,8 @@ export type DesktopCommand =
 	| { type: "refreshSessions" }
 	| { type: "addWorkspace" }
 	| { type: "selectWorkspace"; path: string }
-	| { type: "newSession" }
+	/** 新建会话；workspace 给出时先切到那个工作区（侧栏某个文件夹的右键菜单）。 */
+	| { type: "newSession"; workspace?: string }
 	| { type: "openSession"; id: string }
 	| { type: "prompt"; text: string; attachments?: readonly PromptAttachment[] }
 	| { type: "steer"; text: string }

@@ -47,8 +47,9 @@ type SidebarProps = {
 	collapsed: boolean;
 	onOpenSession: (id: string) => void;
 	onNewSession: () => void;
+	/** 在指定 workspace 里新建会话（侧栏文件夹的右键菜单）。 */
+	onNewSessionIn: (path: string) => void;
 	onAddWorkspace: () => void;
-	onSelectWorkspace: (path: string) => void;
 	onRenameSession: (id: string, title: string) => void;
 	onDeleteSession: (id: string) => void;
 	onPinSession: (id: string, pinned: boolean) => void;
@@ -64,8 +65,8 @@ export function Sidebar({
 	collapsed,
 	onOpenSession,
 	onNewSession,
+	onNewSessionIn,
 	onAddWorkspace,
-	onSelectWorkspace,
 	onRenameSession,
 	onDeleteSession,
 	onPinSession,
@@ -88,9 +89,9 @@ export function Sidebar({
 
 	// App 传进来的回调是内联箭头函数，每次渲染都换身份；用 ref 转发让列表行 props 保持引用稳定，
 	// 这样 React.memo 在拖动宽度、折叠分组时能跳过整个列表。
-	const latestRowHandlers = useRef({ onOpenSession, onPinSession, onSelectWorkspace });
+	const latestRowHandlers = useRef({ onOpenSession, onPinSession, onNewSessionIn });
 	useEffect(() => {
-		latestRowHandlers.current = { onOpenSession, onPinSession, onSelectWorkspace };
+		latestRowHandlers.current = { onOpenSession, onPinSession, onNewSessionIn };
 	});
 
 	const width = clampWidth(draftWidth ?? state.settings.sidebarWidth);
@@ -98,6 +99,7 @@ export function Sidebar({
 	const widthVars = { "--ds-sidebar-width": `${width}px` } as CSSProperties;
 	const searching = query.trim().length > 0;
 	const shortcut = state.platform === "darwin" ? "⌘K" : "Ctrl K";
+	const newSessionShortcut = state.platform === "darwin" ? "⌘N" : "Ctrl N";
 	const hasWorkspace = state.workspace !== null;
 
 	useEffect(() => {
@@ -140,7 +142,7 @@ export function Sidebar({
 		(id: string, pinned: boolean) => latestRowHandlers.current.onPinSession(id, pinned),
 		[],
 	);
-	const selectWorkspace = useCallback((path: string) => latestRowHandlers.current.onSelectWorkspace(path), []);
+	const newSessionIn = useCallback((path: string) => latestRowHandlers.current.onNewSessionIn(path), []);
 
 	const beginRename = useCallback((session: SessionSummary) => {
 		setRenameTarget(session);
@@ -272,8 +274,8 @@ export function Sidebar({
 					expanded={expanded}
 					running={running}
 					unread={unread}
-					onSelect={selectWorkspace}
 					onToggle={toggleWorkspace}
+					onNewSession={newSessionIn}
 				/>
 				{expanded ? (
 					<div className="sidebar-workspace-body">
@@ -290,18 +292,23 @@ export function Sidebar({
 				<span className="brand" aria-hidden="true">
 					π
 				</span>
-				<div className="sidebar-header-actions no-drag">
-					<IconButton
-						label={hasWorkspace ? "New session" : "Select a workspace first"}
-						disabled={!hasWorkspace}
-						onClick={onNewSession}
-					>
-						<IconPlus size={15} aria-hidden="true" />
-					</IconButton>
-				</div>
 			</div>
 
 			<div className="sidebar-body no-drag">
+				{/* 新建会话占满一整行：它是侧栏最常用的动作，不再缩成标题栏里的一颗图标。 */}
+				<button
+					type="button"
+					className="sidebar-new-session"
+					aria-label="New session"
+					disabled={!hasWorkspace}
+					title={hasWorkspace ? "New session" : "Select a workspace first"}
+					onClick={onNewSession}
+				>
+					<IconPlus size={15} aria-hidden="true" />
+					<span className="sidebar-new-session-label">New session</span>
+					<Kbd>{newSessionShortcut}</Kbd>
+				</button>
+
 				<div className="sidebar-section-header">
 					<span className="sidebar-section-label">Workspaces</span>
 					<IconButton label="Add workspace" onClick={onAddWorkspace}>

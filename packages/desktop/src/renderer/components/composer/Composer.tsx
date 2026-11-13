@@ -1,12 +1,22 @@
 // 输入区：草稿、附件、命令与引用面板、工具栏和运行态切换都收在这里。
 
 import { type ClipboardEvent, type DragEvent, useEffect, useMemo, useRef, useState } from "react";
-import type { AgentView, DesktopBridge, ModelView, PromptAttachment, ThinkingLevel } from "../../../shared/contract.ts";
+import type {
+	AgentView,
+	DesktopBridge,
+	ModelView,
+	Platform,
+	PromptAttachment,
+	ThinkingLevel,
+	WorkspaceSummary,
+} from "../../../shared/contract.ts";
 import { MAX_ATTACHMENTS } from "../../../shared/contract.ts";
+import { folderName, samePath } from "../../../shared/paths.ts";
+import { IconChevronDown, IconFolder, IconFolderPlus } from "../../icons.tsx";
 import { pendingLines } from "../../lib/pending.ts";
 import { matchSlashCommands, type SlashAction, type SlashCommand, slashQuery } from "../../lib/slash-commands.ts";
 import type { DraftRestore } from "../../store.ts";
-import { cx, Kbd } from "../../ui.tsx";
+import { cx, Kbd, type MenuItem, MenuList, Popover } from "../../ui.tsx";
 import { AttachmentTray, type ComposerAttachment, readImageFiles } from "./AttachmentTray.tsx";
 import { ComposerInput, type ComposerPaletteKeys } from "./ComposerInput.tsx";
 import { ComposerToolbar } from "./ComposerToolbar.tsx";
@@ -25,6 +35,10 @@ type ComposerProps = {
 	sessionId: string | null;
 	/** 当前 workspace；null 时输入区关闭，必须先选一个 workspace。 */
 	workspace: string | null;
+	/** 侧栏列出的 workspace：底部那个 chip 的选择器就列它们。 */
+	workspaces: readonly WorkspaceSummary[];
+	/** 比较路径用；同一个目录在 Windows 上大小写不敏感。 */
+	platform: Platform;
 	agent: AgentView;
 	models: readonly ModelView[];
 	/** 用户是否要看思考内容；关掉时连等级入口一起收起。 */
@@ -43,6 +57,8 @@ type ComposerProps = {
 	onRequestModels: () => void;
 	onOpenSettings: () => void;
 	onNewSession: () => void;
+	onSelectWorkspace: (path: string) => void;
+	onAddWorkspace: () => void;
 };
 
 /** 草稿按会话分开存放，切回来时正文还在原处。 */
@@ -71,6 +87,8 @@ function writeDraft(storageKey: string, value: string): void {
 export function Composer({
 	sessionId,
 	workspace,
+	workspaces,
+	platform,
 	agent,
 	models,
 	thinking,
@@ -85,6 +103,8 @@ export function Composer({
 	onRequestModels,
 	onOpenSettings,
 	onNewSession,
+	onSelectWorkspace,
+	onAddWorkspace,
 }: ComposerProps) {
 	const running = agent.status === "running";
 	// 没有 workspace 就没有工作目录可发：输入框和工具栏一起关上。
@@ -100,6 +120,7 @@ export function Composer({
 	const [dropTarget, setDropTarget] = useState(false);
 	const [modelAnchor, setModelAnchor] = useState<HTMLElement | null>(null);
 	const [thinkingAnchor, setThinkingAnchor] = useState<HTMLElement | null>(null);
+	const [workspaceAnchor, setWorkspaceAnchor] = useState<HTMLElement | null>(null);
 
 	const inputRef = useRef<HTMLTextAreaElement | null>(null);
 	const shellRef = useRef<HTMLDivElement | null>(null);
@@ -115,6 +136,7 @@ export function Composer({
 		setDismissed(false);
 		setModelAnchor(null);
 		setThinkingAnchor(null);
+		setWorkspaceAnchor(null);
 	}, [storageKey]);
 
 	// 撤回的队列消息回到草稿：它比手上这段更该先被改，所以拼在前面。
@@ -303,6 +325,23 @@ export function Composer({
 				}
 			: null;
 
+	/** 底部 chip 的菜单：列已加入的 workspace，末项是“找一个新目录”。 */
+	const workspaceItems: MenuItem[] = workspaces.map((entry) => ({
+		id: entry.path,
+		label: entry.name,
+		icon: <IconFolder size={13} />,
+		checked: workspace !== null && samePath(entry.path, workspace, platform),
+		onSelect: () => onSelectWorkspace(entry.path),
+	}));
+	if (workspaces.length === 0) workspaceItems.push({ id: "empty", label: "No workspaces yet", disabled: true });
+	workspaceItems.push({
+		id: "add",
+		label: "Add workspace…",
+		icon: <IconFolderPlus size={13} />,
+		separatorBefore: true,
+		onSelect: onAddWorkspace,
+	});
+
 	return (
 		<div className="composer-dock composer-dock-docked">
 			<div className="composer-stack">
@@ -365,11 +404,28 @@ export function Composer({
 					/>
 				</div>
 				<div className="composer-hints">
-					<span>
-						<Kbd>Enter</Kbd> {running ? "queue" : "send"}
-					</span>
-					<span>
-						<Kbd>Shift</Kbd>+<Kbd>Enter</Kbd> newline
+					{/* 当前 workspace 就显示在输入框下沿：点开就是换一个，没有 workspace 时这里是空位。 */}
+					<button
+						type="button"
+						className={cx("composer-workspace-chip", workspaceAnchor !== null && "active")}
+						aria-haspopup="menu"
+						aria-expanded={workspaceAnchor !== null}
+						title={workspace ?? "No workspace"}
+						onClick={(event) => setWorkspaceAnchor(workspaceAnchor === null ? event.currentTarget : null)}
+					>
+						<IconFolder size={12} aria-hidden="true" />
+						<span className="composer-workspace-chip-name">
+							{workspace === null ? "No workspace" : folderName(workspace)}
+						</span>
+						<IconChevronDown size={11} aria-hidden="true" />
+					</button>
+					<span className="composer-hints-keys">
+						<span>
+							<Kbd>Enter</Kbd> {running ? "queue" : "send"}
+						</span>
+						<span>
+							<Kbd>Shift</Kbd>+<Kbd>Enter</Kbd> newline
+						</span>
 					</span>
 				</div>
 			</div>
@@ -392,6 +448,15 @@ export function Composer({
 				}}
 				onClose={() => setThinkingAnchor(null)}
 			/>
+			<Popover
+				anchor={workspaceAnchor}
+				open={workspaceAnchor !== null}
+				align="start"
+				width={280}
+				onClose={() => setWorkspaceAnchor(null)}
+			>
+				<MenuList items={workspaceItems} onClose={() => setWorkspaceAnchor(null)} />
+			</Popover>
 		</div>
 	);
 }

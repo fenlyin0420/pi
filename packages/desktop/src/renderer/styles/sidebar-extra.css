@@ -24,18 +24,63 @@ hr.sidebar-resize-handle {
 	text-transform: uppercase;
 }
 
+/* 新建会话：占满整行的主按钮，快捷键提示贴右端。 */
+.sidebar-new-session {
+	display: flex;
+	width: 100%;
+	flex: 0 0 auto;
+	align-items: center;
+	gap: 8px;
+	min-height: 34px;
+	margin: 4px 0 8px;
+	padding: 0 8px;
+	border: 0;
+	border-radius: var(--radius-md);
+	background: var(--ds-tile-hover);
+	color: var(--ds-text-primary);
+	font-size: var(--text-md);
+	line-height: var(--leading-row);
+	text-align: left;
+	transition:
+		background var(--motion-duration-fast) var(--motion-ease-out),
+		color var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.sidebar-new-session:hover:not(:disabled) {
+	background: var(--ds-bg-hover);
+}
+
+.sidebar-new-session:disabled {
+	color: var(--ds-text-muted);
+	cursor: default;
+}
+
+.sidebar-new-session-label {
+	min-width: 0;
+	flex: 1 1 auto;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
 /* 一个 workspace：一行目录头 + 展开后的会话分组。 */
 .sidebar-workspace {
 	min-width: 0;
 }
 
+/* 整行就是一个按钮：目录名吃掉剩余宽度，展开箭头在左、未读和加载圈在右。 */
 .sidebar-workspace-row {
 	display: flex;
+	width: 100%;
 	align-items: center;
-	gap: 2px;
+	gap: 6px;
 	min-height: 28px;
+	border: 0;
+	padding: 0 6px;
 	border-radius: var(--radius-sm);
+	background: transparent;
 	color: var(--ds-text-secondary);
+	text-align: left;
 	transition:
 		background var(--motion-duration-fast) var(--motion-ease-out),
 		color var(--motion-duration-fast) var(--motion-ease-out);
@@ -51,32 +96,14 @@ hr.sidebar-resize-handle {
 	color: var(--ds-text-primary);
 }
 
-/* 箭头只负责展开，宽度固定，点了不会把目录名推走。 */
-.sidebar-workspace-toggle {
+/* 箭头宽度固定：展开与收起切换时目录名不会横向跳动。 */
+.sidebar-workspace-chevron {
 	display: inline-flex;
-	width: 18px;
+	width: 12px;
 	flex: 0 0 auto;
 	align-items: center;
 	justify-content: center;
-	height: 24px;
-	border: 0;
-	padding: 0;
-	border-radius: var(--radius-2xs);
-	background: transparent;
-	color: inherit;
-}
-
-.sidebar-workspace-main {
-	display: flex;
-	min-width: 0;
-	flex: 1 1 auto;
-	align-items: center;
-	gap: 6px;
-	border: 0;
-	padding: 4px 2px;
-	background: transparent;
-	color: inherit;
-	text-align: left;
+	color: var(--ds-text-muted);
 }
 
 .sidebar-workspace-name {

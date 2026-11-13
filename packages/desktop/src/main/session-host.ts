@@ -151,7 +151,7 @@ export class SessionHost {
 				await this.selectWorkspace(command.path);
 				return;
 			case "newSession":
-				await this.createSession();
+				await this.createSession(command.workspace);
 				return this.flushNow();
 			case "openSession":
 				await this.openById(command.id);
@@ -249,13 +249,14 @@ export class SessionHost {
 		return this.activeId ? this.live.get(this.activeId) : undefined;
 	}
 
-	/** 新建会话；没有选中 workspace 时只提示不动手——聊天必须先选 workspace。 */
-	private async createSession(): Promise<LiveSession | null> {
-		const workspace = this.cwd;
+	/** 新建会话；显式给了 workspace 就先切到它（右键某个文件夹新建），否则用当前 workspace。 */
+	private async createSession(workspace = this.cwd): Promise<LiveSession | null> {
 		if (workspace === null) {
 			this.notify("info", "Select a workspace first.");
 			return null;
 		}
+		// 新会话开在哪个目录，哪个目录就是当前 workspace：侧栏它自己展开，composer 底部也换成它。
+		this.focusWorkspace(workspace);
 		const live = await this.createLive(SessionManager.create(workspace), workspace);
 		this.activeId = live.id;
 		this.summaries = upsertSummary(this.summaries, this.summaryOf(live));

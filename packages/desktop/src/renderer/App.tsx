@@ -141,8 +141,8 @@ export function App() {
 							collapsed={collapsed}
 							onOpenSession={(id) => send({ type: "openSession", id })}
 							onNewSession={() => send({ type: "newSession" })}
+							onNewSessionIn={(path) => send({ type: "newSession", workspace: path })}
 							onAddWorkspace={() => send({ type: "addWorkspace" })}
-							onSelectWorkspace={(path) => send({ type: "selectWorkspace", path })}
 							onRenameSession={(id, title) => send({ type: "renameSession", id, title })}
 							onDeleteSession={(id) => send({ type: "deleteSession", id })}
 							onPinSession={(id, pinned) => send({ type: "pinSession", id, pinned })}
@@ -197,6 +197,8 @@ export function App() {
 									<Composer
 										sessionId={desktop.activeSessionId}
 										workspace={desktop.workspace}
+										workspaces={desktop.workspaces}
+										platform={desktop.platform}
 										agent={desktop.agent}
 										models={state.models}
 										thinking={settings.showThinking}
@@ -211,6 +213,8 @@ export function App() {
 										onRequestModels={() => send({ type: "listModels" })}
 										onOpenSettings={() => setSettingsOpen(true)}
 										onNewSession={() => send({ type: "newSession" })}
+										onSelectWorkspace={(path) => send({ type: "selectWorkspace", path })}
+										onAddWorkspace={() => send({ type: "addWorkspace" })}
 									/>
 								</div>
 								{shownDiff !== null ? (

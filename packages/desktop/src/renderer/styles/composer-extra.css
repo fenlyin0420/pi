@@ -171,17 +171,58 @@
 	font-variant-numeric: tabular-nums;
 }
 
-/* 快捷键提示：一行小字贴着输入框底边，右对齐跟发送按钮一侧。 */
+/* 输入框底沿一行：左边是当前 workspace，右边是快捷键提示。 */
 .composer-hints {
 	display: flex;
-	justify-content: flex-end;
+	align-items: center;
+	justify-content: space-between;
 	gap: 10px;
 	padding: 6px 8px 0;
 	color: var(--ds-text-faint);
 	font-size: var(--text-2xs);
 }
 
-.composer-hints > span {
+/* workspace chip：就是“这一段会话在哪个目录”，点开可以换一个。 */
+.composer-workspace-chip {
+	display: inline-flex;
+	min-width: 0;
+	max-width: 60%;
+	align-items: center;
+	gap: 5px;
+	border: 0;
+	border-radius: var(--radius-2xs);
+	padding: 2px 6px;
+	background: transparent;
+	color: var(--ds-text-faint);
+	font-size: var(--text-2xs);
+	line-height: var(--leading-tight);
+	transition:
+		background var(--motion-duration-fast) var(--motion-ease-out),
+		color var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.composer-workspace-chip:hover,
+.composer-workspace-chip.active {
+	background: var(--ds-tile-hover);
+	color: var(--ds-text-secondary);
+}
+
+.composer-workspace-chip-name {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* 快捷键提示靠右；键帽之间用列间隔，跟 chip 分开成两侧。 */
+.composer-hints-keys {
+	display: inline-flex;
+	flex: 0 0 auto;
+	align-items: center;
+	gap: 10px;
+}
+
+.composer-hints-keys > span {
 	display: inline-flex;
 	align-items: center;
 	gap: 4px;

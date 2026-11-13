@@ -375,7 +375,7 @@ function EmptyConversation({
 		return (
 			<div className="chat-empty">
 				<span className="chat-empty-label">No workspace selected</span>
-				<p className="chat-empty-hint">Pick a workspace in the sidebar, or add a folder to start chatting.</p>
+				<p className="chat-empty-hint">Pick a workspace under the composer, or add a folder to start chatting.</p>
 				<div className="chat-empty-prompts">
 					<button type="button" className="chat-empty-prompt" onClick={onAddWorkspace}>
 						Add workspace…
