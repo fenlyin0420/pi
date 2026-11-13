@@ -107,6 +107,8 @@
 .dialog.image-viewer {
   padding: 0;
   border: 0;
+  /* 卡片默认的弹窗圆角在满铺的图上显得过大，收到控制件的圆角档。 */
+  border-radius: var(--radius-sm);
   overflow: hidden;
 }
 
