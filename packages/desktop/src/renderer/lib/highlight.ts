@@ -1,5 +1,6 @@
 // 代码高亮：懒加载 shiki（JS 正则引擎，不碰 wasm），失败或未就绪时调用方渲染纯文本。
 
+import type { CSSProperties } from "react";
 import type { HighlighterCore, ThemedToken } from "shiki/core";
 import { createHighlighterCore } from "shiki/core";
 import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
@@ -13,6 +14,16 @@ export type HighlightToken = {
 };
 
 export type HighlightedCode = readonly (readonly HighlightToken[])[];
+
+/** shiki 把颜色和字形拆成 token 属性，这里翻成行内样式；无样式的 token 不加 style。 */
+export function tokenStyle(token: HighlightToken): CSSProperties | undefined {
+	if (!token.color && !token.italic && !token.bold) return undefined;
+	const style: CSSProperties = {};
+	if (token.color) style.color = token.color;
+	if (token.italic) style.fontStyle = "italic";
+	if (token.bold) style.fontWeight = "bold";
+	return style;
+}
 
 /** fence tag 到 grammar 模块；模块列表写死，Vite 才不会打包整份语言目录。 */
 const LANGUAGES = {
@@ -75,6 +86,14 @@ export function resolveLanguage(tag: string): LanguageId | null {
 	// `in` 收窄不到键的类型，这里的一次断言由 LANGUAGES 的字面量键保证。
 	if (id in LANGUAGES) return id as LanguageId;
 	return ALIASES[id] ?? null;
+}
+
+/** 按文件扩展名猜语言；没有扩展名或不认识的扩展名都返回 null（纯文本渲染）。 */
+export function langForPath(path: string): LanguageId | null {
+	const name = path.split(/[\\/]/).pop() ?? "";
+	const dot = name.lastIndexOf(".");
+	if (dot <= 0 || dot === name.length - 1) return null;
+	return resolveLanguage(name.slice(dot + 1));
 }
 
 const listeners = new Set<() => void>();

@@ -8,11 +8,14 @@ import {
 	useMemo,
 	useRef,
 	useState,
+	useSyncExternalStore,
 } from "react";
-import { IconClose, IconFile } from "../../icons.tsx";
-import { diffLines } from "../../lib/diff.ts";
+import { IconClose, IconFile, IconMaximize, IconMinimize } from "../../icons.tsx";
+import { diffLines, numberDiff, splitDiff } from "../../lib/diff.ts";
+import { ensureLanguage, highlight, highlightVersion, langForPath, subscribeHighlight } from "../../lib/highlight.ts";
 import type { TurnFileChange } from "../../lib/turn-changes.ts";
 import { cx } from "../../ui.tsx";
+import { type DiffColoring, SplitDiff, UnifiedDiff } from "./DiffLines.tsx";
 
 const MIN_WIDTH = 320;
 const MAX_WIDTH = 900;
@@ -32,7 +35,23 @@ type DiffPanelProps = {
 /** 右栏面板：文件清单 + 选中文件的 diff，左边缘可拖动调宽。 */
 export function DiffPanel({ files, selected, width, onSelect, onResize, onClose }: DiffPanelProps) {
 	const file = files.find((change) => change.path === selected) ?? files[0] ?? null;
-	const lines = useMemo(() => (file ? diffLines(file.before, file.after) : []), [file]);
+	const lines = useMemo(() => (file ? numberDiff(diffLines(file.before, file.after)) : []), [file]);
+	const rows = useMemo(() => splitDiff(lines), [lines]);
+	// 着色来源：按文件扩展名挑语言，语法包按需加载。语言到货和换主题都会推进版本号，
+	// 订阅它只为在这两个时机重新渲染；highlight() 自带缓存，直接取即可。
+	const lang = file === null ? null : langForPath(file.path);
+	useSyncExternalStore(subscribeHighlight, highlightVersion);
+	useEffect(() => {
+		if (lang !== null) ensureLanguage(lang);
+	}, [lang]);
+	const coloring: DiffColoring =
+		file === null || lang === null
+			? { before: null, after: null }
+			: { before: highlight(file.before, lang), after: highlight(file.after, lang) };
+	// 默认左右对比：旧/新各一列，看的是一轮的净变化；窄的时候可以切回单列。
+	const [layout, setLayout] = useState<"split" | "unified">("split");
+	// 全屏：面板盖住整个主栏内容区，看大 diff 时不用拖窄对话列。
+	const [fullscreen, setFullscreen] = useState(false);
 	// 拖动中只改本地宽度，指针抬起时提交一次设置。
 	const [draftWidth, setDraftWidth] = useState<number | null>(null);
 	const dragRef = useRef<{ pointerId: number; startX: number; startWidth: number; width: number } | null>(null);
@@ -94,7 +113,7 @@ export function DiffPanel({ files, selected, width, onSelect, onResize, onClose 
 	};
 
 	return (
-		<aside className="diff-panel" style={widthVars} aria-label="Changes">
+		<aside className={cx("diff-panel", fullscreen && "is-fullscreen")} style={widthVars} aria-label="Changes">
 			<hr
 				className={cx("diff-panel-resize", draftWidth !== null && "is-resizing")}
 				aria-orientation="vertical"
@@ -111,9 +130,35 @@ export function DiffPanel({ files, selected, width, onSelect, onResize, onClose 
 			/>
 			<div className="diff-panel-header">
 				<span className="diff-panel-title">Changes</span>
-				<span className="diff-panel-count">
-					{files.length} {files.length === 1 ? "file" : "files"}
-				</span>
+				{file ? (
+					<div className="diff-panel-layout">
+						<button
+							type="button"
+							className={cx("diff-panel-layout-option", layout === "split" && "active")}
+							aria-pressed={layout === "split"}
+							onClick={() => setLayout("split")}
+						>
+							Split
+						</button>
+						<button
+							type="button"
+							className={cx("diff-panel-layout-option", layout === "unified" && "active")}
+							aria-pressed={layout === "unified"}
+							onClick={() => setLayout("unified")}
+						>
+							Unified
+						</button>
+					</div>
+				) : null}
+				<button
+					type="button"
+					className="diff-panel-close"
+					aria-label={fullscreen ? "Exit full screen" : "Full screen"}
+					title={fullscreen ? "Exit full screen" : "Full screen"}
+					onClick={() => setFullscreen((value) => !value)}
+				>
+					{fullscreen ? <IconMinimize size={14} aria-hidden /> : <IconMaximize size={14} aria-hidden />}
+				</button>
 				<button type="button" className="diff-panel-close" aria-label="Close changes" onClick={onClose}>
 					<IconClose size={14} aria-hidden />
 				</button>
@@ -153,15 +198,11 @@ export function DiffPanel({ files, selected, width, onSelect, onResize, onClose 
 						<p className="diff-panel-note">This diff is cut at the size limit; only the beginning is shown.</p>
 					) : null}
 					<div className="diff-panel-lines">
-						{lines.map((line, index) => (
-							// biome-ignore lint/suspicious/noArrayIndexKey: diff 行的顺序就是它的身份
-							<div key={index} className={cx("diff-line", line.kind)}>
-								<span className="diff-line-sign" aria-hidden>
-									{line.kind === "add" ? "+" : line.kind === "remove" ? "-" : " "}
-								</span>
-								<span className="diff-line-text">{line.text || " "}</span>
-							</div>
-						))}
+						{layout === "split" ? (
+							<SplitDiff rows={rows} coloring={coloring} />
+						) : (
+							<UnifiedDiff lines={lines} coloring={coloring} />
+						)}
 					</div>
 				</div>
 			) : null}

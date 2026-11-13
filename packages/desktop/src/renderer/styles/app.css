@@ -41,6 +41,7 @@
   floor.
 */
 .main-body {
+  position: relative;
   display: flex;
   flex: 1 1 auto;
   min-width: 0;

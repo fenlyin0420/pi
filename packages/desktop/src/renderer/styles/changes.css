@@ -166,6 +166,21 @@
 }
 
 /*
+  全屏：脱离分栏、盖住整个主栏内容区（标题栏之下）。对话列仍然挂着，
+  只是被盖住，收起全屏时它的滚动位置和草稿都在。
+*/
+.diff-panel.is-fullscreen {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  border-left: 0;
+}
+
+.diff-panel.is-fullscreen > .diff-panel-resize {
+  display: none;
+}
+
+/*
   分隔条压在面板左边缘、跨满整条高度：向左拖变宽，向右拖变窄。
   视觉上和侧栏那条一致：平时透明，悬停/拖动时才露出中间的细线。
 */
@@ -222,10 +237,31 @@ document:has(.diff-panel-resize.is-resizing) {
   font-size: var(--text-sm);
 }
 
-.diff-panel-count {
+/* Split / Unified：两个并排的小按钮，选中项用底色区分，靠右放在关闭按钮旁边。 */
+.diff-panel-layout {
+  display: flex;
   flex: 1;
+  justify-content: flex-end;
+  gap: 2px;
+}
+
+.diff-panel-layout-option {
+  padding: 2px 8px;
+  border: 0;
+  border-radius: var(--radius-3xs);
+  background: none;
   color: var(--ds-text-faint);
   font-size: var(--text-2xs);
+  cursor: pointer;
+}
+
+.diff-panel-layout-option:hover {
+  color: var(--ds-text-primary);
+}
+
+.diff-panel-layout-option.active {
+  background: var(--ds-bg-active);
+  color: var(--ds-text-primary);
 }
 
 .diff-panel-close {
@@ -341,15 +377,88 @@ document:has(.diff-panel-resize.is-resizing) {
   padding: 6px 0 12px;
 }
 
-/* 面板里的行左右留出内边距，行的增删底色铺满整行。 */
-.diff-panel-lines .diff-line {
-  padding: 0 12px 0 4px;
+/*
+  单列视图是终端式的：一个物理行就是一行，长了左右滚，不软换行把代码折成文字墙。
+  行号顶格（容器留 6px），没有符号列，编号和正文之间留 12px。
+  这条宽度规则只管单列：左右对比要的是撑满面板，不能让内容把面板拉宽。
+*/
+.diff-body.unified {
+  width: max-content;
+  min-width: 100%;
 }
 
+.diff-panel-lines .diff-line {
+  gap: 12px;
+  padding: 0 12px 0 6px;
+}
+
+.diff-body.unified .diff-line-text {
+  white-space: pre;
+  overflow-wrap: normal;
+}
+
+/* 行号：固定宽度、按最大行号补零，读数不跳宽。 */
+.diff-line-number {
+  flex: 0 0 auto;
+  color: var(--ds-text-faint);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+  white-space: pre;
+}
+
+/* 改动行整行上色：底色落在行上，行号那一格也跟着变色。 */
 .diff-panel-lines .diff-line.add {
   background: color-mix(in oklab, var(--ds-success) 10%, transparent);
 }
 
 .diff-panel-lines .diff-line.remove {
   background: color-mix(in oklab, var(--ds-error) 10%, transparent);
+}
+
+/*
+  左右对比：两列等分，每一格自己上色（左边只会是删除或未变，右边只会是新增或未变），
+  中间一条细线分开。表格宽度锁在面板内：行不超出面板，底色才能铺到右边缘。
+*/
+.diff-body.split {
+  width: 100%;
+}
+
+.diff-body.split .diff-line-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.diff-split-row {
+  display: flex;
+  width: 100%;
+  align-items: stretch;
+}
+
+.diff-split-cell {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 0;
+  gap: 12px;
+  padding: 0 12px 0 6px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs-plus);
+  line-height: var(--leading-relaxed);
+  overflow-wrap: anywhere;
+}
+
+.diff-split-cell + .diff-split-cell {
+  border-left: 1px solid var(--ds-border-subtle);
+}
+
+.diff-split-cell.add {
+  background: color-mix(in oklab, var(--ds-success) 10%, transparent);
+}
+
+.diff-split-cell.remove {
+  background: color-mix(in oklab, var(--ds-error) 10%, transparent);
+}
+
+/* 对面没有这一行：留一条更淡的底，看得出是补位而不是空内容。 */
+.diff-split-cell.empty {
+  background: var(--ds-tile);
 }

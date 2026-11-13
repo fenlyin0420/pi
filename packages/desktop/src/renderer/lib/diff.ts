@@ -38,3 +38,56 @@ function commonSuffix(before: readonly string[], after: readonly string[], prefi
 	while (count < limit && before[before.length - 1 - count] === after[after.length - 1 - count]) count += 1;
 	return count;
 }
+
+/** 带行号的 diff 行：删除行只属于旧文件，新增行只属于新文件，未变的行两边都有。 */
+export type NumberedDiffLine = {
+	kind: DiffKind;
+	text: string;
+	oldNumber: number | null;
+	newNumber: number | null;
+};
+
+/** 给逐行 diff 补上行号：旧文件从 1 数、新文件从 1 数，各走各的。 */
+export function numberDiff(lines: readonly DiffLine[]): NumberedDiffLine[] {
+	let oldNumber = 0;
+	let newNumber = 0;
+	return lines.map((line) => {
+		if (line.kind !== "add") oldNumber += 1;
+		if (line.kind !== "remove") newNumber += 1;
+		return {
+			kind: line.kind,
+			text: line.text,
+			oldNumber: line.kind === "add" ? null : oldNumber,
+			newNumber: line.kind === "remove" ? null : newNumber,
+		};
+	});
+}
+
+/** 左右对比的一行：左边是旧文件的一行，右边是新文件的一行，两边都可能为空。 */
+export type SplitDiffRow = { left: NumberedDiffLine | null; right: NumberedDiffLine | null };
+
+/**
+ * 把单列 diff 折成左右两列：未变的行两边是同一份内容；一段「删完再增」按顺序配对，
+ * 多出来的一边留空——删 2 行加 1 行占两行，第一行左旧右新，第二行只有左边。
+ */
+export function splitDiff(lines: readonly NumberedDiffLine[]): SplitDiffRow[] {
+	const rows: SplitDiffRow[] = [];
+	let index = 0;
+	while (index < lines.length) {
+		const line = lines[index];
+		if (line === undefined) break;
+		if (line.kind === "same") {
+			rows.push({ left: line, right: line });
+			index += 1;
+			continue;
+		}
+		const removed: NumberedDiffLine[] = [];
+		const added: NumberedDiffLine[] = [];
+		while (index < lines.length && lines[index]?.kind === "remove") removed.push(lines[index++] as NumberedDiffLine);
+		while (index < lines.length && lines[index]?.kind === "add") added.push(lines[index++] as NumberedDiffLine);
+		for (let pair = 0; pair < Math.max(removed.length, added.length); pair += 1) {
+			rows.push({ left: removed[pair] ?? null, right: added[pair] ?? null });
+		}
+	}
+	return rows;
+}

@@ -2,7 +2,6 @@
 
 import {
 	type ComponentProps,
-	type CSSProperties,
 	isValidElement,
 	memo,
 	type ReactNode,
@@ -17,11 +16,11 @@ import { IconCheck, IconCopy } from "../icons.tsx";
 import {
 	ensureLanguage,
 	type HighlightedCode,
-	type HighlightToken,
 	highlight,
 	highlightVersion,
 	resolveLanguage,
 	subscribeHighlight,
+	tokenStyle,
 } from "../lib/highlight.ts";
 import { cx } from "../ui.tsx";
 
@@ -175,16 +174,6 @@ function flattenTokens(lines: HighlightedCode): ReactNode[] {
 		}
 	}
 	return nodes;
-}
-
-/** shiki 把颜色和字形拆成 token 属性，这里翻成行内样式；无样式的 token 不加 style。 */
-function tokenStyle(token: HighlightToken): CSSProperties | undefined {
-	if (!token.color && !token.italic && !token.bold) return undefined;
-	const style: CSSProperties = {};
-	if (token.color) style.color = token.color;
-	if (token.italic) style.fontStyle = "italic";
-	if (token.bold) style.fontWeight = "bold";
-	return style;
 }
 
 /** 表格包一层横向滚动容器，宽表格不撑破对话列。 */
