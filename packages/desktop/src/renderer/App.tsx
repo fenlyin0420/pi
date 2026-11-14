@@ -51,10 +51,18 @@ export function App() {
 		[send],
 	);
 
+	/**
+	 * 回到对话：点会话、开新会话、从 issue 跳到它的线程都算，issue 面一律让位。
+	 * 不能在 activeSessionId 变化时收 issue 面：从会话 A 打开 issue 面后 A 仍是当前会话，
+	 * 再点 A 不会发出新 id，也就没有状态变化，那样点会话永远回不了对话。
+	 */
+	const showConversation = useCallback(() => setIssuesOpen(false), []);
+
 	const runMenuAction = useCallback(
 		(action: MenuAction | PaletteAction) => {
 			switch (action) {
 				case "newSession":
+					showConversation();
 					send({ type: "newSession" });
 					return;
 				case "addWorkspace":
@@ -77,7 +85,7 @@ export function App() {
 					return;
 			}
 		},
-		[send, settings, updateSettings],
+		[send, settings, updateSettings, showConversation],
 	);
 
 	// 原生菜单只在 seq 变化时消费一次：同一动作连点两次也要各执行一次，重渲染则不能重复执行。
@@ -107,6 +115,7 @@ export function App() {
 					return;
 				case "n":
 					event.preventDefault();
+					showConversation();
 					send({ type: "newSession" });
 					return;
 				case "o":
@@ -133,7 +142,7 @@ export function App() {
 		};
 		window.addEventListener("keydown", onKey);
 		return () => window.removeEventListener("keydown", onKey);
-	}, [send, settings, updateSettings]);
+	}, [send, settings, updateSettings, showConversation]);
 
 	const activeSession = desktop?.sessions.find((session) => session.id === desktop.activeSessionId) ?? null;
 	const collapsed = settings?.sidebarCollapsed ?? false;
@@ -145,12 +154,6 @@ export function App() {
 	// issue 区的开关是主栏的 surface 切换，侧栏与标题栏不动。
 	const scopedIssues = desktop ? issuesOf(desktop.issues, desktop.workspace, desktop.platform) : [];
 	const threadIssue = scopedIssues.find((issue) => issue.sessionId === activeSessionId) ?? null;
-
-	// 侧栏点会话就是回对话：issue 面自动让位，否则标题换了内容还是 issue 列表。
-	useEffect(() => {
-		if (activeSessionId === null) return;
-		setIssuesOpen(false);
-	}, [activeSessionId]);
 
 	return (
 		<ThemeContext.Provider value={theme}>
@@ -167,9 +170,18 @@ export function App() {
 							issuesOpen={issuesOpen}
 							issueCount={openIssueCount(scopedIssues)}
 							onOpenIssues={() => setIssuesOpen(true)}
-							onOpenSession={(id) => send({ type: "openSession", id })}
-							onNewSession={() => send({ type: "newSession" })}
-							onNewSessionIn={(path) => send({ type: "newSession", workspace: path })}
+							onOpenSession={(id) => {
+								showConversation();
+								send({ type: "openSession", id });
+							}}
+							onNewSession={() => {
+								showConversation();
+								send({ type: "newSession" });
+							}}
+							onNewSessionIn={(path) => {
+								showConversation();
+								send({ type: "newSession", workspace: path });
+							}}
 							onAddWorkspace={() => send({ type: "addWorkspace" })}
 							onRenameSession={(id, title) => send({ type: "renameSession", id, title })}
 							onDeleteSession={(id) => send({ type: "deleteSession", id })}
@@ -229,7 +241,7 @@ export function App() {
 										}
 										onSetQueue={(ids, queued) => send({ type: "setIssueQueue", ids, queued })}
 										onOpenThread={(id) => {
-											setIssuesOpen(false);
+											showConversation();
 											send({ type: "openIssueThread", id });
 										}}
 										onRun={(action) => send({ type: "runIssues", action })}
@@ -333,6 +345,7 @@ export function App() {
 					onClose={() => setPaletteOpen(false)}
 					onOpenSession={(id) => {
 						setPaletteOpen(false);
+						showConversation();
 						send({ type: "openSession", id });
 					}}
 					onAction={(action: PaletteAction) => {
