@@ -335,7 +335,9 @@ export function Transcript({
 					</div>
 				</div>
 				{/* 只有一条用户消息时没有可去的地方，定位条不占宽度。 */}
-				{marks.length > 1 ? <MessageRail marks={marks} activeId={activeUser} onJump={jumpToMessage} /> : null}
+				{marks.length > 1 ? (
+					<MessageRail marks={marks} scroller={scrollRef} activeId={activeUser} onJump={jumpToMessage} />
+				) : null}
 			</div>
 			{showJump ? <ScrollToBottom onClick={jumpToLatest} /> : null}
 		</div>
