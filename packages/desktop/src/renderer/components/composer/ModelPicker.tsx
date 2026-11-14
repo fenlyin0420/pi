@@ -61,6 +61,8 @@ export function ModelPicker({ anchor, models, currentKey, onSelect, onClose }: M
 	const [highlight, setHighlight] = useState(0);
 	const searchRef = useRef<HTMLInputElement | null>(null);
 	const listRef = useRef<HTMLDivElement | null>(null);
+	// 只有键盘在移高亮时才把行滚进视口：鼠标悬停也滚一下，就会把指针底下那几行挪走。
+	const scrollToActive = useRef(false);
 
 	const groups = useMemo(() => groupByProvider(models, query, currentKey), [models, query, currentKey]);
 	// 键盘高亮走的是拍平后的序号，所以索引和分组同时准备好。
@@ -77,6 +79,8 @@ export function ModelPicker({ anchor, models, currentKey, onSelect, onClose }: M
 	}, [anchor]);
 
 	useEffect(() => {
+		if (!scrollToActive.current) return;
+		scrollToActive.current = false;
 		listRef.current?.querySelector(`[data-model-index="${active}"]`)?.scrollIntoView({ block: "nearest" });
 	}, [active]);
 
@@ -85,6 +89,7 @@ export function ModelPicker({ anchor, models, currentKey, onSelect, onClose }: M
 			event.preventDefault();
 			if (rows.length === 0) return;
 			const delta = event.key === "ArrowDown" ? 1 : -1;
+			scrollToActive.current = true;
 			setHighlight((previous) => (previous + delta + rows.length) % rows.length);
 			return;
 		}

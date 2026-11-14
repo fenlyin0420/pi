@@ -1,5 +1,6 @@
 // main 进程的会话中枢：打开过的会话各自保留一个活 AgentSession，事件在这里合并后推给 renderer。
 
+import { join } from "node:path";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { ImageContent } from "@earendil-works/pi-ai";
 import type { AgentSession, AgentSessionEvent } from "@earendil-works/pi-coding-agent";
@@ -7,6 +8,8 @@ import {
 	createAgentSessionFromServices,
 	createAgentSessionServices,
 	createEventBus,
+	getAgentDir,
+	ModelRuntime,
 	SessionManager,
 } from "@earendil-works/pi-coding-agent";
 import { formatAttachedFiles, splitAttachedFiles } from "../shared/attached-files.ts";
@@ -96,6 +99,8 @@ export class SessionHost {
 	/** 扩展与宿主共享的事件总线；pi-ask 的提问和答案都走它。 */
 	private readonly bus = createEventBus();
 	private pendingAsk: AskRequest | null = null;
+	/** 全应用共用一份模型目录（和 TUI 一样）：选择器的清单和可用性都从它出。 */
+	private runtime: ModelRuntime | null = null;
 
 	constructor(cwd: string | null, deps: HostDeps) {
 		this.cwd = cwd;
@@ -126,7 +131,7 @@ export class SessionHost {
 		};
 	}
 
-	/** 首次装载：读出 workspace 列表，选中上次那一个；会话只由用户打开或新建。 */
+	/** 首次装载：读出 workspace 列表，选中上次那一个；会话只由用户打开或新建，启动时开一个空会话。 */
 	async start(): Promise<void> {
 		const settings = this.deps.settings.get();
 		this.workspaces = settings.workspaces;
@@ -134,6 +139,9 @@ export class SessionHost {
 		const requested = this.cwd ?? settings.activeWorkspace;
 		if (requested !== null) this.focusWorkspace(requested);
 		await this.refreshSessions();
+		this.runtime = await this.createModelRuntime();
+		// 和 TUI 一样：应用一起来就有一个会话（不落盘），工具栏的模型、思考等级、用量都有落点。
+		if (this.cwd !== null && this.activeSession() === undefined) await this.createSession();
 		this.flushNow();
 	}
 
@@ -203,9 +211,29 @@ export class SessionHost {
 		this.live.clear();
 	}
 
+	/**
+	 * 模型目录：整个应用一份（和 TUI 一样），会话也用它。
+	 * 它不需要 cwd，所以应用一起来就有清单，选择器不必等到有会话。
+	 */
+	private async createModelRuntime(): Promise<ModelRuntime | null> {
+		const agentDir = getAgentDir();
+		try {
+			return await ModelRuntime.create({
+				authPath: join(agentDir, "auth.json"),
+				modelsPath: join(agentDir, "models.json"),
+			});
+		} catch (error) {
+			this.notify("error", messageOf(error));
+			return null;
+		}
+	}
+
 	/** 模型列表：模型选择器打开时取一次，凭据变化后重取。 */
 	listModels(): void {
-		this.deps.emit({ type: "models", models: buildModelViews(this.activeSession()?.agent) });
+		const runtime = this.runtime;
+		if (!runtime) return;
+		const provider = this.activeSession()?.agent.model?.provider ?? null;
+		this.deps.emit({ type: "models", models: buildModelViews(runtime, provider) });
 	}
 
 	/** 用户消息里的第 index 张图片，答内置查看器：粘贴进来的图没有磁盘路径，只能从消息块里取。 */
@@ -295,6 +323,8 @@ export class SessionHost {
 		const services = await createAgentSessionServices({
 			cwd: workspace,
 			resourceLoaderOptions: { eventBus: this.bus },
+			// 唯一的模型目录：选择器列的和会话用的必需是同一份，可用性才不会两边不一致。
+			modelRuntime: this.runtime ?? undefined,
 		});
 		const { session, modelFallbackMessage } = await createAgentSessionFromServices({
 			services,
@@ -826,13 +856,13 @@ function messageOf(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
 }
 
-/** 模型选择列表：可用性来自凭据快照，列表本身一次构建、按需重发。 */
-export function buildModelViews(agent: AgentSession | undefined): ModelView[] {
-	if (!agent) return [];
-	const runtime = agent.modelRuntime;
+/**
+ * 模型选择列表：可用性来自凭据快照，列表本身一次构建、按需重发。
+ * activeProvider 是当前会话的 provider，用它把“谁都没凭据”的空档限定在一个 provider 上。
+ */
+export function buildModelViews(runtime: ModelRuntime, activeProvider: string | null): ModelView[] {
 	const available = new Set(runtime.getAvailableSnapshot().map((model) => `${model.provider}/${model.id}`));
 	// 凭据快照还没就绪时退回“当前模型所属 provider 可用”，否则选择器会把上千个未配置的模型全列出来。
-	const activeProvider = agent.model?.provider ?? null;
 	return runtime
 		.getModels()
 		.map((model) => ({

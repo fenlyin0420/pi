@@ -183,17 +183,25 @@ export function Popover({ anchor, open, onClose, align = "start", width, childre
 	const ref = useRef<HTMLDivElement | null>(null);
 	const [style, setStyle] = useState<CSSProperties>({ visibility: "hidden" });
 
+	// 翻转方向要靠浮层高度算，而高度会变：模型清单是打开时才去拉的，第一次打开量到的是空态高度，
+	// 清单回来后就压到窗口外面了。所以高度一变就重新定位。
 	useLayoutEffect(() => {
 		if (!open || !anchor || !ref.current) return;
-		const rect = anchor.getBoundingClientRect();
 		const node = ref.current;
-		const popWidth = width ?? node.offsetWidth;
-		const popHeight = node.offsetHeight;
-		let left = align === "end" ? rect.right - popWidth : rect.left;
-		left = Math.min(Math.max(8, left), window.innerWidth - popWidth - 8);
-		const below = rect.bottom + 6;
-		const top = below + popHeight > window.innerHeight - 8 ? Math.max(8, rect.top - popHeight - 6) : below;
-		setStyle({ left, top, width, visibility: "visible" });
+		const place = () => {
+			const rect = anchor.getBoundingClientRect();
+			const popWidth = width ?? node.offsetWidth;
+			const popHeight = node.offsetHeight;
+			let left = align === "end" ? rect.right - popWidth : rect.left;
+			left = Math.min(Math.max(8, left), window.innerWidth - popWidth - 8);
+			const below = rect.bottom + 6;
+			const top = below + popHeight > window.innerHeight - 8 ? Math.max(8, rect.top - popHeight - 6) : below;
+			setStyle({ left, top, width, visibility: "visible" });
+		};
+		place();
+		const observer = new ResizeObserver(place);
+		observer.observe(node);
+		return () => observer.disconnect();
 	}, [open, anchor, align, width]);
 
 	useEffect(() => {
