@@ -12,6 +12,7 @@ import { SettingsPage } from "./components/settings/SettingsPage.tsx";
 import { Sidebar } from "./components/sidebar/Sidebar.tsx";
 import { Titlebar } from "./components/Titlebar.tsx";
 import { ToastHost } from "./components/ToastHost.tsx";
+import { TodoDock } from "./components/todo/TodoDock.tsx";
 import { Transcript } from "./components/transcript/Transcript.tsx";
 import { issuesOf, openIssueCount } from "./lib/issues.ts";
 import type { TurnFileChange } from "./lib/turn-changes.ts";
@@ -275,6 +276,10 @@ export function App() {
 														}
 														onCancel={(flowId) => send({ type: "askCancel", flowId })}
 													/>
+												}
+												todoDock={
+													// key 跟会话走：切回来时状态条是收起的一行，不在新会话里継承上一个的展开状态。
+													<TodoDock key={desktop.activeSessionId ?? "none"} tasks={desktop.todos} />
 												}
 												onWithdrawQueue={() => send({ type: "withdrawQueue" })}
 												attach={window.piDesktop}

@@ -8,6 +8,7 @@ import {
 	Check,
 	ChevronDown,
 	ChevronRight,
+	Circle,
 	CircleDot,
 	Command,
 	Copy,
@@ -17,6 +18,7 @@ import {
 	FolderOpen,
 	FolderPlus,
 	Image as ImageIcon,
+	ListTodo,
 	LoaderCircle,
 	Maximize2,
 	Minimize2,
@@ -57,7 +59,9 @@ export const IconBrain = icon(Brain);
 export const IconCheck = icon(Check);
 export const IconChevronDown = icon(ChevronDown);
 export const IconChevronRight = icon(ChevronRight);
+export const IconCircle = icon(Circle);
 export const IconIssues = icon(CircleDot);
+export const IconListTodo = icon(ListTodo);
 export const IconCommand = icon(Command);
 export const IconCopy = icon(Copy);
 export const IconEllipsis = icon(Ellipsis);

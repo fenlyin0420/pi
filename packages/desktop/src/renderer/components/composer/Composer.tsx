@@ -49,8 +49,10 @@ type ComposerProps = {
 	onWithdrawQueue: () => void;
 	/** 选文件与把拖入的文件换算成磁盘路径；两个都由主进程那边的桥提供。 */
 	attach: Pick<DesktopBridge, "attachFiles" | "pathForFile">;
-	/** 提问卡片、队列条、输入框都排在同一个栈里。 */
+	/** 提问卡片、状态条、队列条、输入框都排在同一个栈里。 */
 	askDock?: ReactNode;
+	/** 当前会话的 todo 状态条；和提问卡片一样贴在输入框上沿。 */
+	todoDock?: ReactNode;
 	onSend: (text: string, attachments: readonly PromptAttachment[]) => void;
 	onSteer: (text: string) => void;
 	onAbort: () => void;
@@ -96,6 +98,7 @@ export function Composer({
 	thinking,
 	sessionRestore,
 	askDock,
+	todoDock,
 	onWithdrawQueue,
 	attach,
 	onSend,
@@ -349,6 +352,7 @@ export function Composer({
 		<div className="composer-dock composer-dock-docked">
 			<div className="composer-stack">
 				{askDock}
+				{todoDock}
 				<QueuedBar lines={followUp} onWithdraw={onWithdrawQueue} />
 				{/* biome-ignore lint/a11y/noStaticElementInteractions: 拖放落点只有鼠标动作，键盘路径就是输入框本身 */}
 				<div

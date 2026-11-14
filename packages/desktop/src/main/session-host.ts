@@ -49,6 +49,7 @@ import { imageViewOf } from "./message-images.ts";
 import { idleSteps, type RunSteps, stepActivity, thinkingSteps, toolEnded, toolStarted } from "./run-activity.ts";
 import { deleteSessionFile, listSessionSummaries, renameSessionFile, sessionTimes } from "./session-files.ts";
 import type { SettingsStore } from "./settings.ts";
+import { latestTodoTasks } from "./todo-call.ts";
 import { itemIdAt, previewLine, toTranscriptItems } from "./transcript.ts";
 
 /** 结构变化和流式增量的合并窗口：一帧一次 IPC，token 不再逐条过网。 */
@@ -147,6 +148,7 @@ export class SessionHost {
 			sessions: this.summaries,
 			activeSessionId: this.activeId,
 			transcript: active ? this.transcriptOf(active) : [],
+			todos: active ? latestTodoTasks(active.agent.messages) : [],
 			agent: this.agentView(active),
 			settings,
 			issues: this.deps.issues?.summaries() ?? [],

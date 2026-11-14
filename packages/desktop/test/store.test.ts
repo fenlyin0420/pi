@@ -60,6 +60,7 @@ function state(): DesktopState {
 		sessions: [SESSION],
 		activeSessionId: "s1",
 		transcript: [ASSISTANT],
+		todos: [],
 		agent: {
 			model: "test/m1",
 			modelName: "M1",

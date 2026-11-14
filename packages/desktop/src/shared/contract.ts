@@ -116,6 +116,29 @@ export type ToolDiffView = {
 	truncated: boolean;
 };
 
+/** pi-todo 的任务状态；deleted 是墓碑，只在历史里留着，清单上不显示。 */
+export type TodoStatus = "pending" | "in_progress" | "completed" | "deleted";
+
+/** 快照里的一条任务。 */
+export type TodoTaskView = {
+	id: number;
+	subject: string;
+	status: TodoStatus;
+	/** in_progress 时给读者的进行时标签（`writing tests`）；没有就是 null。 */
+	activeForm: string | null;
+	/** 还在等的任务 id。 */
+	blockedBy: readonly number[];
+};
+
+/**
+ * 一次 todo 工具调用之后的任务快照。`tasks` 是那次调用的完整结果，所以最后一张卡片
+ * 就是这个会话现在的清单；`error` 是被拒绝那次调用给出的原因。
+ */
+export type TodoCallView = {
+	tasks: readonly TodoTaskView[];
+	error: string | null;
+};
+
 /** 工具调用在界面上的两种粗粒度载荷：一行摘要和展开后的正文。 */
 export type ToolCallView = {
 	id: string;
@@ -128,6 +151,8 @@ export type ToolCallView = {
 	resultText: string;
 	/** 改文件类工具的原文/新文；truncated 表示任一侧被 diff 上限截过。 */
 	diff: ToolDiffView | null;
+	/** todo 工具的任务快照；别的工具、以及没有快照的调用都是 null，卡片按普通工具画。 */
+	todo: TodoCallView | null;
 	durationMs: number | null;
 };
 
@@ -213,6 +238,8 @@ export type DesktopState = {
 	sessions: SessionSummary[];
 	activeSessionId: string | null;
 	transcript: TranscriptItem[];
+	/** 当前会话里最后一次 todo 调用留下的清单；没用过 todo 就是空数组。 */
+	todos: readonly TodoTaskView[];
 	agent: AgentView;
 	settings: DesktopSettings;
 	/** 全部 workspace 的 issue；界面按当前 workspace 过滤。 */

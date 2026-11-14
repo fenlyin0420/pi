@@ -20,6 +20,7 @@ function call(id: string): ToolCallView {
 		argsText: "",
 		resultText: "",
 		diff: null,
+		todo: null,
 		durationMs: 10,
 	};
 }

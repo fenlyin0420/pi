@@ -3,6 +3,7 @@
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { splitAttachedFiles } from "../shared/attached-files.ts";
 import type { AssistantPart, ToolCallView, ToolDiffView, TranscriptItem, TurnUsage } from "../shared/contract.ts";
+import { readTodoCall } from "./todo-call.ts";
 
 const SUMMARY_LIMIT = 140;
 const ARGS_LIMIT = 6_000;
@@ -14,7 +15,7 @@ const PREVIEW_LIMIT = 200;
 /** 只读结构里用到的块字段；未识别的块类型由 type 过滤掉。 */
 type ContentBlock = { type: string; text?: string };
 
-type ToolResultInfo = { text: string; images: number; isError: boolean };
+type ToolResultInfo = { text: string; images: number; isError: boolean; details: unknown };
 
 export type TranscriptOptions = {
 	/** 正在接收模型输出的消息下标；只有这一条会被标成 streaming。 */
@@ -141,6 +142,7 @@ function toParts(
 				argsText: formatArguments(block.name, block.arguments),
 				resultText: result ? truncate(withImageNote(result.text, result.images), RESULT_LIMIT) : "",
 				diff: toolDiff(block.name, block.arguments),
+				todo: readTodoCall(block.name, result?.details),
 				durationMs: options.toolDurations?.get(block.id) ?? null,
 			};
 			parts.push({ type: "tool", call });
@@ -161,6 +163,7 @@ function collectToolResults(messages: readonly AgentMessage[]): Map<string, Tool
 			text: joinText(message.content),
 			images,
 			isError: message.isError === true,
+			details: message.details,
 		});
 	}
 	return results;
@@ -207,11 +210,26 @@ function preferredArgument(name: string, args: Record<string, unknown>): string 
 			return read("url");
 		case "web_search":
 			return read("query");
+		case "todo":
+			return todoArgument(args);
 		case "task":
 			return read("description");
 		default:
 			return null;
 	}
+}
+
+/** todo 的一行摘要：create 报主题，其余报这次动的编号与目标状态（`#3 in_progress`）。 */
+function todoArgument(args: Record<string, unknown>): string | null {
+	const action = typeof args.action === "string" ? args.action : "";
+	if (action === "create") {
+		const subject = typeof args.subject === "string" ? args.subject.trim() : "";
+		return subject === "" ? null : subject;
+	}
+	const target = typeof args.id === "number" ? `#${args.id}` : "";
+	const status = typeof args.status === "string" ? args.status : "";
+	const label = [target, status].filter(Boolean).join(" ");
+	return label === "" ? null : label;
 }
 
 function formatArguments(name: string, args: Record<string, unknown>): string {

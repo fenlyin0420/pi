@@ -15,6 +15,7 @@ function toolCall(path: string, before: string, after: string, truncated = false
 		argsText: "",
 		resultText: "",
 		diff: { path, before, after, truncated },
+		todo: null,
 		durationMs: null,
 	};
 }

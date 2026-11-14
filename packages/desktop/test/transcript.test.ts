@@ -191,6 +191,55 @@ describe("toTranscriptItems", () => {
 		expect(turn.error).toBeNull();
 	});
 
+	it("todo 工具把任务快照读成清单，摘要说清动了哪条", () => {
+		const items = toTranscriptItems(
+			messages(
+				USER,
+				assistant([
+					{
+						type: "toolCall",
+						id: "t1",
+						name: "todo",
+						arguments: { action: "update", id: 3, status: "in_progress" },
+					},
+				]),
+				{
+					role: "toolResult",
+					toolCallId: "t1",
+					toolName: "todo",
+					content: [{ type: "text", text: "Updated #3 (pending → in_progress)" }],
+					details: {
+						action: "update",
+						params: { id: 3, status: "in_progress" },
+						tasks: [{ id: 3, subject: "Add tests", status: "in_progress", activeForm: "adding tests" }],
+						nextId: 4,
+					},
+					isError: false,
+					timestamp: 3,
+				},
+			),
+			{ streamingIndex: null },
+		);
+		const part = items[1]?.kind === "assistant" ? items[1].parts[0] : undefined;
+		if (part?.type !== "tool") throw new Error("expected tool part");
+		expect(part.call.summary).toBe("todo #3 in_progress");
+		expect(part.call.todo).toEqual({
+			tasks: [{ id: 3, subject: "Add tests", status: "in_progress", activeForm: "adding tests", blockedBy: [] }],
+			error: null,
+		});
+	});
+
+	it("todo 还没有结果时不带清单：跑着的那一下仍归普通工具卡片", () => {
+		const items = toTranscriptItems(
+			messages(USER, assistant([{ type: "toolCall", id: "t1", name: "todo", arguments: { action: "list" } }])),
+			{ streamingIndex: 1 },
+		);
+		const part = items[1]?.kind === "assistant" ? items[1].parts[0] : undefined;
+		if (part?.type !== "tool") throw new Error("expected tool part");
+		expect(part.call.todo).toBeNull();
+		expect(part.call.summary).toBe("todo list");
+	});
+
 	it("bash 执行消息渲染成 notice，失败退出码标记为 error", () => {
 		const items = toTranscriptItems(
 			messages({
