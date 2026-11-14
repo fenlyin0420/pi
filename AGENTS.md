@@ -89,9 +89,19 @@ code-free; `dev` carries every customization as a thin additive layer on top of 
 
 Multiple pi sessions may be running in this cwd at the same time, each modifying different files. Git operations that touch unstaged, staged, or untracked files outside your own changes will stomp on other sessions' work. Follow these rules:
 
+Session isolation (worktrees):
+
+The pre-commit hook checks the whole working tree (`tsc --noEmit`, `biome check --write .`), not the staged content, so another session's half-written file blocks your commit however carefully you stage. For any task that writes code, work in a dedicated worktree:
+
+- `git worktree add ../pi-<slug> -b feat/<slug> dev`, then `npm install --ignore-scripts` and `npx husky` in it. Git resolves the relative `core.hooksPath` (`.husky/_`) against the worktree root and `.husky/_` is gitignored, so a fresh worktree runs no hooks at all until husky writes them there. Verify with `git commit --allow-empty -m probe`: it must print `Running formatting, linting, and type checking...`; drop the probe commit with `git reset --soft HEAD~1`.
+- One branch per worktree; git refuses the same branch in two worktrees.
+- Dependency changes are serial: a worktree whose `node_modules` lacks a dependency another session added cannot typecheck. Merge that change into `dev` first, then `git merge dev` in the other worktrees.
+- Read-only investigation stays in the primary tree. `git worktree remove <path>` once the branch is merged.
+
 Committing:
 
 - Only commit files YOU changed in THIS session.
+- A file already staged by another session in the primary tree: `git restore --staged <path>` before staging your own (leaves its working-tree content alone).
 - Stage explicit paths (`git add <path1> <path2>`); never `git add -A` / `git add .`.
 - Before committing, run `git status` and verify you are only staging your files.
 - `packages/ai/src/models.generated.ts` may always be included alongside your files.
