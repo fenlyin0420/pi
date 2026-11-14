@@ -1,6 +1,6 @@
 // 输入区：草稿、附件、命令与引用面板、工具栏和运行态切换都收在这里。
 
-import { type ClipboardEvent, type DragEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type ClipboardEvent, type DragEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import type {
 	AgentView,
 	DesktopBridge,
@@ -26,7 +26,7 @@ import { QueuedBar } from "./QueuedBar.tsx";
 import { SlashPalette } from "./SlashPalette.tsx";
 import { ThinkingPicker } from "./ThinkingPicker.tsx";
 
-const PLACEHOLDER = "Ask pi anything…";
+const PLACEHOLDER = "Ask pi anything, / for commands, @ for context…";
 const DRAFT_KEY_PREFIX = "pi-desktop:draft:";
 /** 没有会话时（空窗口、正在新建）草稿也存在同一套键下。 */
 const NO_SESSION = "none";
@@ -49,6 +49,8 @@ type ComposerProps = {
 	onWithdrawQueue: () => void;
 	/** 选文件与把拖入的文件换算成磁盘路径；两个都由主进程那边的桥提供。 */
 	attach: Pick<DesktopBridge, "attachFiles" | "pathForFile">;
+	/** 提问卡片、队列条、输入框都排在同一个栈里。 */
+	askDock?: ReactNode;
 	onSend: (text: string, attachments: readonly PromptAttachment[]) => void;
 	onSteer: (text: string) => void;
 	onAbort: () => void;
@@ -93,6 +95,7 @@ export function Composer({
 	models,
 	thinking,
 	sessionRestore,
+	askDock,
 	onWithdrawQueue,
 	attach,
 	onSend,
@@ -345,6 +348,7 @@ export function Composer({
 	return (
 		<div className="composer-dock composer-dock-docked">
 			<div className="composer-stack">
+				{askDock}
 				<QueuedBar lines={followUp} onWithdraw={onWithdrawQueue} />
 				{/* biome-ignore lint/a11y/noStaticElementInteractions: 拖放落点只有鼠标动作，键盘路径就是输入框本身 */}
 				<div

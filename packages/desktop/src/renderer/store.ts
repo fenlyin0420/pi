@@ -16,6 +16,9 @@ export type Toast = { id: number; level: "info" | "warning" | "error"; message: 
 /** 一次待写入草稿的队列文本；seq 递增，同一条文字连提两次也要各生效一次。 */
 export type DraftRestore = { sessionId: string; text: string; seq: number };
 
+/** 一份待答的 ask_user 提问：属于发起它的会话，与当前正在看哪个会话无关。 */
+export type PendingAsk = { sessionId: string; request: AskRequest };
+
 export type AppState = {
 	desktop: DesktopState | null;
 	models: ModelView[];
@@ -23,8 +26,8 @@ export type AppState = {
 	toasts: Toast[];
 	/** 原生菜单动作；seq 递增，便于同一动作连续触发。 */
 	menu: { action: MenuAction; seq: number } | null;
-	/** 正在等用户回答的 ask_user 提问。 */
-	ask: AskRequest | null;
+	/** 所有在等用户回答的提问，按会话归属；通常是 0 或 1 份。 */
+	asks: readonly PendingAsk[];
 	/** 撒回的队列消息；Composer 消费一次后自行根据 seq 去重。 */
 	draftRestore: DraftRestore | null;
 };
@@ -35,7 +38,7 @@ export const INITIAL_STATE: AppState = {
 	maximized: false,
 	toasts: [],
 	menu: null,
-	ask: null,
+	asks: [],
 	draftRestore: null,
 };
 
@@ -65,10 +68,15 @@ export function reduceEvent(state: AppState, event: DesktopEvent): AppState {
 		case "files":
 			// @ 引用补全的结果由 MentionPalette 自己订阅消费，主状态不持有它。
 			return state;
-		case "ask":
-			return { ...state, ask: event.request };
+		case "ask": {
+			// 同一 flowId 再来一次（比如扩展重发）只换那一份，已答完的不影响别的会话。
+			const others = state.asks.filter((entry) => entry.request.flowId !== event.request.flowId);
+			return { ...state, asks: [...others, { sessionId: event.sessionId, request: event.request }] };
+		}
 		case "askClosed":
-			return state.ask?.flowId === event.flowId ? { ...state, ask: null } : state;
+			return state.asks.some((entry) => entry.request.flowId === event.flowId)
+				? { ...state, asks: state.asks.filter((entry) => entry.request.flowId !== event.flowId) }
+				: state;
 		case "draftRestore":
 			restoreSeq += 1;
 			return {

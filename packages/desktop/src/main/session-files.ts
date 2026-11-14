@@ -47,6 +47,8 @@ export function toSessionSummary(info: SessionInfo, pinned: boolean, workspace: 
 		status: "idle",
 		// 磁盘上的会话没有“谁看过”的记录：未读只对这次运行里发生的事有意义。
 		unread: false,
+		// 提问只属于当前进程里活着的会话，磁盘上的那一行永远不在等人回答。
+		awaitingAsk: false,
 		model: null,
 		preview: previewText(info.allMessagesText),
 	};

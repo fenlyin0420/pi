@@ -1,7 +1,7 @@
 // pi-ask 事件桥的单元测试：wire 数据校验成界面契约，答案映射回提交载荷。
 
 import { describe, expect, it } from "vitest";
-import { flowIdOf, toAskRequest, toSubmitPayload } from "../src/main/ask.ts";
+import { flowIdOf, toAskRequest, toCancelPayload, toSubmitPayload } from "../src/main/ask.ts";
 
 const started = {
 	version: 1,
@@ -77,6 +77,15 @@ describe("flowIdOf", () => {
 		expect(flowIdOf({ flowId: "" })).toBeNull();
 		expect(flowIdOf("f")).toBeNull();
 		expect(flowIdOf(null)).toBeNull();
+	});
+});
+
+describe("toCancelPayload", () => {
+	it("关掉一次提问发的是显式 cancel，不带答案", () => {
+		const payload = toCancelPayload("flow-1");
+		expect(payload.flowId).toBe("flow-1");
+		expect(payload.response).toEqual({ kind: "cancel" });
+		expect(payload.version).toBe(1);
 	});
 });
 

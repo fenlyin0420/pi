@@ -248,6 +248,16 @@ hr.sidebar-resize-handle {
 	background: var(--ds-text-primary);
 }
 
+/* 在等你回答的那一行：空心点，和实心的未读点分开；两者都成立时先报提问。 */
+.awaiting-dot {
+	box-sizing: border-box;
+	width: 6px;
+	height: 6px;
+	flex: 0 0 auto;
+	border: 1px solid var(--ds-accent);
+	border-radius: 50%;
+}
+
 /* 会话行行尾的状态簇：未读圆点在前、加载圈在后，和父行一样贴在右端。 */
 .thread-item-status {
 	display: inline-flex;

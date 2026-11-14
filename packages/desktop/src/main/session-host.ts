@@ -34,7 +34,15 @@ import type {
 	UsageSummary,
 } from "../shared/contract.ts";
 import { folderName, samePath } from "../shared/paths.ts";
-import { flowIdOf, PI_ASK_COMPLETED, PI_ASK_STARTED, PI_ASK_SUBMIT, toAskRequest, toSubmitPayload } from "./ask.ts";
+import {
+	flowIdOf,
+	PI_ASK_COMPLETED,
+	PI_ASK_STARTED,
+	PI_ASK_SUBMIT,
+	toAskRequest,
+	toCancelPayload,
+	toSubmitPayload,
+} from "./ask.ts";
 import { imageViewOf } from "./message-images.ts";
 import { idleSteps, type RunSteps, stepActivity, thinkingSteps, toolEnded, toolStarted } from "./run-activity.ts";
 import { deleteSessionFile, listSessionSummaries, renameSessionFile, sessionTimes } from "./session-files.ts";
@@ -57,6 +65,12 @@ export type HostDeps = {
 	/** 目录选择由 index 实现，返回 null 表示用户取消。 */
 	pickDirectory(): Promise<string | null>;
 };
+
+/** 扩展与宿主共用的那种事件总线；每个会话一条，提问和答案都落在发起它的那条上。 */
+type EventBus = ReturnType<typeof createEventBus>;
+
+/** 一份还没答完的提问：属于哪个会话，答案该从哪条总线送回去。 */
+type PendingAsk = { sessionId: string; bus: EventBus; request: AskRequest };
 
 type LiveSession = {
 	id: string;
@@ -96,9 +110,8 @@ export class SessionHost {
 	private stateTimer: NodeJS.Timeout | null = null;
 	private structureDirty = false;
 	private stateDirty = false;
-	/** 扩展与宿主共享的事件总线；pi-ask 的提问和答案都走它。 */
-	private readonly bus = createEventBus();
-	private pendingAsk: AskRequest | null = null;
+	/** 还没答完的提问，按 flowId 存：多个会话可以各挂一份，互不覆盖。 */
+	private readonly pendingAsks = new Map<string, PendingAsk>();
 	/** 全应用共用一份模型目录（和 TUI 一样）：选择器的清单和可用性都从它出。 */
 	private runtime: ModelRuntime | null = null;
 
@@ -106,8 +119,6 @@ export class SessionHost {
 		this.cwd = cwd;
 		this.workspaces = deps.settings.get().workspaces;
 		this.deps = deps;
-		this.bus.on(PI_ASK_STARTED, (data) => this.onAskStarted(data));
-		this.bus.on(PI_ASK_COMPLETED, (data) => this.onAskCompleted(data));
 	}
 
 	getWorkspace(): string | null {
@@ -190,6 +201,9 @@ export class SessionHost {
 				return;
 			case "askAnswer":
 				this.answerAsk(command.flowId, command.answers, command.note);
+				return;
+			case "askCancel":
+				this.cancelAsk(command.flowId);
 				return;
 			case "setModel":
 				await this.setModel(command.model);
@@ -319,10 +333,12 @@ export class SessionHost {
 	}
 
 	private async createLive(manager: SessionManager, workspace: string): Promise<LiveSession> {
-		// 总线由宿主创建并交给扩展：pi-ask 的 started/submit 两个方向都落在同一个通道上。
+		// 每个会话一条自己的总线：pi-ask 的提问和答案都落在发起它的那条上。
+		// 共用一条就分不出哪个会话在问，后一个问题会把前一个盖掉。
+		const bus = createEventBus();
 		const services = await createAgentSessionServices({
 			cwd: workspace,
-			resourceLoaderOptions: { eventBus: this.bus },
+			resourceLoaderOptions: { eventBus: bus },
 			// 唯一的模型目录：选择器列的和会话用的必需是同一份，可用性才不会两边不一致。
 			modelRuntime: this.runtime ?? undefined,
 		});
@@ -332,6 +348,9 @@ export class SessionHost {
 		});
 		// 对扩展而言我们是“没有终端、但有传输”的宿主：pi-ask 据此走事件契约而不是 TUI 组件。
 		await session.bindExtensions({ mode: "rpc" });
+		const sessionId = session.sessionId;
+		bus.on(PI_ASK_STARTED, (data) => this.onAskStarted(sessionId, bus, data));
+		bus.on(PI_ASK_COMPLETED, (data) => this.onAskCompleted(sessionId, data));
 		if (modelFallbackMessage) this.notify("warning", modelFallbackMessage);
 		const live: LiveSession = {
 			id: session.sessionId,
@@ -449,6 +468,12 @@ export class SessionHost {
 			this.live.delete(id);
 			if (this.activeId === id) this.activeId = null;
 		}
+		// 会话没了，它名下的提问也跟着失效：界面上那张卡得同时收起，否则再也没人能答它。
+		for (const [flowId, pending] of this.pendingAsks) {
+			if (pending.sessionId !== id) continue;
+			this.pendingAsks.delete(flowId);
+			this.deps.emit({ type: "askClosed", sessionId: id, flowId });
+		}
 		this.unread.delete(id);
 		if (path) {
 			try {
@@ -543,7 +568,10 @@ export class SessionHost {
 			if (!this.workspaces.some((workspace) => samePath(workspace, live.cwd, this.deps.platform))) continue;
 			merged.set(live.id, this.summaryOf(live, merged.get(live.id)));
 		}
-		this.summaries = [...merged.values()].sort(compareSessions);
+		// 会话列表重建会把内存里的标记拿掉：磁盘那一份不知道谁在等人回答，活会话重新算一遍。
+		this.summaries = [...merged.values()]
+			.sort(compareSessions)
+			.map((session) => (this.hasPendingAsk(session.id) ? { ...session, awaitingAsk: true } : session));
 		this.markState();
 	}
 
@@ -554,6 +582,7 @@ export class SessionHost {
 				...base,
 				status: live.status,
 				unread: this.unread.has(live.id),
+				awaitingAsk: this.hasPendingAsk(live.id),
 				model: model ? `${model.provider}/${model.id}` : base.model,
 				pinned: this.deps.settings.get().pinnedSessions.includes(live.id),
 			};
@@ -576,6 +605,7 @@ export class SessionHost {
 			pinned: this.deps.settings.get().pinnedSessions.includes(live.id),
 			status: live.status,
 			unread: this.unread.has(live.id),
+			awaitingAsk: this.hasPendingAsk(live.id),
 			model: model ? `${model.provider}/${model.id}` : null,
 			preview: previewLine(lastText),
 		};
@@ -776,26 +806,52 @@ export class SessionHost {
 		this.markState();
 	}
 
-	/** pi-ask 开始提问：转成界面契约推给 renderer，同一时刻只保留一份。 */
-	private onAskStarted(data: unknown): void {
+	/** pi-ask 开始提问：转成界面契约推给 renderer，按 flowId 存好，答案和取消都靠它找回总线。 */
+	private onAskStarted(sessionId: string, bus: EventBus, data: unknown): void {
 		const request = toAskRequest(data);
 		if (!request) return;
-		this.pendingAsk = request;
-		this.deps.emit({ type: "ask", request });
+		this.pendingAsks.set(request.flowId, { sessionId, bus, request });
+		this.setAwaiting(sessionId, true);
+		this.deps.emit({ type: "ask", sessionId, request });
 	}
 
-	/** 提问结束（提交、取消或超时）：让界面上那张卡自己收起。 */
-	private onAskCompleted(data: unknown): void {
+	/** 提问结束（提交、取消或超时）：让界面上那张卡自己收起，会话行上的问号点一并去掉。 */
+	private onAskCompleted(sessionId: string, data: unknown): void {
 		const flowId = flowIdOf(data);
 		if (!flowId) return;
-		if (this.pendingAsk?.flowId === flowId) this.pendingAsk = null;
-		this.deps.emit({ type: "askClosed", flowId });
+		this.pendingAsks.delete(flowId);
+		this.setAwaiting(sessionId, this.hasPendingAsk(sessionId));
+		this.deps.emit({ type: "askClosed", sessionId, flowId });
 	}
 
-	/** 回答一次提问：通过扩展的提交通道送回去，结果由 pi-ask 自己决定。 */
+	/** 回答一次提问：通过发起它的那条总线送回去，结果由 pi-ask 自己决定。 */
 	private answerAsk(flowId: string, answers: Record<string, AskAnswer>, note?: string): void {
-		if (this.pendingAsk?.flowId !== flowId) return;
-		this.bus.emit(PI_ASK_SUBMIT, toSubmitPayload(flowId, answers, note));
+		const pending = this.pendingAsks.get(flowId);
+		if (!pending) return;
+		pending.bus.emit(PI_ASK_SUBMIT, toSubmitPayload(flowId, answers, note));
+	}
+
+	/** 关掉一次提问而不作答：pi-ask 把这一轮当用户取消，不必等到十分钟超时才知道。 */
+	private cancelAsk(flowId: string): void {
+		const pending = this.pendingAsks.get(flowId);
+		if (!pending) return;
+		pending.bus.emit(PI_ASK_SUBMIT, toCancelPayload(flowId));
+	}
+
+	private hasPendingAsk(sessionId: string): boolean {
+		for (const pending of this.pendingAsks.values()) {
+			if (pending.sessionId === sessionId) return true;
+		}
+		return false;
+	}
+
+	/** 侧栏那一行要不要标“在等你回答”；提问开始、结束和重建会话列表都走同一个判断。 */
+	private setAwaiting(sessionId: string, awaiting: boolean): void {
+		if (!this.summaries.some((session) => session.id === sessionId && session.awaitingAsk !== awaiting)) return;
+		this.summaries = this.summaries.map((session) =>
+			session.id === sessionId ? { ...session, awaitingAsk: awaiting } : session,
+		);
+		this.markState();
 	}
 
 	private notify(level: "info" | "warning" | "error", message: string): void {

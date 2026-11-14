@@ -40,6 +40,8 @@ export type SessionSummary = {
 	status: AgentStatus;
 	/** 切走之后它又跑出了新内容：侧栏行上画一个圆点，切回去看过就清掉。 */
 	unread: boolean;
+	/** 这个会话有一次 ask_user 还在等回答：侧栏行上换成问号点，与“跑出了新内容”分开。 */
+	awaitingAsk: boolean;
 	model: string | null;
 	/** 最近一条消息的单行摘要，列表悬停和搜索结果里用。 */
 	preview: string;
@@ -203,6 +205,8 @@ export type DesktopCommand =
 	| { type: "searchFiles"; requestId: number; query: string }
 	/** 回答一次 ask_user；flowId 取自收到的 ask 事件。 */
 	| { type: "askAnswer"; flowId: string; answers: Record<string, AskAnswer>; note?: string }
+	/** 关掉一次提问而不作答：pi-ask 收到显式 cancel，那一轮立刻拿到结果，不必等到超时。 */
+	| { type: "askCancel"; flowId: string }
 	/** 标题栏右端的三颗窗口按钮：按钮由界面画，动作回 main 执行。 */
 	| { type: "windowControl"; action: "minimize" | "maximize" | "close" }
 	| { type: "openExternal"; url: string }
@@ -283,10 +287,10 @@ export type DesktopEvent =
 	| { type: "menu"; action: MenuAction }
 	| { type: "window"; maximized: boolean }
 	| { type: "toast"; level: "info" | "warning" | "error"; message: string }
-	/** pi-ask 开始提问；同一时刻最多一个。 */
-	| { type: "ask"; request: AskRequest }
+	/** pi-ask 开始提问；按会话归属，每个会话最多同时一份。 */
+	| { type: "ask"; sessionId: string; request: AskRequest }
 	/** 提问已经结束（提交、取消或超时），界面上那一张应当收起。 */
-	| { type: "askClosed"; flowId: string }
+	| { type: "askClosed"; sessionId: string; flowId: string }
 	/** 撤回的队列消息回到输入框；草稿在 renderer 的 localStorage 里，所以只能这样送回来。 */
 	| { type: "draftRestore"; sessionId: string; text: string };
 

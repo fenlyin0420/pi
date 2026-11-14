@@ -61,6 +61,16 @@ export function toSubmitPayload(flowId: string, answers: Record<string, AskAnswe
 	};
 }
 
+/** 关掉一次提问：pi-ask 只认显式 cancel，不答也不取消就只能等它十分钟超时。 */
+export function toCancelPayload(flowId: string) {
+	return {
+		version: SUBMIT_VERSION,
+		requestId: `desktop-${Date.now()}`,
+		flowId,
+		response: { kind: "cancel" as const },
+	};
+}
+
 function toQuestion(raw: unknown): AskQuestionView | null {
 	if (!isRecord(raw)) return null;
 	const { id, prompt } = raw;

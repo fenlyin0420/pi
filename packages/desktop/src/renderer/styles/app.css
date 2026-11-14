@@ -451,115 +451,64 @@
 /* ---------- ask_user 作答 ---------- */
 
 /*
-  一次提问可能带好几道题，面板自己滚，弹窗本身不长高；每道题一张卡片式的选项列表。
+  提问卡片贴在输入框上方，样式复用 messages.css 的 .asktool-card 决策卡（和 Plan/Goal 审批同一套
+  表面）。这里只补它没有的几块：原生选项框、推荐角标、整次备注、必答提示、丢弃确认。
+  没有遮罩层：卡片是 composer 栈里的普通流内元素，点它外面不会关掉任何东西。
 */
-.ask-form {
-  display: flex;
-  max-height: min(60vh, 520px);
-  flex-direction: column;
-  gap: 16px;
-  overflow-y: auto;
-}
-
-.ask-question {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-
-.ask-question-prompt {
-  padding: 0;
-  color: var(--ds-text-primary);
-  font-size: var(--text-md);
-  font-weight: var(--font-weight-semibold);
-  line-height: var(--leading-body);
-}
-
-.ask-question-label {
-  margin: 0;
-  color: var(--ds-text-muted);
-  font-size: var(--text-xs);
-}
-
-.ask-options {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.ask-option {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 8px 10px;
-  border: 1px solid var(--ds-border-default);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-}
-
-.ask-option:hover {
-  background: var(--ds-bg-hover);
-}
-
-.ask-option.is-checked {
-  background: var(--ds-bg-active);
-}
-
-.ask-option input {
+.asktool-option-input {
   margin: 3px 0 0;
-  accent-color: var(--ds-text-primary);
+  accent-color: var(--ds-accent);
 }
 
-.ask-option-body {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.ask-option-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--ds-text-primary);
-  font-size: var(--text-sm);
-}
-
-.ask-option-tag {
+.asktool-option-tag {
+  margin-left: 8px;
   padding: 1px 6px;
   border-radius: var(--radius-full);
-  background: var(--ds-bg-active);
+  background: var(--ds-tile-deep);
   color: var(--ds-text-muted);
   font-size: var(--text-2xs);
 }
 
-.ask-option-description {
-  color: var(--ds-text-muted);
-  font-size: var(--text-xs);
-  line-height: var(--leading-body);
-}
-
-.ask-freeform {
+.asktool-note {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  margin-top: 8px;
   color: var(--ds-text-muted);
   font-size: var(--text-xs);
 }
 
-.ask-freeform-input {
-  width: 100%;
-  padding: 8px 10px;
-  border: 1px solid var(--ds-border-default);
-  border-radius: var(--radius-md);
-  background: var(--ds-bg-inset);
-  color: var(--ds-text-primary);
-  font: inherit;
-  resize: vertical;
+.asktool-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* 上一题/下一题在左，提交在右：多题时不用回到头顶那一排圆点。 */
+.asktool-nav {
+  display: flex;
+  gap: 4px;
+  margin-right: auto;
+}
+
+.asktool-hint {
+  margin: 6px 0 0;
+  color: var(--ds-text-faint);
+  font-size: var(--text-xs);
+}
+
+.asktool-confirm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  color: var(--ds-text-secondary);
+  font-size: var(--text-xs);
+}
+
+.asktool-confirm span {
+  margin-right: auto;
 }
 
 /*

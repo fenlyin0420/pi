@@ -93,7 +93,8 @@ export const SessionRow = memo(function SessionRow({
 				</span>
 			</button>
 			<span className="thread-item-status">
-				{!running && session.unread ? <UnreadDot /> : null}
+				{!running && session.awaitingAsk ? <span className="awaiting-dot" title="Waiting for your answer" /> : null}
+				{!running && !session.awaitingAsk && session.unread ? <UnreadDot /> : null}
 				<RunningStatus running={running} />
 			</span>
 			{menu.node}
