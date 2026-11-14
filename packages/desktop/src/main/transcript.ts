@@ -21,6 +21,11 @@ export type TranscriptOptions = {
 	streamingIndex: number | null;
 	/** 工具调用 id 到执行耗时，由 host 计时，消息本身不带。 */
 	toolDurations?: ReadonlyMap<string, number>;
+	/**
+	 * 已经起跑、还没出结果的工具调用 id。消息落地之后，没有结果既可能是排队也可能是正在跑，
+	 * 只有 host 的步骤状态分得清，所以由它传进来。
+	 */
+	runningToolIds?: ReadonlyMap<string, unknown>;
 };
 
 /** 消息下标到 item id：同一个下标在所有快照和增量里指向同一个 item。 */
@@ -127,10 +132,11 @@ function toParts(
 			parts.push({ type: "thinking", text: block.redacted ? "[redacted]" : block.thinking });
 		} else if (block.type === "toolCall") {
 			const result = results.get(block.id);
+			const running = options.runningToolIds?.has(block.id) === true;
 			const call: ToolCallView = {
 				id: `tool-${blockIndex}`,
 				name: block.name,
-				state: result ? (result.isError ? "error" : "done") : streaming ? "running" : "pending",
+				state: result ? (result.isError ? "error" : "done") : running || streaming ? "running" : "pending",
 				summary: summarizeToolCall(block.name, block.arguments),
 				argsText: formatArguments(block.name, block.arguments),
 				resultText: result ? truncate(withImageNote(result.text, result.images), RESULT_LIMIT) : "",

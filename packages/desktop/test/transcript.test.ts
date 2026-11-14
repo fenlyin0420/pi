@@ -98,12 +98,13 @@ describe("toTranscriptItems", () => {
 		expect(turn.usage).toMatchObject({ input: 10, output: 4, cacheRead: 2, cost: 0.01 });
 	});
 
-	it("工具没有结果时：流式下标内是 running，其余是 pending", () => {
-		const item = (index: number | null) => {
+	it("工具没有结果时：流式下标内和在跑的是 running，其余是 pending", () => {
+		const item = (index: number | null, runningToolIds?: ReadonlyMap<string, unknown>) => {
 			const items = toTranscriptItems(
 				messages(USER, assistant([{ type: "toolCall", id: "c", name: "read", arguments: { path: "a.ts" } }])),
 				{
 					streamingIndex: index,
+					runningToolIds,
 				},
 			);
 			const turn = items[1];
@@ -113,6 +114,9 @@ describe("toTranscriptItems", () => {
 		};
 		expect(item(1)).toBe("running");
 		expect(item(null)).toBe("pending");
+		// 消息已经落地、工具才刚起跑：没有结果，但 host 的步骤状态里有它。
+		expect(item(null, new Map([["c", { tool: "read", startedAt: 1 }]]))).toBe("running");
+		expect(item(null, new Map([["other", { tool: "read", startedAt: 1 }]]))).toBe("pending");
 	});
 
 	it("工具结果为错误时状态是 error", () => {

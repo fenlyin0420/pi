@@ -616,6 +616,7 @@ export class SessionHost {
 			live.items = toTranscriptItems(live.agent.messages, {
 				streamingIndex: null,
 				toolDurations: live.toolDurations,
+				runningToolIds: live.steps.tools,
 			});
 			live.transcriptDirty = false;
 		}
@@ -624,6 +625,7 @@ export class SessionHost {
 		const [streaming] = toTranscriptItems([live.partial], {
 			streamingIndex: 0,
 			toolDurations: live.toolDurations,
+			runningToolIds: live.steps.tools,
 		});
 		if (!streaming) return live.items;
 		return [...live.items, { ...streaming, id: itemIdAt(live.agent.messages.length) }];
