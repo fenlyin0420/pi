@@ -14,7 +14,7 @@ import { Titlebar } from "./components/Titlebar.tsx";
 import { ToastHost } from "./components/ToastHost.tsx";
 import { TodoDock } from "./components/todo/TodoDock.tsx";
 import { Transcript } from "./components/transcript/Transcript.tsx";
-import { issuesOf, openIssueCount } from "./lib/issues.ts";
+import { issuesOf } from "./lib/issues.ts";
 import type { TurnFileChange } from "./lib/turn-changes.ts";
 import { useDesktop } from "./store.ts";
 import { ThemeContext } from "./ui.tsx";
@@ -167,9 +167,6 @@ export function App() {
 						<Sidebar
 							state={desktop}
 							collapsed={collapsed}
-							issuesOpen={issuesOpen}
-							issueCount={openIssueCount(scopedIssues)}
-							onOpenIssues={() => setIssuesOpen(true)}
 							onOpenSession={(id) => {
 								showConversation();
 								send({ type: "openSession", id });

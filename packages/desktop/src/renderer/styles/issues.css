@@ -530,55 +530,6 @@
 	font-size: var(--text-xs-plus);
 }
 
-/* 侧栏入口：和 New session 同一行高度，但只在功能打开时出现。 */
-.sidebar-issues {
-	display: flex;
-	width: calc(100% - 24px);
-	flex: 0 0 auto;
-	align-items: center;
-	gap: 8px;
-	min-height: 32px;
-	margin: 0 auto 8px;
-	padding: 0 10px;
-	border: 1px solid transparent;
-	border-radius: var(--radius-md);
-	background: transparent;
-	color: var(--ds-text-secondary);
-	font-size: var(--text-md);
-	line-height: var(--leading-row);
-	text-align: left;
-	cursor: pointer;
-}
-
-.sidebar-issues:hover:not(:disabled) {
-	background: var(--ds-bg-hover);
-	color: var(--ds-text-primary);
-}
-
-.sidebar-issues.is-active {
-	background: var(--ds-bg-active);
-	color: var(--ds-text-primary);
-}
-
-.sidebar-issues:disabled {
-	color: var(--ds-text-muted);
-	cursor: default;
-}
-
-.sidebar-issues-label {
-	min-width: 0;
-	flex: 1 1 auto;
-}
-
-.sidebar-issues-count {
-	padding: 0 6px;
-	border-radius: var(--radius-full);
-	background: var(--ds-accent-soft);
-	color: var(--ds-accent);
-	font-size: var(--text-2xs);
-	font-variant-numeric: tabular-nums;
-}
-
 /* 线程会话顶部的一条：只报编号、标题、状态，点击回 issue 区。 */
 .issue-strip {
 	display: flex;
