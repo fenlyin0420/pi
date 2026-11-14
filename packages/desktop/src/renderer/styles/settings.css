@@ -312,6 +312,15 @@
   animation: settings-page-in var(--motion-duration-normal) var(--motion-ease-out) both;
 }
 
+/*
+  侧栏头部（π）和对话标题栏同高，都在面板上面那条 46px 带里。面板盖住侧栏以后，
+  头部仍按侧栏底色绘制，窗口左上角就留下一个和标题栏不同色的方块；开着面板时让它
+  跟标题栏同色，整条顶部带从左边缘一直连到窗口按钮。折叠的侧栏不渲染，自然没有这条。
+*/
+.app-shell:has(> .settings-page) .sidebar-header {
+  background: var(--ds-bg-primary);
+}
+
 /* 面板自己接焦点，键盘焦点环只会围绕内容，不画在整块面板上。 */
 .settings-page:focus,
 .settings-page:focus-visible {
