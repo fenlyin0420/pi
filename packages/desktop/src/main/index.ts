@@ -5,6 +5,7 @@ import type {
 	DesktopCommand,
 	DesktopEvent,
 	FileOpenResult,
+	IssueRunView,
 	MenuAction,
 	Platform,
 	ResolvedTheme,
@@ -20,6 +21,7 @@ import {
 import { readImageView } from "./attachment-open.ts";
 import { readAttachments } from "./attachments.ts";
 import { searchProjectFiles } from "./file-search.ts";
+import { IssuesService } from "./issues/service.ts";
 import { installMenu } from "./menu.ts";
 import { SessionHost } from "./session-host.ts";
 import { SettingsStore } from "./settings.ts";
@@ -28,6 +30,10 @@ import { createMainWindow } from "./window.ts";
 const platform = process.platform as Platform;
 const settings = new SettingsStore(app.getPath("userData"));
 let mainWindow: BrowserWindow | null = null;
+/** 还没建 issues 服务前的空队列；快照对象复用，免每帧造新的。 */
+const EMPTY_RUN: IssueRunView = { running: [], pending: 0, paused: false };
+/** 先建宿主再建 issues：两边互相要用，用这个变量做后绑。 */
+let issues: IssuesService | null = null;
 
 // 和 electron-builder.yml 的 appId 保持一致：快捷方式带这个 AUMID，应用不声明就会被
 // Windows 归到另一个任务栏分组，显示的是默认 electron 图标。
@@ -53,6 +59,30 @@ const host = new SessionHost(process.env.PI_DESKTOP_CWD ?? null, {
 		const result = await dialog.showOpenDialog({ properties: ["openDirectory", "createDirectory"] });
 		return result.canceled ? null : (result.filePaths[0] ?? null);
 	},
+	issues: {
+		summaries: () => issues?.summaries() ?? [],
+		runView: () => issues?.runView() ?? EMPTY_RUN,
+	},
+	issueTools: {
+		forSession: (sessionId) => issues?.toolsForSession(sessionId) ?? [],
+		forIssue: (issueId) => issues?.toolsForIssue(issueId) ?? [],
+	},
+	sessionRemoved: (sessionId) => issues?.detachSession(sessionId),
+});
+
+issues = new IssuesService({
+	directory: app.getPath("userData"),
+	emit: send,
+	workspace: () => host.getWorkspace(),
+	concurrency: () => settings.get().issuesConcurrency,
+	session: {
+		ensure: (issue) => host.ensureIssueSession(issue),
+		prompt: (sessionId, text) => host.promptSession(sessionId, text),
+		abort: (sessionId) => host.abortSession(sessionId),
+		open: (sessionId) => host.openSession(sessionId),
+	},
+	changed: () => host.touch(),
+	notify: (level, message) => send({ type: "toast", level, message }),
 });
 
 /** 原生文件选择器：取消时返回空列表，附件读取那边就什么都不加。 */
@@ -90,9 +120,12 @@ async function dispatch(command: DesktopCommand): Promise<void> {
 			case "listModels":
 				host.listModels();
 				return;
-			default:
+			default: {
+				// issue 命令由 issues 服务兜，剩下的一律交给宿主。
+				if (await issues?.handle(command)) return;
 				await host.handle(command);
 				return;
+			}
 		}
 	} catch (error) {
 		send({ type: "toast", level: "error", message: error instanceof Error ? error.message : String(error) });
@@ -167,11 +200,13 @@ app.whenReady().then(async () => {
 
 app.on("window-all-closed", () => {
 	host.dispose();
+	issues?.flush();
 	settings.flush();
 	if (process.platform !== "darwin") app.quit();
 });
 
 app.on("before-quit", () => {
 	host.dispose();
+	issues?.flush();
 	settings.flush();
 });

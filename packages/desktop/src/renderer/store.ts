@@ -6,6 +6,7 @@ import type {
 	DesktopCommand,
 	DesktopEvent,
 	DesktopState,
+	IssueDetail,
 	MenuAction,
 	ModelView,
 	TranscriptItem,
@@ -30,6 +31,8 @@ export type AppState = {
 	asks: readonly PendingAsk[];
 	/** 撒回的队列消息；Composer 消费一次后自行根据 seq 去重。 */
 	draftRestore: DraftRestore | null;
+	/** 选中的 issue 正文与评论；null 表示那条 issue 已不存在。 */
+	issueDetail: IssueDetail | null;
 };
 
 export const INITIAL_STATE: AppState = {
@@ -40,6 +43,7 @@ export const INITIAL_STATE: AppState = {
 	menu: null,
 	asks: [],
 	draftRestore: null,
+	issueDetail: null,
 };
 
 let toastId = 0;
@@ -68,6 +72,8 @@ export function reduceEvent(state: AppState, event: DesktopEvent): AppState {
 		case "files":
 			// @ 引用补全的结果由 MentionPalette 自己订阅消费，主状态不持有它。
 			return state;
+		case "issueDetail":
+			return { ...state, issueDetail: event.detail };
 		case "ask": {
 			// 同一 flowId 再来一次（比如扩展重发）只换那一份，已答完的不影响别的会话。
 			const others = state.asks.filter((entry) => entry.request.flowId !== event.request.flowId);

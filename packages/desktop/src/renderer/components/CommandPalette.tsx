@@ -2,12 +2,12 @@
 
 import { type KeyboardEvent as ReactKeyboardEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import type { SessionSummary, WorkspaceSummary } from "../../shared/contract.ts";
-import { IconFolderOpen, IconPanelLeftClose, IconPlus, IconSearch, IconSettings } from "../icons.tsx";
+import { IconFolderOpen, IconIssues, IconPanelLeftClose, IconPlus, IconSearch, IconSettings } from "../icons.tsx";
 import { formatSessionTime } from "../lib/format.ts";
 import { cx } from "../ui.tsx";
 
 /** 面板能执行的动作；App 把它们折成对应的命令。 */
-export type PaletteAction = "newSession" | "addWorkspace" | "settings" | "toggleSidebar";
+export type PaletteAction = "newSession" | "addWorkspace" | "settings" | "toggleSidebar" | "issues";
 
 type Option =
 	| { kind: "action"; id: string; action: PaletteAction; label: string; icon: ReactNode }
@@ -17,6 +17,7 @@ type Option =
 const ACTIONS: readonly { action: PaletteAction; label: string; icon: ReactNode }[] = [
 	{ action: "newSession", label: "New session", icon: <IconPlus size={15} /> },
 	{ action: "addWorkspace", label: "Add workspace…", icon: <IconFolderOpen size={15} /> },
+	{ action: "issues", label: "Issues", icon: <IconIssues size={15} /> },
 	{ action: "settings", label: "Settings", icon: <IconSettings size={15} /> },
 	{ action: "toggleSidebar", label: "Toggle sidebar", icon: <IconPanelLeftClose size={15} /> },
 ];
@@ -54,7 +55,13 @@ export function CommandPalette({
 	const { options, actionCount } = useMemo(() => {
 		const needle = query.trim().toLowerCase();
 		const matchedActions: Option[] = ACTIONS.filter((entry) => entry.label.toLowerCase().includes(needle)).map(
-			(entry) => ({ kind: "action", id: entry.action, action: entry.action, label: entry.label, icon: entry.icon }),
+			(entry) => ({
+				kind: "action",
+				id: entry.action,
+				action: entry.action,
+				label: entry.label,
+				icon: entry.icon,
+			}),
 		);
 		const names = new Map(workspaces.map((entry) => [entry.path, entry.name]));
 		// 会话跨 workspace 混在同一列：每行带上它自己的 workspace 名，免得同名标题分不清。

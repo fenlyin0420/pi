@@ -24,6 +24,8 @@ export type DesktopSettings = {
 	/** 当前选中的 workspace；null 表示还没选，此时不能聊天。 */
 	activeWorkspace: string | null;
 	pinnedSessions: string[];
+	/** 队列同时跑几条 issue（1–5）。并行会在同一个项目里开多个会话，改文件可能互覆。 */
+	issuesConcurrency: number;
 };
 
 /** 会话在侧栏一行里需要的全部信息。 */
@@ -52,6 +54,39 @@ export type WorkspaceSummary = {
 	path: string;
 	name: string;
 };
+
+/**
+ * 实验性 issues 的一条工作项。用户在动作区建 issue，agent 在自己的线程会话里解决它；
+ * 关闭只有人能点，模型跑完只到 review。
+ */
+export type IssueStatus = "open" | "queued" | "running" | "review" | "closed";
+
+/** 列表里的 issue：正文和评论按需再取，快照里只带这些。 */
+export type IssueSummary = {
+	id: string;
+	/** 按 workspace 自增，界面上写作 #12。 */
+	number: number;
+	workspace: string;
+	title: string;
+	status: IssueStatus;
+	createdAt: number;
+	updatedAt: number;
+	/** 线程会话；第一次运行时才创建。 */
+	sessionId: string | null;
+	/** agent 报的卡住原因；只有 open 状态带这个。 */
+	blocked: string | null;
+	/** 上一次运行失败或被打断的原因。 */
+	error: string | null;
+};
+
+/** issue 下面的一条记录：用户补充、agent 的进度，或交卷摘要。 */
+export type IssueComment = { at: number; author: "user" | "agent"; text: string };
+
+/** 选中一条 issue 时取的完整内容。 */
+export type IssueDetail = IssueSummary & { body: string; comments: IssueComment[] };
+
+/** 队列现在的样子：在跑哪几条、还剩几条、是否暂停。 */
+export type IssueRunView = { running: string[]; pending: number; paused: boolean };
 
 export type UsageSummary = {
 	input: number;
@@ -180,6 +215,9 @@ export type DesktopState = {
 	transcript: TranscriptItem[];
 	agent: AgentView;
 	settings: DesktopSettings;
+	/** 全部 workspace 的 issue；界面按当前 workspace 过滤。 */
+	issues: IssueSummary[];
+	issueRun: IssueRunView;
 };
 
 export type DesktopCommand =
@@ -200,6 +238,19 @@ export type DesktopCommand =
 	| { type: "updateSettings"; patch: Partial<DesktopSettings> }
 	| { type: "setModel"; model: string }
 	| { type: "setThinkingLevel"; level: ThinkingLevel }
+	| { type: "createIssue"; title: string; body: string }
+	| { type: "updateIssue"; id: string; title?: string; body?: string }
+	| { type: "commentIssue"; id: string; text: string }
+	| { type: "deleteIssue"; id: string }
+	/** 列表行的复选框与全选：勾上入队，取消出队。 */
+	| { type: "setIssueQueue"; ids: readonly string[]; queued: boolean }
+	| { type: "closeIssue"; id: string }
+	| { type: "reopenIssue"; id: string }
+	/** 取一条 issue 的正文与评论；结果走 issueDetail 事件。 */
+	| { type: "selectIssue"; id: string }
+	/** 切到这条 issue 的线程会话。 */
+	| { type: "openIssueThread"; id: string }
+	| { type: "runIssues"; action: "start" | "pause" | "stop" }
 	| { type: "listModels" }
 	/** 项目内文件搜索，给 composer 的 @ 引用补全用。 */
 	| { type: "searchFiles"; requestId: number; query: string }
@@ -292,7 +343,9 @@ export type DesktopEvent =
 	/** 提问已经结束（提交、取消或超时），界面上那一张应当收起。 */
 	| { type: "askClosed"; sessionId: string; flowId: string }
 	/** 撤回的队列消息回到输入框；草稿在 renderer 的 localStorage 里，所以只能这样送回来。 */
-	| { type: "draftRestore"; sessionId: string; text: string };
+	| { type: "draftRestore"; sessionId: string; text: string }
+	/** 选中那条 issue 的完整内容；null 表示它已经被删除。 */
+	| { type: "issueDetail"; detail: IssueDetail | null };
 
 export type DesktopBridge = {
 	getState(): Promise<DesktopState>;

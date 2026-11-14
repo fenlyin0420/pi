@@ -23,6 +23,9 @@ const MIN_SIDEBAR_WIDTH = 200;
 const MAX_SIDEBAR_WIDTH = 560;
 const MIN_DIFF_WIDTH = 320;
 const MAX_DIFF_WIDTH = 900;
+/** 队列并行的上限：再高就是同一项目里开太多会话改同一批文件。 */
+const MIN_ISSUE_CONCURRENCY = 1;
+const MAX_ISSUE_CONCURRENCY = 5;
 
 /** 默认值即产品默认：深色跟随系统、正文 1.0 字号、会话栏展开。 */
 export const DEFAULT_SETTINGS: DesktopSettings = {
@@ -38,6 +41,7 @@ export const DEFAULT_SETTINGS: DesktopSettings = {
 	workspaces: [],
 	activeWorkspace: null,
 	pinnedSessions: [],
+	issuesConcurrency: 3,
 };
 
 const DEFAULT_WINDOW: WindowState = { x: null, y: null, width: 1440, height: 900, maximized: false };
@@ -171,6 +175,14 @@ function normalizeSettings(input: DesktopSettings): DesktopSettings {
 		activeWorkspace:
 			typeof input.activeWorkspace === "string" && input.activeWorkspace ? input.activeWorkspace : null,
 		pinnedSessions: stringList(input.pinnedSessions, PINNED_LIMIT),
+		issuesConcurrency: Math.round(
+			clamp(
+				Number(input.issuesConcurrency),
+				MIN_ISSUE_CONCURRENCY,
+				MAX_ISSUE_CONCURRENCY,
+				DEFAULT_SETTINGS.issuesConcurrency,
+			),
+		),
 	};
 }
 

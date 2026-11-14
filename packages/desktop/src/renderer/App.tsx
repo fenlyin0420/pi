@@ -6,11 +6,14 @@ import { AskDock } from "./components/ask/AskDock.tsx";
 import { CommandPalette, type PaletteAction } from "./components/CommandPalette.tsx";
 import { Composer } from "./components/composer/Composer.tsx";
 import { DiffPanel } from "./components/diff/DiffPanel.tsx";
+import { IssueStrip } from "./components/issues/IssueStrip.tsx";
+import { IssuesPage } from "./components/issues/IssuesPage.tsx";
 import { SettingsPage } from "./components/settings/SettingsPage.tsx";
 import { Sidebar } from "./components/sidebar/Sidebar.tsx";
 import { Titlebar } from "./components/Titlebar.tsx";
 import { ToastHost } from "./components/ToastHost.tsx";
 import { Transcript } from "./components/transcript/Transcript.tsx";
+import { issuesOf, openIssueCount } from "./lib/issues.ts";
 import type { TurnFileChange } from "./lib/turn-changes.ts";
 import { useDesktop } from "./store.ts";
 import { ThemeContext } from "./ui.tsx";
@@ -21,6 +24,8 @@ export function App() {
 	const desktop = state.desktop;
 	const [settingsOpen, setSettingsOpen] = useState(false);
 	const [paletteOpen, setPaletteOpen] = useState(false);
+	/** issue 动作区是主栏的另一个 surface：开着时对话区让位，侧栏和标题栏不动。 */
+	const [issuesOpen, setIssuesOpen] = useState(false);
 	/** 右栏打开的 diff：点轮末卡片时把那一轮的文件和选中的文件一起放进来。 */
 	const [diff, setDiff] = useState<{
 		sessionId: string | null;
@@ -46,7 +51,7 @@ export function App() {
 	);
 
 	const runMenuAction = useCallback(
-		(action: MenuAction) => {
+		(action: MenuAction | PaletteAction) => {
 			switch (action) {
 				case "newSession":
 					send({ type: "newSession" });
@@ -65,6 +70,9 @@ export function App() {
 					return;
 				case "closeSession":
 					setPaletteOpen(false);
+					return;
+				case "issues":
+					setIssuesOpen(true);
 					return;
 			}
 		},
@@ -87,6 +95,7 @@ export function App() {
 				if (event.key === "Escape") {
 					setPaletteOpen(false);
 					setDiff(null);
+					setIssuesOpen(false);
 				}
 				return;
 			}
@@ -111,6 +120,12 @@ export function App() {
 					event.preventDefault();
 					setSettingsOpen(true);
 					return;
+				case "i":
+					// 只在带 Shift 时才占这个组合键，免得抢别的习惯用法。
+					if (!event.shiftKey) return;
+					event.preventDefault();
+					setIssuesOpen((open) => !open);
+					return;
 				default:
 					return;
 			}
@@ -126,6 +141,15 @@ export function App() {
 	// 换会话就把右栏收起来：面板里的文件和路径都属于上一个会话。
 	const activeSessionId = desktop?.activeSessionId ?? null;
 	const shownDiff = diff !== null && diff.sessionId === activeSessionId ? diff : null;
+	// issue 区的开关是主栏的 surface 切换，侧栏与标题栏不动。
+	const scopedIssues = desktop ? issuesOf(desktop.issues, desktop.workspace, desktop.platform) : [];
+	const threadIssue = scopedIssues.find((issue) => issue.sessionId === activeSessionId) ?? null;
+
+	// 侧栏点会话就是回对话：issue 面自动让位，否则标题换了内容还是 issue 列表。
+	useEffect(() => {
+		if (activeSessionId === null) return;
+		setIssuesOpen(false);
+	}, [activeSessionId]);
 
 	return (
 		<ThemeContext.Provider value={theme}>
@@ -139,6 +163,9 @@ export function App() {
 						<Sidebar
 							state={desktop}
 							collapsed={collapsed}
+							issuesOpen={issuesOpen}
+							issueCount={openIssueCount(scopedIssues)}
+							onOpenIssues={() => setIssuesOpen(true)}
 							onOpenSession={(id) => send({ type: "openSession", id })}
 							onNewSession={() => send({ type: "newSession" })}
 							onNewSessionIn={(path) => send({ type: "newSession", workspace: path })}
@@ -173,6 +200,8 @@ export function App() {
 								status={desktop.agent.status}
 								maximized={state.maximized}
 								sidebarCollapsed={collapsed}
+								issuesOpen={issuesOpen}
+								onToggleIssues={() => setIssuesOpen((open) => !open)}
 								onToggleSidebar={() => updateSettings({ sidebarCollapsed: !collapsed })}
 								onSearch={() => setPaletteOpen(true)}
 								onOpenSettings={() => setSettingsOpen(true)}
@@ -181,66 +210,98 @@ export function App() {
 								onClose={() => send({ type: "windowControl", action: "close" })}
 							/>
 							<div className="main-body">
-								<div className="main-column">
-									<Transcript
-										items={desktop.transcript}
-										sessionId={desktop.activeSessionId}
+								{issuesOpen ? (
+									<IssuesPage
+										issues={desktop.issues}
+										run={desktop.issueRun}
 										workspace={desktop.workspace}
-										onAddWorkspace={() => send({ type: "addWorkspace" })}
-										status={desktop.agent.status}
-										activity={desktop.agent.activity}
-										queued={desktop.agent.queued.steering}
-										onWithdraw={() => send({ type: "withdrawQueue" })}
-										showThinking={settings.showThinking}
-										showUsage={settings.showUsage}
-										showToolDetails={settings.showToolDetails}
-										onOpenExternal={(url) => send({ type: "openExternal", url })}
-										onOpenChanges={(files, path) => setDiff({ sessionId: activeSessionId, files, path })}
-										onPrompt={(text) => send({ type: "prompt", text })}
-									/>
-									<Composer
-										sessionId={desktop.activeSessionId}
-										workspace={desktop.workspace}
-										workspaces={desktop.workspaces}
 										platform={desktop.platform}
-										agent={desktop.agent}
-										models={state.models}
-										thinking={settings.showThinking}
-										sessionRestore={state.draftRestore}
-										askDock={
-											<AskDock
-												asks={state.asks}
-												activeSessionId={desktop.activeSessionId}
-												onSubmit={(flowId, answers, note) =>
-													send({ type: "askAnswer", flowId, answers, note })
-												}
-												onCancel={(flowId) => send({ type: "askCancel", flowId })}
-											/>
+										detail={state.issueDetail}
+										onClose={() => setIssuesOpen(false)}
+										onSelect={(id) => send({ type: "selectIssue", id })}
+										onCreate={(title, body) => send({ type: "createIssue", title, body })}
+										onUpdate={(id, patch) => send({ type: "updateIssue", id, ...patch })}
+										onComment={(id, text) => send({ type: "commentIssue", id, text })}
+										onDelete={(id) => send({ type: "deleteIssue", id })}
+										onStatus={(action, id) =>
+											send(action === "close" ? { type: "closeIssue", id } : { type: "reopenIssue", id })
 										}
-										onWithdrawQueue={() => send({ type: "withdrawQueue" })}
-										attach={window.piDesktop}
-										onSend={(text, attachments) => send({ type: "prompt", text, attachments })}
-										onSteer={(text) => send({ type: "steer", text })}
-										onAbort={() => send({ type: "abort" })}
-										onSetModel={(model) => send({ type: "setModel", model })}
-										onSetThinkingLevel={(level) => send({ type: "setThinkingLevel", level })}
-										onRequestModels={() => send({ type: "listModels" })}
-										onOpenSettings={() => setSettingsOpen(true)}
-										onNewSession={() => send({ type: "newSession" })}
-										onSelectWorkspace={(path) => send({ type: "selectWorkspace", path })}
-										onAddWorkspace={() => send({ type: "addWorkspace" })}
+										onSetQueue={(ids, queued) => send({ type: "setIssueQueue", ids, queued })}
+										onOpenThread={(id) => {
+											setIssuesOpen(false);
+											send({ type: "openIssueThread", id });
+										}}
+										onRun={(action) => send({ type: "runIssues", action })}
 									/>
-								</div>
-								{shownDiff !== null ? (
-									<DiffPanel
-										files={shownDiff.files}
-										selected={shownDiff.path}
-										width={settings.diffPanelWidth}
-										onSelect={(path) => setDiff({ ...shownDiff, path })}
-										onResize={(width) => updateSettings({ diffPanelWidth: width })}
-										onClose={() => setDiff(null)}
-									/>
-								) : null}
+								) : (
+									<>
+										<div className="main-column">
+											{threadIssue ? (
+												<IssueStrip issue={threadIssue} onOpen={() => setIssuesOpen(true)} />
+											) : null}
+											<Transcript
+												items={desktop.transcript}
+												sessionId={desktop.activeSessionId}
+												workspace={desktop.workspace}
+												onAddWorkspace={() => send({ type: "addWorkspace" })}
+												status={desktop.agent.status}
+												activity={desktop.agent.activity}
+												queued={desktop.agent.queued.steering}
+												onWithdraw={() => send({ type: "withdrawQueue" })}
+												showThinking={settings.showThinking}
+												showUsage={settings.showUsage}
+												showToolDetails={settings.showToolDetails}
+												onOpenExternal={(url) => send({ type: "openExternal", url })}
+												onOpenChanges={(files, path) =>
+													setDiff({ sessionId: activeSessionId, files, path })
+												}
+												onPrompt={(text) => send({ type: "prompt", text })}
+											/>
+											<Composer
+												sessionId={desktop.activeSessionId}
+												workspace={desktop.workspace}
+												workspaces={desktop.workspaces}
+												platform={desktop.platform}
+												agent={desktop.agent}
+												models={state.models}
+												thinking={settings.showThinking}
+												sessionRestore={state.draftRestore}
+												askDock={
+													<AskDock
+														asks={state.asks}
+														activeSessionId={desktop.activeSessionId}
+														onSubmit={(flowId, answers, note) =>
+															send({ type: "askAnswer", flowId, answers, note })
+														}
+														onCancel={(flowId) => send({ type: "askCancel", flowId })}
+													/>
+												}
+												onWithdrawQueue={() => send({ type: "withdrawQueue" })}
+												attach={window.piDesktop}
+												onSend={(text, attachments) => send({ type: "prompt", text, attachments })}
+												onSteer={(text) => send({ type: "steer", text })}
+												onAbort={() => send({ type: "abort" })}
+												onSetModel={(model) => send({ type: "setModel", model })}
+												onSetThinkingLevel={(level) => send({ type: "setThinkingLevel", level })}
+												onRequestModels={() => send({ type: "listModels" })}
+												onOpenSettings={() => setSettingsOpen(true)}
+												onNewSession={() => send({ type: "newSession" })}
+												onSelectWorkspace={(path) => send({ type: "selectWorkspace", path })}
+												onAddWorkspace={() => send({ type: "addWorkspace" })}
+											/>
+										</div>
+										{shownDiff !== null ? (
+											<DiffPanel
+												files={shownDiff.files}
+												selected={shownDiff.path}
+												width={settings.diffPanelWidth}
+												onSelect={(path) => setDiff({ ...shownDiff, path })}
+												onResize={(width) => updateSettings({ diffPanelWidth: width })}
+												onClose={() => setDiff(null)}
+											/>
+										) : null}
+									</>
+								)}
 							</div>
 						</div>
 					</>

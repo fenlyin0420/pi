@@ -12,7 +12,16 @@ import {
 } from "react";
 import type { DesktopState, SessionSummary, WorkspaceSummary } from "../../../shared/contract.ts";
 import { samePath } from "../../../shared/paths.ts";
-import { IconClose, IconFolderPlus, IconMoon, IconPlus, IconSearch, IconSettings, IconSun } from "../../icons.tsx";
+import {
+	IconClose,
+	IconFolderPlus,
+	IconIssues,
+	IconMoon,
+	IconPlus,
+	IconSearch,
+	IconSettings,
+	IconSun,
+} from "../../icons.tsx";
 import { sessionGroup } from "../../lib/format.ts";
 import { Button, cx, Dialog, Field, IconButton, Kbd } from "../../ui.tsx";
 import { RunningStatus } from "./RunningStatus.tsx";
@@ -35,6 +44,10 @@ type SessionSection = { key: SectionKey; label: string; sessions: SessionSummary
 type SidebarProps = {
 	state: DesktopState;
 	collapsed: boolean;
+	issuesOpen: boolean;
+	/** 当前 workspace 还没关闭的 issue 条数。 */
+	issueCount: number;
+	onOpenIssues: () => void;
 	onOpenSession: (id: string) => void;
 	onNewSession: () => void;
 	/** 在指定 workspace 里新建会话（侧栏文件夹的右键菜单）。 */
@@ -53,6 +66,9 @@ type SidebarProps = {
 export function Sidebar({
 	state,
 	collapsed,
+	issuesOpen,
+	issueCount,
+	onOpenIssues,
 	onOpenSession,
 	onNewSession,
 	onNewSessionIn,
@@ -297,6 +313,21 @@ export function Sidebar({
 					<IconPlus size={15} aria-hidden="true" />
 					<span className="sidebar-new-session-label">New session</span>
 					<Kbd>{newSessionShortcut}</Kbd>
+				</button>
+
+				{/* issue 区是主栏的另一个 surface：这里只放入口和条数。 */}
+				<button
+					type="button"
+					className={cx("sidebar-issues", issuesOpen && "is-active")}
+					aria-pressed={issuesOpen}
+					aria-label="Issues"
+					disabled={!hasWorkspace}
+					title={hasWorkspace ? "Issues" : "Select a workspace first"}
+					onClick={onOpenIssues}
+				>
+					<IconIssues size={15} aria-hidden="true" />
+					<span className="sidebar-issues-label">Issues</span>
+					{issueCount > 0 ? <span className="sidebar-issues-count">{issueCount}</span> : null}
 				</button>
 
 				<div className="sidebar-section-header">

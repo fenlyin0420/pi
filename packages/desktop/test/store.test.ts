@@ -82,8 +82,11 @@ function state(): DesktopState {
 			diffPanelWidth: 480,
 			workspaces: ["/tmp"],
 			activeWorkspace: "/tmp",
+			issuesConcurrency: 3,
 			pinnedSessions: [],
 		},
+		issues: [],
+		issueRun: { running: [], pending: 0, paused: false },
 	};
 }
 

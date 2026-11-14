@@ -2,7 +2,7 @@
 // 再接三颗自绘的最小化/最大化/关闭。macOS 用原生红绿灯，Linux 用完整原生框，都不在这里画。
 
 import type { AgentStatus, Platform } from "../../shared/contract.ts";
-import { IconPanelLeftClose, IconPanelLeftOpen, IconSearch, IconSettings } from "../icons.tsx";
+import { IconIssues, IconPanelLeftClose, IconPanelLeftOpen, IconSearch, IconSettings } from "../icons.tsx";
 import { cx, IconButton } from "../ui.tsx";
 import { WindowControls } from "./WindowControls.tsx";
 
@@ -13,6 +13,8 @@ export function Titlebar({
 	status,
 	maximized,
 	sidebarCollapsed,
+	issuesOpen,
+	onToggleIssues,
 	onToggleSidebar,
 	onSearch,
 	onOpenSettings,
@@ -25,6 +27,9 @@ export function Titlebar({
 	status: AgentStatus;
 	maximized: boolean;
 	sidebarCollapsed: boolean;
+	/** issue 区是否开着：图标高亮跟着它。 */
+	issuesOpen: boolean;
+	onToggleIssues: () => void;
 	onToggleSidebar: () => void;
 	onSearch: () => void;
 	onOpenSettings: () => void;
@@ -59,6 +64,15 @@ export function Titlebar({
 			</div>
 			<div className="ct-right">
 				<div className="ct-actions">
+					<IconButton
+						label={`Issues (${modKey}Shift+I)`}
+						size="small"
+						active={issuesOpen}
+						className="ct-icon-btn"
+						onClick={onToggleIssues}
+					>
+						<IconIssues size={15} />
+					</IconButton>
 					<IconButton label={`Search (${modKey}K)`} size="small" className="ct-icon-btn" onClick={onSearch}>
 						<IconSearch size={15} />
 					</IconButton>

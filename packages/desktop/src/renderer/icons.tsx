@@ -8,6 +8,7 @@ import {
 	Check,
 	ChevronDown,
 	ChevronRight,
+	CircleDot,
 	Command,
 	Copy,
 	Ellipsis,
@@ -56,6 +57,7 @@ export const IconBrain = icon(Brain);
 export const IconCheck = icon(Check);
 export const IconChevronDown = icon(ChevronDown);
 export const IconChevronRight = icon(ChevronRight);
+export const IconIssues = icon(CircleDot);
 export const IconCommand = icon(Command);
 export const IconCopy = icon(Copy);
 export const IconEllipsis = icon(Ellipsis);

@@ -3,7 +3,7 @@
 import { join } from "node:path";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { ImageContent } from "@earendil-works/pi-ai";
-import type { AgentSession, AgentSessionEvent } from "@earendil-works/pi-coding-agent";
+import type { AgentSession, AgentSessionEvent, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import {
 	createAgentSessionFromServices,
 	createAgentSessionServices,
@@ -23,6 +23,8 @@ import type {
 	DesktopSettings,
 	DesktopState,
 	ImageView,
+	IssueRunView,
+	IssueSummary,
 	ModelView,
 	Platform,
 	PromptAttachment,
@@ -56,6 +58,8 @@ const STATE_FLUSH_MS = 48;
 const UNTITLED = "New session";
 /** 没有活动会话时的空队列：常量复用，免得每帧造新对象打穿 renderer 的 memo。 */
 const EMPTY_QUEUE: QueuedMessages = { steering: [], followUp: [] };
+/** 没有 issues 服务时的队列视图：常量复用，免得每帧造新对象。 */
+const EMPTY_RUN: IssueRunView = { running: [], pending: 0, paused: false };
 
 export type HostDeps = {
 	settings: SettingsStore;
@@ -64,6 +68,12 @@ export type HostDeps = {
 	emit(event: DesktopEvent): void;
 	/** 目录选择由 index 实现，返回 null 表示用户取消。 */
 	pickDirectory(): Promise<string | null>;
+	/** issues 的列表与队列：数据在 IssuesService 里，快照只负责带上。 */
+	issues?: { summaries(): IssueSummary[]; runView(): IssueRunView };
+	/** issue 线程会话的专属工具；普通会话一个都不挂。 */
+	issueTools?: { forSession(sessionId: string): ToolDefinition[]; forIssue(issueId: string): ToolDefinition[] };
+	/** 会话被删掉：issue 那边要放开线程引用，下次运行重建。 */
+	sessionRemoved?(sessionId: string): void;
 };
 
 /** 扩展与宿主共用的那种事件总线；每个会话一条，提问和答案都落在发起它的那条上。 */
@@ -139,6 +149,8 @@ export class SessionHost {
 			transcript: active ? this.transcriptOf(active) : [],
 			agent: this.agentView(active),
 			settings,
+			issues: this.deps.issues?.summaries() ?? [],
+			issueRun: this.deps.issues?.runView() ?? EMPTY_RUN,
 		};
 	}
 
@@ -325,14 +337,20 @@ export class SessionHost {
 		if (workspace === null) return;
 		// 打开别的 workspace 里的会话，顺手把那个 workspace 设为当前：后续提问落在正确的项目里。
 		this.focusWorkspace(workspace);
-		const live = await this.createLive(SessionManager.open(target), workspace);
+		const live = await this.createLive(SessionManager.open(target), workspace, {
+			customTools: this.deps.issueTools?.forSession(id) ?? [],
+		});
 		this.activeId = live.id;
 		this.markRead(live.id);
 		this.markStructure();
 		this.markState();
 	}
 
-	private async createLive(manager: SessionManager, workspace: string): Promise<LiveSession> {
+	private async createLive(
+		manager: SessionManager,
+		workspace: string,
+		extra?: { customTools?: ToolDefinition[] },
+	): Promise<LiveSession> {
 		// 每个会话一条自己的总线：pi-ask 的提问和答案都落在发起它的那条上。
 		// 共用一条就分不出哪个会话在问，后一个问题会把前一个盖掉。
 		const bus = createEventBus();
@@ -345,6 +363,7 @@ export class SessionHost {
 		const { session, modelFallbackMessage } = await createAgentSessionFromServices({
 			services,
 			sessionManager: manager,
+			customTools: extra?.customTools ?? [],
 		});
 		// 对扩展而言我们是“没有终端、但有传输”的宿主：pi-ask 据此走事件契约而不是 TUI 组件。
 		await session.bindExtensions({ mode: "rpc" });
@@ -369,6 +388,70 @@ export class SessionHost {
 		live.unsubscribe = session.subscribe((event) => this.onSessionEvent(live, event));
 		this.live.set(live.id, live);
 		return live;
+	}
+
+	/** 外部状态（如 issue 列表）变了：推一帧快照。 */
+	touch(): void {
+		this.markState();
+	}
+
+	/**
+	 * 给一条 issue 拿到它的线程会话，不抢当前视图：后台任务不该换掉用户正在看的会话。
+	 * 会话被删过的话（没在最远列表里）重建一条，引用由调用方写回 issue。
+	 */
+	async ensureIssueSession(issue: {
+		id: string;
+		number: number;
+		title: string;
+		workspace: string;
+		sessionId: string | null;
+	}): Promise<string> {
+		if (issue.sessionId) {
+			const open = this.live.get(issue.sessionId);
+			if (open) return open.id;
+			const path = this.summaries.find((session) => session.id === issue.sessionId)?.path;
+			if (path) {
+				const reopened = await this.createLive(SessionManager.open(path), issue.workspace, {
+					customTools: this.deps.issueTools?.forSession(issue.sessionId) ?? [],
+				});
+				this.summaries = upsertSummary(this.summaries, this.summaryOf(reopened));
+				this.markState();
+				return reopened.id;
+			}
+		}
+		const live = await this.createLive(SessionManager.create(issue.workspace), issue.workspace, {
+			customTools: this.deps.issueTools?.forIssue(issue.id) ?? [],
+		});
+		// 侧栏标题直接用编号和标题：从会话里猜出来的第一行不如这两样准。
+		live.manager.appendSessionInfo(`#${issue.number} ${issue.title}`);
+		this.summaries = upsertSummary(this.summaries, this.summaryOf(live));
+		this.markState();
+		return live.id;
+	}
+
+	/** 向指定会话发一轮提示；不要求它是当前会话。 */
+	async promptSession(sessionId: string, text: string): Promise<void> {
+		const live = this.live.get(sessionId);
+		if (!live) throw new Error("Session is not open");
+		live.status = "running";
+		live.steps = thinkingSteps(Date.now());
+		this.markStructureOf(live);
+		this.markState();
+		this.scheduleTranscriptFlush();
+		await live.agent.prompt(text);
+	}
+
+	async abortSession(sessionId: string): Promise<void> {
+		const live = this.live.get(sessionId);
+		if (!live) return;
+		await live.agent.abort();
+		this.markState();
+	}
+
+	/** 切到某条会话（issue 的 Open thread）：没开着就按磁盘打开。 */
+	async openSession(id: string): Promise<void> {
+		await this.openById(id);
+		this.flushNow();
 	}
 
 	private async prompt(text: string, attachments: readonly PromptAttachment[]): Promise<void> {
@@ -475,6 +558,7 @@ export class SessionHost {
 			this.deps.emit({ type: "askClosed", sessionId: id, flowId });
 		}
 		this.unread.delete(id);
+		this.deps.sessionRemoved?.(id);
 		if (path) {
 			try {
 				deleteSessionFile(path);
@@ -749,6 +833,13 @@ export class SessionHost {
 		const live = this.activeSession();
 		if (!live) return;
 		live.transcriptDirty = true;
+		this.structureDirty = true;
+	}
+
+	/** 只标某条会话自身：后台会话脏了不弄脏当前会话的快照。 */
+	private markStructureOf(live: LiveSession): void {
+		live.transcriptDirty = true;
+		if (live.id !== this.activeId) return;
 		this.structureDirty = true;
 	}
 

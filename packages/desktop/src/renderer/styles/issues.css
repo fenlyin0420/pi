@@ -1,0 +1,542 @@
+/*
+  Issues（实验性）：主栏里的独立动作区。左侧列表 + 右侧详情，动作全部落在这一面，
+  对话区只保留一条指回 issue 的窄条。配色走 tokens，跟设置页同源。
+*/
+
+.issues-page {
+	display: flex;
+	flex: 1 1 auto;
+	min-width: 0;
+	min-height: 0;
+	flex-direction: column;
+	background: var(--ds-bg-primary);
+	color: var(--ds-text-primary);
+}
+
+.issues-header {
+	display: flex;
+	flex: 0 0 auto;
+	align-items: flex-end;
+	justify-content: space-between;
+	gap: 16px;
+	padding: 18px 22px 14px;
+	border-bottom: 1px solid var(--ds-border-subtle);
+}
+
+.issues-heading {
+	min-width: 0;
+}
+
+.issues-title {
+	margin: 0;
+	font-size: var(--text-lg);
+	font-weight: var(--font-weight-strong);
+	line-height: var(--leading-heading);
+}
+
+.issues-subtitle {
+	margin: 2px 0 0;
+	color: var(--ds-text-muted);
+	font-size: var(--text-xs-plus);
+	line-height: var(--leading-compact);
+}
+
+.issues-run-actions {
+	display: flex;
+	flex: 0 0 auto;
+	align-items: center;
+	gap: 6px;
+}
+
+.issues-body {
+	display: flex;
+	flex: 1 1 auto;
+	min-height: 0;
+}
+
+/* 列表固定宽：详情要放正文和评论，不给它留太多。 */
+.issue-list {
+	display: flex;
+	flex: 0 0 300px;
+	min-height: 0;
+	flex-direction: column;
+	border-right: 1px solid var(--ds-border-subtle);
+	overflow: hidden;
+}
+
+.issue-filters {
+	display: flex;
+	flex: 0 0 auto;
+	gap: 2px;
+	padding: 10px 12px;
+	border-bottom: 1px solid var(--ds-border-subtle);
+}
+
+.issue-filter {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 10px;
+	border: 0;
+	border-radius: var(--radius-full);
+	background: transparent;
+	color: var(--ds-text-secondary);
+	font-size: var(--text-xs-plus);
+	cursor: pointer;
+}
+
+.issue-filter:hover {
+	background: var(--ds-bg-hover);
+	color: var(--ds-text-primary);
+}
+
+.issue-filter.is-active {
+	background: var(--ds-tile);
+	color: var(--ds-text-primary);
+}
+
+.issue-filter-count {
+	color: var(--ds-text-muted);
+	font-variant-numeric: tabular-nums;
+}
+
+.issue-rows {
+	flex: 1 1 auto;
+	margin: 0;
+	padding: 6px;
+	list-style: none;
+	overflow-y: auto;
+}
+
+/* 队列表头：一颗全选框把当前这一档全部勾上/取消。 */
+.issue-list-head {
+	display: flex;
+	flex: 0 0 auto;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding: 8px 12px;
+	border-bottom: 1px solid var(--ds-border-subtle);
+}
+
+.issue-check-wrap {
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	cursor: pointer;
+}
+
+.issue-check {
+	width: 14px;
+	height: 14px;
+	flex: 0 0 auto;
+	margin: 0;
+	accent-color: var(--ds-accent);
+	cursor: pointer;
+}
+
+.issue-check:disabled {
+	cursor: default;
+	opacity: 0.45;
+}
+
+.issue-check-label {
+	color: var(--ds-text-secondary);
+	font-size: var(--text-xs-plus);
+}
+
+.issue-list-count {
+	color: var(--ds-text-muted);
+	font-size: var(--text-2xs);
+	font-variant-numeric: tabular-nums;
+}
+
+/* 一行 issue：勾选框在左，剩下整块是可点的按钮（右键菜单也挂在它身上）。 */
+.issue-row {
+	display: flex;
+	align-items: flex-start;
+	gap: 9px;
+	padding: 8px 10px;
+	border-radius: var(--radius-md);
+}
+
+.issue-row:hover {
+	background: var(--ds-bg-hover);
+}
+
+.issue-row.is-active {
+	background: var(--ds-bg-active);
+}
+
+.issue-row-main {
+	display: flex;
+	min-width: 0;
+	flex: 1 1 auto;
+	flex-direction: column;
+	gap: 6px;
+	padding: 1px 0 0;
+	border: 0;
+	background: transparent;
+	color: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+.issue-row-head {
+	display: flex;
+	min-width: 0;
+	align-items: baseline;
+	gap: 8px;
+}
+
+.issue-number {
+	flex: 0 0 auto;
+	color: var(--ds-text-muted);
+	font-family: var(--font-mono);
+	font-size: var(--text-xs);
+}
+
+.issue-row-title {
+	min-width: 0;
+	overflow: hidden;
+	font-size: var(--text-md);
+	font-weight: var(--font-weight-medium);
+	line-height: var(--leading-compact);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.issue-row-meta {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.issue-row-blocked {
+	color: var(--ds-warning);
+	font-size: var(--text-2xs);
+}
+
+.issue-empty {
+	margin: auto;
+	padding: 24px;
+	color: var(--ds-text-muted);
+	font-size: var(--text-sm);
+	text-align: center;
+}
+
+.issues-detail-pane {
+	display: flex;
+	flex: 1 1 auto;
+	min-width: 0;
+	min-height: 0;
+	flex-direction: column;
+	overflow-y: auto;
+}
+
+.issue-detail {
+	display: flex;
+	min-height: 0;
+	flex-direction: column;
+	gap: 14px;
+	padding: 18px 22px 26px;
+}
+
+.issue-detail-head {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.issue-detail-title-row {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+/* 标题就地编辑：去掉边框，聚焦时才画出输入态。 */
+.issue-title-input {
+	min-width: 0;
+	flex: 1 1 auto;
+	padding: 2px 6px;
+	border: 1px solid transparent;
+	border-radius: var(--radius-sm);
+	background: transparent;
+	color: var(--ds-text-primary);
+	font-family: inherit;
+	font-size: var(--text-lg-plus);
+	font-weight: var(--font-weight-strong);
+}
+
+.issue-title-input:hover {
+	background: var(--ds-bg-hover);
+}
+
+.issue-title-input:focus {
+	outline: none;
+	border-color: var(--ds-border-strong);
+	background: var(--ds-field-inset-bg);
+}
+
+.issue-actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px;
+}
+
+.issue-note {
+	margin: 0;
+	padding: 8px 10px;
+	border-radius: var(--radius-md);
+	background: var(--ds-bg-tertiary);
+	color: var(--ds-text-secondary);
+	font-size: var(--text-xs-plus);
+}
+
+.issue-note-warning {
+	background: var(--ds-bg-tertiary);
+	color: var(--ds-warning);
+}
+
+.issue-note-error {
+	background: var(--ds-bg-tertiary);
+	color: var(--ds-error);
+}
+
+.issue-body {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.issue-body-input {
+	min-height: 160px;
+	padding: 12px 14px;
+	border: 1px solid var(--ds-border-default);
+	border-radius: var(--radius-md);
+	background: var(--ds-field-inset-bg);
+	color: var(--ds-text-primary);
+	font-family: var(--font-mono);
+	font-size: var(--text-xs-plus);
+	line-height: var(--leading-body);
+	resize: vertical;
+}
+
+.issue-body-input:focus {
+	outline: none;
+	border-color: var(--ds-focus);
+	background: var(--ds-field-inset-focus-bg);
+}
+
+.issue-body-save {
+	display: flex;
+	justify-content: flex-end;
+}
+
+.issue-comments {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	padding-top: 14px;
+	border-top: 1px solid var(--ds-border-subtle);
+}
+
+.issue-comment-list {
+	display: flex;
+	margin: 0;
+	padding: 0;
+	flex-direction: column;
+	gap: 8px;
+	list-style: none;
+}
+
+.issue-comment {
+	padding: 8px 12px;
+	border-radius: var(--radius-md);
+	background: var(--ds-bg-tertiary);
+}
+
+/* agent 的记录用另一种底色：人和模型的发言在长线程里要一眼分开。 */
+.issue-comment.is-agent {
+	background: var(--ds-bg-inset);
+}
+
+.issue-comment-meta {
+	color: var(--ds-text-faint);
+	font-size: var(--text-2xs);
+}
+
+.issue-comment-text {
+	margin: 4px 0 0;
+	font-size: var(--text-xs-plus);
+	line-height: var(--leading-body);
+	white-space: pre-wrap;
+}
+
+.issue-comment-compose {
+	display: flex;
+	align-items: flex-end;
+	gap: 8px;
+}
+
+.issue-comment-input {
+	min-height: 60px;
+	flex: 1 1 auto;
+	padding: 8px 10px;
+	border: 1px solid var(--ds-border-default);
+	border-radius: var(--radius-md);
+	background: var(--ds-field-inset-bg);
+	color: var(--ds-text-primary);
+	font-family: inherit;
+	font-size: var(--text-xs-plus);
+	line-height: var(--leading-body);
+	resize: vertical;
+}
+
+.issue-comment-input:focus {
+	outline: none;
+	border-color: var(--ds-focus);
+}
+
+.issues-new {
+	display: flex;
+	flex-direction: column;
+	gap: 14px;
+	padding: 20px 22px;
+}
+
+.issues-new-body {
+	min-height: 200px;
+	font-family: var(--font-mono);
+	resize: vertical;
+}
+
+.issues-new-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 6px;
+}
+
+.settings-number-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.settings-number {
+	width: 64px;
+	padding: 5px 8px;
+	border: 1px solid var(--ds-border-default);
+	border-radius: var(--radius-md);
+	background: var(--ds-field-inset-bg);
+	color: var(--ds-text-primary);
+	font-family: inherit;
+	font-size: var(--text-sm);
+	font-variant-numeric: tabular-nums;
+}
+
+.settings-number:focus {
+	outline: none;
+	border-color: var(--ds-focus);
+	background: var(--ds-field-inset-focus-bg);
+}
+
+.settings-number-suffix {
+	color: var(--ds-text-muted);
+	font-size: var(--text-xs-plus);
+}
+
+/* 侧栏入口：和 New session 同一行高度，但只在功能打开时出现。 */
+.sidebar-issues {
+	display: flex;
+	width: calc(100% - 24px);
+	flex: 0 0 auto;
+	align-items: center;
+	gap: 8px;
+	min-height: 32px;
+	margin: 0 auto 8px;
+	padding: 0 10px;
+	border: 1px solid transparent;
+	border-radius: var(--radius-md);
+	background: transparent;
+	color: var(--ds-text-secondary);
+	font-size: var(--text-md);
+	line-height: var(--leading-row);
+	text-align: left;
+	cursor: pointer;
+}
+
+.sidebar-issues:hover:not(:disabled) {
+	background: var(--ds-bg-hover);
+	color: var(--ds-text-primary);
+}
+
+.sidebar-issues.is-active {
+	background: var(--ds-bg-active);
+	color: var(--ds-text-primary);
+}
+
+.sidebar-issues:disabled {
+	color: var(--ds-text-muted);
+	cursor: default;
+}
+
+.sidebar-issues-label {
+	min-width: 0;
+	flex: 1 1 auto;
+}
+
+.sidebar-issues-count {
+	padding: 0 6px;
+	border-radius: var(--radius-full);
+	background: var(--ds-accent-soft);
+	color: var(--ds-accent);
+	font-size: var(--text-2xs);
+	font-variant-numeric: tabular-nums;
+}
+
+/* 线程会话顶部的一条：只报编号、标题、状态，点击回 issue 区。 */
+.issue-strip {
+	display: flex;
+	width: 100%;
+	flex: 0 0 auto;
+	align-items: center;
+	gap: 8px;
+	padding: 7px 16px;
+	border: 0;
+	border-bottom: 1px solid var(--ds-border-subtle);
+	background: var(--ds-bg-secondary);
+	color: var(--ds-text-secondary);
+	font-size: var(--text-xs-plus);
+	text-align: left;
+	cursor: pointer;
+}
+
+.issue-strip:hover {
+	background: var(--ds-bg-hover);
+	color: var(--ds-text-primary);
+}
+
+.issue-strip-number {
+	color: var(--ds-text-muted);
+	font-family: var(--font-mono);
+}
+
+.issue-strip-title {
+	min-width: 0;
+	flex: 1 1 auto;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.issue-strip-status {
+	color: var(--ds-text-muted);
+}
+
+.issue-strip-link {
+	flex: 0 0 auto;
+	color: var(--ds-accent);
+}

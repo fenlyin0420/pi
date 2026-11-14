@@ -1,6 +1,6 @@
 // 覆盖主区域的设置面板：外观 / Agent / 会话三块，改动立刻回写设置，没有保存按钮。
 
-import { type ReactNode, useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import type { AgentView, DesktopSettings, ResolvedTheme, ThinkingLevel } from "../../../shared/contract.ts";
 import { IconClose } from "../../icons.tsx";
 import { cx, IconButton, Segmented, Switch } from "../../ui.tsx";
@@ -15,6 +15,9 @@ const DENSITY_OPTIONS: readonly { value: DesktopSettings["density"]; label: stri
 	{ value: "comfortable", label: "Comfortable" },
 	{ value: "compact", label: "Compact" },
 ];
+
+// 并行条数的上限与 main 侧持久化时的校验一致（settings.ts）。
+const MAX_CONCURRENCY = 5;
 
 // 字号缩放的取值区间由 main 侧持久化时同样校验，这里保持一致。
 const MIN_FONT_SCALE = 0.85;
@@ -171,7 +174,60 @@ export function SettingsPage({
 						</SettingsRow>
 					</div>
 				</section>
+				<section className="settings-card-block" aria-labelledby="settings-issues">
+					<h3 className="settings-card-heading" id="settings-issues">
+						Issues
+					</h3>
+					<div className="settings-panel">
+						<SettingsRow
+							title="Parallel issues"
+							detail="How many issue threads run at once. Each thread may edit the same files."
+						>
+							<ConcurrencyInput
+								value={settings.issuesConcurrency}
+								onCommit={(value) => onUpdate({ issuesConcurrency: value })}
+							/>
+						</SettingsRow>
+					</div>
+				</section>
 			</div>
+		</div>
+	);
+}
+
+/** 并行条数：自由填的数字，blur 或 Enter 时提交，main 侧再夹到 1–5。 */
+function ConcurrencyInput({ value, onCommit }: { value: number; onCommit: (value: number) => void }) {
+	const [draft, setDraft] = useState(String(value));
+
+	// 设置被别处改（另一个窗口、旧文件迁移）时，输入框跟着回到真值。
+	useEffect(() => setDraft(String(value)), [value]);
+
+	const commit = () => {
+		const parsed = Number.parseInt(draft, 10);
+		if (!Number.isFinite(parsed)) {
+			setDraft(String(value));
+			return;
+		}
+		onCommit(Math.min(MAX_CONCURRENCY, Math.max(1, parsed)));
+	};
+
+	return (
+		<div className="settings-number-row">
+			<input
+				className="settings-number"
+				type="number"
+				min={1}
+				max={MAX_CONCURRENCY}
+				step={1}
+				value={draft}
+				aria-label="Parallel issues"
+				onChange={(event) => setDraft(event.target.value)}
+				onBlur={commit}
+				onKeyDown={(event) => {
+					if (event.key === "Enter") event.currentTarget.blur();
+				}}
+			/>
+			<span className="settings-number-suffix">threads at a time</span>
 		</div>
 	);
 }
