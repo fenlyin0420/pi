@@ -311,6 +311,88 @@
 	gap: 8px;
 }
 
+/* 正文头部：左侧一个标签，右侧是读态的 Edit 或写态的 Preview/Cancel/Save。 */
+.issue-description {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.issue-description-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.issue-description-label {
+	color: var(--ds-text-muted);
+	font-size: var(--text-2xs);
+	font-weight: var(--font-weight-medium);
+	letter-spacing: var(--tracking-wide);
+	text-transform: uppercase;
+}
+
+.issue-description-actions {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.issue-description-empty {
+	margin: 0;
+	padding: 14px 16px;
+	border: 1px dashed var(--ds-border-default);
+	border-radius: var(--radius-md);
+	color: var(--ds-text-muted);
+	font-size: var(--text-xs-plus);
+}
+
+/* 渲染后的正文：软底卡片，跟评论区分开；排版本身由 .prose-chat 负责。 */
+.issue-markdown {
+	padding: 12px 14px;
+	border-radius: var(--radius-md);
+	background: var(--ds-bg-tertiary);
+}
+
+/* 图不撑破详情列：宽度收到容器里，高度按比例。 */
+.issue-image {
+	display: block;
+	max-width: 100%;
+	height: auto;
+	margin: 0.6em 0;
+	border-radius: var(--radius-sm);
+}
+
+/* 慢图与坏图都占原位：一条等宽提示，不把整段正文挤变形。 */
+.issue-image-state {
+	display: inline-flex;
+	padding: 2px 8px;
+	border: 1px dashed var(--ds-border-default);
+	border-radius: var(--radius-sm);
+	color: var(--ds-text-muted);
+	font-family: var(--font-mono);
+	font-size: var(--text-2xs);
+}
+
+.issue-image-state.is-error {
+	border-style: solid;
+	border-color: var(--ds-warning);
+	color: var(--ds-warning);
+}
+
+/* 预览弹窗：卡片高度跟着内容，超高就在卡片里滚。 */
+.issue-preview-body {
+	max-height: min(62vh, 560px);
+	overflow-y: auto;
+}
+
+.issue-preview-empty {
+	margin: 0;
+	color: var(--ds-text-muted);
+	font-size: var(--text-sm);
+}
+
 .issue-body-input {
 	min-height: 160px;
 	padding: 12px 14px;
@@ -328,11 +410,6 @@
 	outline: none;
 	border-color: var(--ds-focus);
 	background: var(--ds-field-inset-focus-bg);
-}
-
-.issue-body-save {
-	display: flex;
-	justify-content: flex-end;
 }
 
 .issue-comments {
@@ -417,6 +494,11 @@
 	display: flex;
 	justify-content: flex-end;
 	gap: 6px;
+}
+
+/* 预览在左，取消与创建在右：中间这条把空白吃掉。 */
+.issues-new-gap {
+	flex: 1 1 auto;
 }
 
 .settings-number-row {

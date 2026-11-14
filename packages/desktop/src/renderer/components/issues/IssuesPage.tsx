@@ -7,6 +7,8 @@ import { filterIssues, type IssueFilter, issuesOf, withSummary } from "../../lib
 import { Button, Field, IconButton } from "../../ui.tsx";
 import { IssueDetail } from "./IssueDetail.tsx";
 import { IssueList } from "./IssueList.tsx";
+import { IssuePreview } from "./IssuePreview.tsx";
+import { useImagePaste } from "./use-image-paste.ts";
 
 /** 主区域里的 issue 面板；对话区被它顶掉，侧栏和标题栏保持不动。 */
 export function IssuesPage({
@@ -25,6 +27,7 @@ export function IssuesPage({
 	onSetQueue,
 	onOpenThread,
 	onRun,
+	onOpenExternal,
 }: {
 	issues: readonly IssueSummary[];
 	run: IssueRunView;
@@ -41,6 +44,7 @@ export function IssuesPage({
 	onSetQueue: (ids: readonly string[], queued: boolean) => void;
 	onOpenThread: (id: string) => void;
 	onRun: (action: "start" | "pause" | "stop") => void;
+	onOpenExternal: (url: string) => void;
 }) {
 	const [filter, setFilter] = useState<IssueFilter>("active");
 	const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -128,7 +132,9 @@ export function IssuesPage({
 				<div className="issues-detail-pane">
 					{creating ? (
 						<NewIssueForm
+							workspace={workspace}
 							onCancel={() => setCreating(false)}
+							onOpenExternal={onOpenExternal}
 							onCreate={(title, body) => {
 								setCreating(false);
 								setSelectedId(null);
@@ -141,10 +147,12 @@ export function IssuesPage({
 							key={shown.id}
 							detail={shown}
 							run={run}
+							workspace={workspace}
 							onUpdate={onUpdate}
 							onComment={onComment}
 							onStatus={onStatus}
 							onOpenThread={onOpenThread}
+							onOpenExternal={onOpenExternal}
 							onDelete={(id) => {
 								setSelectedId(null);
 								onDelete(id);
@@ -168,17 +176,23 @@ function describeRun(running: number, pending: number, paused: boolean): string 
 	return paused ? `${pending} queued · paused` : `${pending} queued`;
 }
 
-/** 新建表单：标题必填，正文可空；提交后交给 main，选中由列表的自动选中接上。 */
+/** 新建表单：标题必填，正文可空（markdown，可预览）；提交后交给 main，选中由列表的自动选中接上。 */
 function NewIssueForm({
+	workspace,
 	onCreate,
 	onCancel,
+	onOpenExternal,
 }: {
+	workspace: string | null;
 	onCreate: (title: string, body: string) => void;
 	onCancel: () => void;
+	onOpenExternal: (url: string) => void;
 }) {
 	const [title, setTitle] = useState("");
 	const [body, setBody] = useState("");
+	const [previewing, setPreviewing] = useState(false);
 	const titleRef = useRef<HTMLInputElement | null>(null);
+	const { areaRef: bodyRef, onPaste: onBodyPaste } = useImagePaste(setBody);
 
 	// 表单是键盘驱动的入口：打开就把焦点交给标题，不用先 Tab 过整个面板。
 	useEffect(() => titleRef.current?.focus(), []);
@@ -206,15 +220,24 @@ function NewIssueForm({
 					}}
 				/>
 			</Field>
-			<Field label="Description" hint="Context the agent needs: files, expected behaviour, constraints.">
+			<Field
+				label="Description"
+				hint="Markdown, rendered once created: headings, lists, code, ![screenshot](docs/shot.png) or an https image link. Paste an image to insert a link to it."
+			>
 				<textarea
+					ref={bodyRef}
 					className="field-input issues-new-body"
 					value={body}
 					onChange={(event) => setBody(event.target.value)}
+					onPaste={onBodyPaste}
 					spellCheck={false}
 				/>
 			</Field>
 			<div className="issues-new-actions">
+				<Button variant="ghost" onClick={() => setPreviewing(true)}>
+					Preview
+				</Button>
+				<span className="issues-new-gap" />
 				<Button variant="ghost" onClick={onCancel}>
 					Cancel
 				</Button>
@@ -222,6 +245,13 @@ function NewIssueForm({
 					Create issue
 				</Button>
 			</div>
+			<IssuePreview
+				open={previewing}
+				source={body}
+				workspace={workspace}
+				onOpenExternal={onOpenExternal}
+				onClose={() => setPreviewing(false)}
+			/>
 		</div>
 	);
 }

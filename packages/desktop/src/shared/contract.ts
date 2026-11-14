@@ -316,6 +316,18 @@ export type ImageView = { path: string | null; name: string; dataUrl: string };
  */
 export type FileOpenResult = { kind: "image"; image: ImageView } | { kind: "external" } | { kind: "failed" };
 
+/**
+ * issue 正文里一张图的解析结果：main 把路径或 URL 换成 data URL（渲染进程的 CSP 只放 data:），
+ * 读不出来时给一句人话，界面上原地写在图的位置。
+ */
+export type IssueImage = { kind: "ready"; dataUrl: string } | { kind: "error"; message: string };
+
+/**
+ * 粘进正文的一张图：存成磁盘文件后，正文里只留这一行 markdown（绝对路径，哪个 workspace 都解析得到）；
+ * 写盘失败时给原因，界面用 toast 报。
+ */
+export type PastedIssueImage = { kind: "ready"; markdown: string } | { kind: "error"; message: string };
+
 /** pi-ask 的一道题里可选的答案。 */
 export type AskOptionView = {
 	value: string;
@@ -385,6 +397,10 @@ export type DesktopBridge = {
 	openAttachment(path: string): Promise<FileOpenResult>;
 	/** 取会话里某条用户消息的第 n 张图片（粘贴进来的图没有磁盘路径，只能从消息里读）。 */
 	readMessageImage(sessionId: string, messageIndex: number, imageIndex: number): Promise<ImageView | null>;
+	/** 读 issue 正文里一个图片地址：相对路径按 workspace 解析，URL 由 main 取回，结果一律是 data URL。 */
+	resolveIssueImage(workspace: string | null, source: string): Promise<IssueImage>;
+	/** 把粘贴的图片（base64）存到本地，回正文里该插的那行 markdown。 */
+	savePastedImage(data: string): Promise<PastedIssueImage>;
 	onEvent(listener: (event: DesktopEvent) => void): () => void;
 };
 
@@ -392,5 +408,7 @@ export const IPC_GET_STATE = "pi-desktop:get-state";
 export const IPC_ATTACH_FILES = "pi-desktop:attach-files";
 export const IPC_OPEN_ATTACHMENT = "pi-desktop:open-attachment";
 export const IPC_MESSAGE_IMAGE = "pi-desktop:message-image";
+export const IPC_ISSUE_IMAGE = "pi-desktop:issue-image";
+export const IPC_SAVE_ISSUE_IMAGE = "pi-desktop:save-issue-image";
 export const IPC_COMMAND = "pi-desktop:command";
 export const IPC_EVENT = "pi-desktop:event";

@@ -245,6 +245,7 @@ export function App() {
 											send({ type: "openIssueThread", id });
 										}}
 										onRun={(action) => send({ type: "runIssues", action })}
+										onOpenExternal={(url) => send({ type: "openExternal", url })}
 									/>
 								) : (
 									<>

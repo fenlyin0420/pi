@@ -5,37 +5,39 @@ import type { IssueDetail as Detail, IssueRunView } from "../../../shared/contra
 import { statusLabel, statusTone } from "../../lib/issues.ts";
 import { Badge, Button } from "../../ui.tsx";
 import { IssueActions } from "./IssueActions.tsx";
+import { IssueDescription } from "./IssueDescription.tsx";
 
 /** 详情面板；父组件按 issue id 换 key，切一条就重置编辑状态。 */
 export function IssueDetail({
 	detail,
 	run,
+	workspace,
 	onUpdate,
 	onComment,
 	onStatus,
 	onOpenThread,
 	onDelete,
+	onOpenExternal,
 }: {
 	detail: Detail;
 	run: IssueRunView;
+	/** 默认 workspace，正文里的相对图片路径按它解析。 */
+	workspace: string | null;
 	onUpdate: (id: string, patch: { title?: string; body?: string }) => void;
 	onComment: (id: string, text: string) => void;
 	onStatus: (action: "close" | "reopen", id: string) => void;
 	onOpenThread: (id: string) => void;
 	onDelete: (id: string) => void;
+	onOpenExternal: (url: string) => void;
 }) {
 	const [title, setTitle] = useState(detail.title);
-	const [body, setBody] = useState(detail.body);
 	const [comment, setComment] = useState("");
 	const running = detail.status === "running" || run.running.includes(detail.id);
-	const dirty = title.trim() !== detail.title || body !== detail.body;
 
-	const save = () => {
-		const patch: { title?: string; body?: string } = {};
-		if (title.trim() && title.trim() !== detail.title) patch.title = title.trim();
-		if (body !== detail.body) patch.body = body;
-		if (patch.title === undefined && patch.body === undefined) return;
-		onUpdate(detail.id, patch);
+	const saveTitle = () => {
+		const trimmed = title.trim();
+		if (!trimmed || trimmed === detail.title) return;
+		onUpdate(detail.id, { title: trimmed });
 	};
 
 	const submitComment = () => {
@@ -55,7 +57,7 @@ export function IssueDetail({
 						value={title}
 						aria-label="Issue title"
 						onChange={(event) => setTitle(event.target.value)}
-						onBlur={save}
+						onBlur={saveTitle}
 						onKeyDown={(event) => {
 							if (event.key === "Enter") event.currentTarget.blur();
 						}}
@@ -72,22 +74,12 @@ export function IssueDetail({
 			{detail.error ? <p className="issue-note issue-note-error">{detail.error}</p> : null}
 
 			<div className="issue-body">
-				<textarea
-					className="issue-body-input"
-					value={body}
-					aria-label="Issue description"
-					placeholder="What needs to change?"
-					onChange={(event) => setBody(event.target.value)}
-					onBlur={save}
-					spellCheck={false}
+				<IssueDescription
+					body={detail.body}
+					workspace={workspace}
+					onSave={(body) => onUpdate(detail.id, { body })}
+					onOpenExternal={onOpenExternal}
 				/>
-				{dirty ? (
-					<div className="issue-body-save">
-						<Button variant="primary" onClick={save}>
-							Save
-						</Button>
-					</div>
-				) : null}
 			</div>
 
 			<section className="issue-comments" aria-label="Issue comments">

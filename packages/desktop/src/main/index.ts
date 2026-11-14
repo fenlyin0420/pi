@@ -15,12 +15,16 @@ import {
 	IPC_COMMAND,
 	IPC_EVENT,
 	IPC_GET_STATE,
+	IPC_ISSUE_IMAGE,
 	IPC_MESSAGE_IMAGE,
 	IPC_OPEN_ATTACHMENT,
+	IPC_SAVE_ISSUE_IMAGE,
 } from "../shared/contract.ts";
 import { readImageView } from "./attachment-open.ts";
 import { readAttachments } from "./attachments.ts";
 import { searchProjectFiles } from "./file-search.ts";
+import { savePastedImage } from "./issue-image-paste.ts";
+import { readIssueImage } from "./issue-images.ts";
 import { IssuesService } from "./issues/service.ts";
 import { installMenu } from "./menu.ts";
 import { SessionHost } from "./session-host.ts";
@@ -167,6 +171,16 @@ app.whenReady().then(async () => {
 	ipcMain.handle(IPC_MESSAGE_IMAGE, (_event, sessionId: string, messageIndex: number, imageIndex: number) =>
 		host.messageImage(sessionId, messageIndex, imageIndex),
 	);
+	// issue 正文里的图片：渲染进程只认 data URL，路径的解析与读取都在 main 这边。
+	ipcMain.handle(IPC_ISSUE_IMAGE, (_event, workspace: string | null, source: string) =>
+		readIssueImage(workspace, source),
+	);
+	// 粘进正文的图存到 issues 目录：正文里只留一行 markdown，文件不进任何仓库。
+	ipcMain.handle(IPC_SAVE_ISSUE_IMAGE, async (_event, data: string) => {
+		const pasted = await savePastedImage(app.getPath("userData"), data);
+		if (pasted.kind === "error") send({ type: "toast", level: "error", message: pasted.message });
+		return pasted;
+	});
 	ipcMain.handle(IPC_COMMAND, async (_event, command: DesktopCommand) => {
 		await dispatch(command);
 	});

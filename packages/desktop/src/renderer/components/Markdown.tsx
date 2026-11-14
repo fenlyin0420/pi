@@ -10,7 +10,7 @@ import {
 	useState,
 	useSyncExternalStore,
 } from "react";
-import ReactMarkdown, { type Components } from "react-markdown";
+import ReactMarkdown, { type Components, type UrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { IconCheck, IconCopy } from "../icons.tsx";
 import {
@@ -22,6 +22,7 @@ import {
 	subscribeHighlight,
 	tokenStyle,
 } from "../lib/highlight.ts";
+import { keepImageSource } from "../lib/markdown-url.ts";
 import { cx } from "../ui.tsx";
 
 // 插件与选项都是模块级常量：每块 markdown 复用同一份，避免每次渲染重建解析器配置。
@@ -36,34 +37,52 @@ const FENCE = /^ {0,3}(`{3,}|~{3,})/;
 type MarkdownProps = {
 	source: string;
 	onOpenExternal: (url: string) => void;
+	/** 换掉默认的 <img>；界面只能显示 data URL 时，图片地址要先由别处解析。 */
+	img?: Components["img"];
 };
 
 /** 渲染一段 markdown；顶层按空行切块，流式追加时只有最后一块重新解析。 */
-export const Markdown = memo(function Markdown({ source, onOpenExternal }: MarkdownProps) {
+export const Markdown = memo(function Markdown({ source, onOpenExternal, img }: MarkdownProps) {
 	const blocks = useMemo(() => splitBlocks(source), [source]);
-	const components = useMemo(() => buildComponents(onOpenExternal), [onOpenExternal]);
+	const components = useMemo(() => buildComponents(onOpenExternal, img), [onOpenExternal, img]);
+	// 只有传了图片渲染器（issue 正文）时才放宽图片地址；其余调用点保持默认白名单。
+	const urlTransform = img ? keepImageSource : undefined;
 	return (
 		<>
 			{blocks.map((block) => (
-				<MarkdownBlock key={block.offset} source={block.source} components={components} />
+				<MarkdownBlock
+					key={block.offset}
+					source={block.source}
+					components={components}
+					urlTransform={urlTransform}
+				/>
 			))}
 		</>
 	);
 });
 
-const MarkdownBlock = memo(function MarkdownBlock({ source, components }: { source: string; components: Components }) {
+const MarkdownBlock = memo(function MarkdownBlock({
+	source,
+	components,
+	urlTransform,
+}: {
+	source: string;
+	components: Components;
+	urlTransform?: UrlTransform;
+}) {
 	return (
-		<ReactMarkdown remarkPlugins={REMARK_PLUGINS} skipHtml components={components}>
+		<ReactMarkdown remarkPlugins={REMARK_PLUGINS} skipHtml components={components} urlTransform={urlTransform}>
 			{source}
 		</ReactMarkdown>
 	);
 });
 
-/** 组件映射只依赖 onOpenExternal，链接处理才能跟着同一个回调走。 */
-function buildComponents(onOpenExternal: (url: string) => void): Components {
+/** 组件映射只依赖 onOpenExternal（和可选的图片渲染），链接处理才能跟着同一个回调走。 */
+function buildComponents(onOpenExternal: (url: string) => void, img?: Components["img"]): Components {
 	return {
 		pre: PreBlock,
 		table: Table,
+		...(img ? { img } : {}),
 		a: ({ node: _node, href, children, ...rest }: ComponentProps<"a"> & { node?: unknown }) => (
 			<a
 				{...rest}
