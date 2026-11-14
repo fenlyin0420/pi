@@ -46,34 +46,13 @@
   /* 滚动条约 6px：定位条落在它左侧的 12px 里，不挡拖动条，也不进窗口的缩放边。 */
   right: 12px;
   z-index: 6;
+  display: flex;
   width: 16px;
+  flex-direction: column;
+  justify-content: center;
   padding: 12px 0;
   user-select: none;
   touch-action: none;
-}
-
-/* 刻度列自己一层：游标量首末两格的位置时拿它当坐标系。 */
-.message-rail-track {
-  position: relative;
-  display: flex;
-  height: 100%;
-  flex-direction: column;
-  justify-content: center;
-}
-
-/*
-  游标：和刻度同样形状的一条亮线，按滚动位置在首末两格之间滑。位置由滚动时每帧写进
-  style，不进 React 渲染，所以滚多快都跟得上。没有底色，不挡刻度也不加块。
-*/
-.message-rail-cursor {
-  position: absolute;
-  right: 0;
-  width: 10px;
-  height: 3px;
-  border-radius: var(--radius-full);
-  background: var(--ds-text-primary);
-  transform: translateY(-50%);
-  pointer-events: none;
 }
 
 .message-rail-mark {
@@ -107,10 +86,11 @@
   background: var(--ds-text-secondary);
 }
 
-/* 视口顶部那条用户消息由游标标出，刻度本身不再变亮，只留悬停反馈。 */
+/* 视口顶部那条用户消息：刻度加长加亮，位置感靠它。 */
 .message-rail-mark.is-active::before {
   width: 10px;
-  background: var(--ds-text-secondary);
+  height: 3px;
+  background: var(--ds-text-primary);
 }
 
 /* 悬浮预览卡：贴在定位条左侧，以悬浮的刻度为中心。 */

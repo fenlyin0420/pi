@@ -1,5 +1,5 @@
 // 右侧的用户消息定位条：每条用户消息一格刻度，点击或拖动直接跳到那条，悬浮显示该条预览。
-// 游标是一条和刻度同样形状的亮线，按滚动位置在首末两格之间实时滑动。
+// 滚到哪一格，那一格自己亮起来 —— 亮块永远落在刻度上，不落在刻度之间。
 
 import {
 	type PointerEvent as ReactPointerEvent,
@@ -9,72 +9,62 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { cursorCenter, scrollFraction } from "../../lib/scroll-rail.ts";
+import { scrollFraction, stepIndex } from "../../lib/scroll-rail.ts";
 import { cx } from "../../ui.tsx";
 
 export type MessageMark = { id: string; preview: string };
 
 type MessageRailProps = {
 	marks: readonly MessageMark[];
-	/** 对话的滚动容器：游标的位置按它的滚动几何算。 */
+	/** 对话的滚动容器：点亮哪一格按它的滚动几何算。 */
 	scroller: RefObject<HTMLDivElement | null>;
-	/** 当前视口顶部所在的用户消息，用来标出那一格（给读屏和键盘用）。 */
-	activeId: string | null;
 	onJump: (id: string, behavior: ScrollBehavior) => void;
 };
 
 /**
  * 离散刻度条：刻度均分整条高度，所以“第几条用户消息”与位置是固定的对应关系，
  * 不随内容高度变化而漂移。拖动时连续跳（auto），单击一格是平滑跳。
- * 游标是一格刻度大小的亮线，按滚动比例在首末两格之间滑，滚动时每帧更新。
+ * 视口所在的比例落在第几格，那一格就亮：一格一格地换，没有中间态。
  */
-export function MessageRail({ marks, scroller, activeId, onJump }: MessageRailProps) {
+export function MessageRail({ marks, scroller, onJump }: MessageRailProps) {
 	const railRef = useRef<HTMLElement | null>(null);
-	const trackRef = useRef<HTMLDivElement | null>(null);
-	const cursorRef = useRef<HTMLDivElement | null>(null);
 	const frame = useRef<number | null>(null);
+	// 点亮的那一格。滚动时按帧重算，值不变时 React 自己不重渲染。
+	const [active, setActive] = useState(0);
 	// 按下点与是否已经越过拖动阈值：没越过的算单击，交给刻度按钮的 onClick。
 	const press = useRef<{ pointerId: number; y: number; dragging: boolean } | null>(null);
 	// 悬浮预览：top 是刻度中心相对定位条的高度，popover 自己不会跑出定位条。
 	const [hover, setHover] = useState<{ index: number; top: number } | null>(null);
 
-	// 游标跟着滚动走：每帧只写一次 style，不进 React 状态，所以滚多快都跟得上。
-	const syncCursor = useCallback(() => {
+	const syncActive = useCallback(() => {
 		const node = scroller.current;
-		const rail = railRef.current;
-		const first = trackRef.current?.firstElementChild;
-		const last = trackRef.current?.lastElementChild;
-		const cursor = cursorRef.current;
-		if (!node || !rail || !(first instanceof HTMLElement) || !(last instanceof HTMLElement) || !cursor) return;
-		// 定位条不滚，游标贴的就是它自己的 padding box：量定位条顶部当坐标原点。
-		const origin = rail.getBoundingClientRect().top;
-		const fraction = scrollFraction(node.scrollTop, node.scrollHeight, node.clientHeight);
-		cursor.style.top = `${cursorCenter(midpoint(first) - origin, midpoint(last) - origin, fraction)}px`;
-	}, [scroller]);
+		if (!node) return;
+		setActive(stepIndex(scrollFraction(node.scrollTop, node.scrollHeight, node.clientHeight), marks.length));
+	}, [marks.length, scroller]);
 
-	const scheduleCursor = useCallback(() => {
+	const scheduleActive = useCallback(() => {
 		if (frame.current !== null) return;
 		frame.current = requestAnimationFrame(() => {
 			frame.current = null;
-			syncCursor();
+			syncActive();
 		});
-	}, [syncCursor]);
+	}, [syncActive]);
 
 	useEffect(() => {
 		const node = scroller.current;
 		if (!node) return;
-		node.addEventListener("scroll", scheduleCursor, { passive: true });
-		// 容器自己的尺寸变了（窗口改宽、输入区长高）刻度列会重新居中，游标得跟着挪。
-		const observer = new ResizeObserver(() => syncCursor());
+		node.addEventListener("scroll", scheduleActive, { passive: true });
+		// 内容长高、窗口改宽都会换掉可滚距离：同一格可能因此换成点另一格。
+		const observer = new ResizeObserver(() => syncActive());
 		observer.observe(node);
-		syncCursor();
+		syncActive();
 		return () => {
-			node.removeEventListener("scroll", scheduleCursor);
+			node.removeEventListener("scroll", scheduleActive);
 			observer.disconnect();
 			if (frame.current !== null) cancelAnimationFrame(frame.current);
 			frame.current = null;
 		};
-	}, [scroller, scheduleCursor, syncCursor]);
+	}, [scroller, scheduleActive, syncActive]);
 
 	const indexAt = (clientY: number) => {
 		const node = railRef.current;
@@ -138,22 +128,19 @@ export function MessageRail({ marks, scroller, activeId, onJump }: MessageRailPr
 			onPointerCancel={endPress}
 			onPointerLeave={() => setHover(null)}
 		>
-			<div ref={trackRef} className="message-rail-track">
-				{marks.map((mark, index) => (
-					<button
-						key={mark.id}
-						type="button"
-						className={cx("message-rail-mark", mark.id === activeId && "is-active")}
-						aria-label={`Your message ${index + 1} of ${marks.length}`}
-						aria-current={mark.id === activeId ? "true" : undefined}
-						onPointerEnter={(event) => showPreview(index, event.currentTarget)}
-						onFocus={(event) => showPreview(index, event.currentTarget)}
-						onBlur={() => setHover(null)}
-						onClick={() => onJump(mark.id, "smooth")}
-					/>
-				))}
-			</div>
-			<div ref={cursorRef} className="message-rail-cursor" aria-hidden="true" />
+			{marks.map((mark, index) => (
+				<button
+					key={mark.id}
+					type="button"
+					className={cx("message-rail-mark", index === active && "is-active")}
+					aria-label={`Your message ${index + 1} of ${marks.length}`}
+					aria-current={index === active ? "true" : undefined}
+					onPointerEnter={(event) => showPreview(index, event.currentTarget)}
+					onFocus={(event) => showPreview(index, event.currentTarget)}
+					onBlur={() => setHover(null)}
+					onClick={() => onJump(mark.id, "smooth")}
+				/>
+			))}
 			{hover ? (
 				<div className="message-rail-popover" role="tooltip" style={{ top: hover.top }}>
 					<span className="message-rail-popover-role">{`Your message ${hover.index + 1} of ${marks.length}`}</span>
@@ -162,10 +149,4 @@ export function MessageRail({ marks, scroller, activeId, onJump }: MessageRailPr
 			) : null}
 		</nav>
 	);
-}
-
-/** 元素中心在视口里的纵坐标。 */
-function midpoint(element: HTMLElement): number {
-	const rect = element.getBoundingClientRect();
-	return rect.top + rect.height / 2;
 }

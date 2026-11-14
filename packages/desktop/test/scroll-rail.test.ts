@@ -1,7 +1,7 @@
-// 定位条游标的换算测试：滚动比例，以及比例落在刻度列上的哪个高度。
+// 定位条点亮哪一格的换算测试：滚动比例，以及比例落在第几格。
 
 import { describe, expect, it } from "vitest";
-import { cursorCenter, scrollFraction } from "../src/renderer/lib/scroll-rail.ts";
+import { scrollFraction, stepIndex } from "../src/renderer/lib/scroll-rail.ts";
 
 describe("scrollFraction", () => {
 	it("贴顶是 0，滚到底是 1", () => {
@@ -24,17 +24,24 @@ describe("scrollFraction", () => {
 	});
 });
 
-describe("cursorCenter", () => {
-	it("比例 0 压在首格，比例 1 压在末格", () => {
-		expect(cursorCenter(100, 200, 0)).toBe(100);
-		expect(cursorCenter(100, 200, 1)).toBe(200);
+describe("stepIndex", () => {
+	it("比例均分成格子：0 是首格，1 是末格", () => {
+		expect(stepIndex(0, 4)).toBe(0);
+		expect(stepIndex(1, 4)).toBe(3);
 	});
 
-	it("中间比例落在两格之间", () => {
-		expect(cursorCenter(100, 200, 0.25)).toBe(125);
+	it("比例落在哪一格就取哪一格，不落在格子之间", () => {
+		expect(stepIndex(0.24, 4)).toBe(0);
+		expect(stepIndex(0.26, 4)).toBe(1);
+		expect(stepIndex(0.5, 4)).toBe(2);
 	});
 
-	it("两格重合时不跑飞", () => {
-		expect(cursorCenter(80, 80, 0.5)).toBe(80);
+	it("越界的比例夹在两端", () => {
+		expect(stepIndex(-0.5, 4)).toBe(0);
+		expect(stepIndex(9, 4)).toBe(3);
+	});
+
+	it("一格都没有时返回 -1", () => {
+		expect(stepIndex(0.5, 0)).toBe(-1);
 	});
 });

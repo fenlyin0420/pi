@@ -76,9 +76,6 @@ export function Transcript({
 	// 图片解码、流式增量），每次高度变化都要把落点重新对一遍，连续两次高度不变才收手。
 	const restore = useRef<{ sessionId: string; saved: SavedPosition | undefined; height: number } | null>(null);
 	const [showJump, setShowJump] = useState(false);
-	// 定位条点亮的格是“视口顶部那条用户消息”；滚动事件按帧合并后才重算。
-	const [activeUser, setActiveUser] = useState<string | null>(null);
-	const syncFrame = useRef<number | null>(null);
 
 	// 父组件每次渲染都会给出新的回调引用；这里转成稳定引用，行组件的 memo 才不会被它打断。
 	const callbacks = useRef({ onOpenExternal, onPrompt });
@@ -112,27 +109,6 @@ export function Transcript({
 	// 只有最后一条回答才可能“还在进行中”：中间跑工具时没有流式消息，不能拿它判断整轮结束。
 	const liveTurnKey = busy ? (blocks.findLast((block) => block.kind === "turn")?.key ?? null) : null;
 
-	// 读的是每行的实际位置：折叠块、图片、markdown 长高都会改它，所以只在滚动时读一次。
-	const syncActiveUser = useCallback(() => {
-		const node = scrollRef.current;
-		if (!node) return;
-		const edge = node.getBoundingClientRect().top + 8;
-		let current: string | null = null;
-		for (const element of node.querySelectorAll<HTMLElement>(".message-row.user[data-item-id]")) {
-			if (element.getBoundingClientRect().top > edge) break;
-			current = element.dataset.itemId ?? null;
-		}
-		setActiveUser(current);
-	}, []);
-
-	const scheduleSync = useCallback(() => {
-		if (syncFrame.current !== null) return;
-		syncFrame.current = requestAnimationFrame(() => {
-			syncFrame.current = null;
-			syncActiveUser();
-		});
-	}, [syncActiveUser]);
-
 	// 记住当前会话的落点。贴底只存一个标记；离底存“视口顶部那条行 + 偏移”，
 	// 像素值会随回来时的内容高度漂移，行的身份不会。
 	const remember = useCallback(() => {
@@ -154,13 +130,6 @@ export function Transcript({
 		}
 		positions.current.set(id, { pinned: false, anchorId, offset, scrollTop: node.scrollTop });
 	}, []);
-
-	useEffect(
-		() => () => {
-			if (syncFrame.current !== null) cancelAnimationFrame(syncFrame.current);
-		},
-		[],
-	);
 
 	const finishRestore = useCallback(() => {
 		const node = scrollRef.current;
@@ -213,7 +182,6 @@ export function Transcript({
 		restore.current = null;
 		following.current = saved?.pinned ?? true;
 		setShowJump(saved !== undefined && !saved.pinned);
-		scheduleSync();
 		const node = scrollRef.current;
 		if (!node) return;
 		// 没有活动会话时内容为空，也无处可跳。
@@ -221,7 +189,7 @@ export function Transcript({
 		restore.current = { sessionId, saved, height: node.scrollHeight };
 		applySavedPosition(node, saved);
 		requestAnimationFrame(() => stepRestore());
-	}, [sessionId, scheduleSync, stepRestore]);
+	}, [sessionId, stepRestore]);
 
 	// 内容长高就再对一次落点，直到连续两次高度相同。图片、高亮、折叠块的长高都落在这里。
 	useEffect(() => {
@@ -237,16 +205,12 @@ export function Transcript({
 		const node = scrollRef.current;
 		if (!node) return;
 		// 代码自己写的 scrollTop 也会产生滚动事件，按它算会把“还在底部”误判成用户离开了底部。
-		if (restore.current !== null) {
-			scheduleSync();
-			return;
-		}
+		if (restore.current !== null) return;
 		following.current = node.scrollHeight - node.scrollTop - node.clientHeight <= FOLLOW_THRESHOLD_PX;
 		// 重新贴底就把提示收掉；离底时按钮要等新内容到达才出现，由上面的效果负责。
 		if (following.current) setShowJump(false);
 		remember();
-		scheduleSync();
-	}, [remember, scheduleSync]);
+	}, [remember]);
 
 	const handleWheel = useCallback(
 		(event: React.WheelEvent<HTMLDivElement>) => {
@@ -281,7 +245,6 @@ export function Transcript({
 			finishRestore();
 			following.current = false;
 			setShowJump(false);
-			setActiveUser(id);
 			const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 			const top = target.getBoundingClientRect().top - node.getBoundingClientRect().top + node.scrollTop - 8;
 			node.scrollTo({ top: Math.max(0, top), behavior: reduced ? "auto" : behavior });
@@ -335,9 +298,7 @@ export function Transcript({
 					</div>
 				</div>
 				{/* 只有一条用户消息时没有可去的地方，定位条不占宽度。 */}
-				{marks.length > 1 ? (
-					<MessageRail marks={marks} scroller={scrollRef} activeId={activeUser} onJump={jumpToMessage} />
-				) : null}
+				{marks.length > 1 ? <MessageRail marks={marks} scroller={scrollRef} onJump={jumpToMessage} /> : null}
 			</div>
 			{showJump ? <ScrollToBottom onClick={jumpToLatest} /> : null}
 		</div>
