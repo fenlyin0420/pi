@@ -16,7 +16,8 @@ type WorkspaceRowProps = {
 	running: boolean;
 	/** 它有未读会话，而且它现在是收起的：展开时圆点下放到会话行，不同时出现在两层。 */
 	unread: boolean;
-	onToggle: (path: string) => void;
+	/** expanded 是当前显示出来的状态；侧栏从这个值反推下一个状态，记录和显示才不会打架。 */
+	onToggle: (path: string, expanded: boolean) => void;
 	/** 右键菜单里的“New session”：在这个目录里开新会话，并把它切成当前 workspace。 */
 	onNewSession: (path: string) => void;
 };
@@ -43,7 +44,7 @@ export const WorkspaceRow = memo(function WorkspaceRow({
 				className={cx("sidebar-workspace-row", active && "is-active")}
 				aria-expanded={expanded}
 				title={workspace.path}
-				onClick={() => onToggle(workspace.path)}
+				onClick={() => onToggle(workspace.path, expanded)}
 				onContextMenu={(event) =>
 					menu.open(event, [
 						{

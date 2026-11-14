@@ -123,8 +123,10 @@ export function Sidebar({
 		setCollapsedGroups((previous) => ({ ...previous, [key]: !previous[key] }));
 	}, []);
 
-	const toggleWorkspace = useCallback((path: string) => {
-		setExpandedWorkspaces((previous) => ({ ...previous, [path]: !(previous[path] ?? true) }));
+	// 翻转的是这一次渲染出来的展开状态，不是记录里的旧值：没记录的非当前 workspace 显示为收起，
+	// 按 "!previous[path]" 推就会写成"收起"，点击看起来没反应。
+	const toggleWorkspace = useCallback((path: string, expanded: boolean) => {
+		setExpandedWorkspaces((previous) => ({ ...previous, [path]: !expanded }));
 	}, []);
 
 	const openSession = useCallback((id: string) => latestRowHandlers.current.onOpenSession(id), []);
