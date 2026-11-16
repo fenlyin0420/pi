@@ -1,6 +1,6 @@
-// 主窗口：无框 + 自绘标题栏。macOS 用 hiddenInset（原生红绿灯），Windows 用无框窗口，三颗
-// 按钮由界面画（`windowControl` 命令）——系统绘制的 Window Controls Overlay 画在网页之上，
-// 遮罩、hover、主题色都盖不到它。Linux 用完整原生框。
+// 主窗口：无框 + 自绘标题栏。macOS 用 hiddenInset（原生红绿灯）；Windows 与 Linux 用无框窗口，
+// 三颗按钮由界面画（`windowControl` 命令）——系统绘制的 Window Controls Overlay 画在网页之上，
+// 遮罩、hover、主题色都盖不到它，Linux 上它还会按桌面的按钮布局另排一套。
 // 几何、最大化状态进设置，外部链接一律交给系统浏览器。
 
 import { join } from "node:path";
@@ -24,7 +24,6 @@ export type WindowHooks = {
 export function createMainWindow(settings: SettingsStore, hooks: WindowHooks): BrowserWindow {
 	const bounds = visibleBounds(settings.getWindow(), hooks.theme());
 	const mac = process.platform === "darwin";
-	const win = process.platform === "win32";
 	const window = new BrowserWindow({
 		width: bounds.width,
 		height: bounds.height,
@@ -32,7 +31,7 @@ export function createMainWindow(settings: SettingsStore, hooks: WindowHooks): B
 		minWidth: MIN_WIDTH,
 		minHeight: MIN_HEIGHT,
 		show: false,
-		frame: !win,
+		frame: mac,
 		titleBarStyle: mac ? "hiddenInset" : "default",
 		trafficLightPosition: mac ? { x: 14, y: 13 } : undefined,
 		backgroundColor: hooks.theme() === "dark" ? "#181818" : "#ffffff",

@@ -1,5 +1,5 @@
-// 无边框窗口的标题栏：整条是拖动区，左侧折叠侧栏，中间标题与运行状态，右侧搜索/设置，Windows 上
-// 再接三颗自绘的最小化/最大化/关闭。macOS 用原生红绿灯，Linux 用完整原生框，都不在这里画。
+// 无边框窗口的标题栏：整条是拖动区，左侧折叠侧栏，中间标题与运行状态，右侧搜索/设置，Windows
+// 与 Linux 上再接三颗自绘的最小化/最大化/关闭。macOS 用原生红绿灯，不在这里画。
 
 import type { AgentStatus, Platform } from "../../shared/contract.ts";
 import { IconIssues, IconPanelLeftClose, IconPanelLeftOpen, IconSearch, IconSettings } from "../icons.tsx";
@@ -85,7 +85,7 @@ export function Titlebar({
 						<IconSettings size={15} />
 					</IconButton>
 				</div>
-				{platform === "win32" ? (
+				{platform !== "darwin" ? (
 					<WindowControls
 						maximized={maximized}
 						onMinimize={onMinimize}

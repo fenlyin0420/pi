@@ -553,13 +553,14 @@
 }
 
 /*
-  Windows keeps a frameless window with the system-drawn buttons, so the shell
+  Windows and Linux run frameless with renderer-drawn buttons, so the shell
   still has to draw its own edge: the line sits above the sidebar and the main
   pane (both opaque), hence a pseudo-element rather than a border or an inset
   shadow the children would paint over. A maximized window already has the
-  screen edges. macOS and Linux use the OS frame and need none of this.
+  screen edges. macOS uses the OS frame and needs none of this.
 */
-:root[data-platform="win32"] .app-shell::after {
+:root[data-platform="win32"] .app-shell::after,
+:root[data-platform="linux"] .app-shell::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -568,7 +569,8 @@
   pointer-events: none;
 }
 
-:root[data-platform="win32"] .app-shell[data-maximized]::after {
+:root[data-platform="win32"] .app-shell[data-maximized]::after,
+:root[data-platform="linux"] .app-shell[data-maximized]::after {
   border-color: transparent;
 }
 
