@@ -33,6 +33,8 @@ type TranscriptProps = {
 	onOpenExternal: (url: string) => void;
 	onOpenChanges: (changes: readonly TurnFileChange[], path: string) => void;
 	onPrompt: (text: string) => void;
+	/** 产物帧的主题与卡片位置都随它走。 */
+	theme: "dark" | "light";
 };
 
 // 距底多少像素内算“贴底”。比这更远就认为读者在看上文，停止自动跟随。
@@ -63,6 +65,7 @@ export function Transcript({
 	onOpenExternal,
 	onOpenChanges,
 	onPrompt,
+	theme,
 }: TranscriptProps) {
 	const scrollRef = useRef<HTMLDivElement | null>(null);
 	const following = useRef(true);
@@ -281,6 +284,9 @@ export function Transcript({
 									<AssistantTurn
 										key={block.key}
 										items={block.items}
+										sessionId={sessionId ?? ""}
+										theme={theme}
+										onPrompt={prompt}
 										live={block.key === liveTurnKey}
 										showThinking={showThinking}
 										showUsage={showUsage}

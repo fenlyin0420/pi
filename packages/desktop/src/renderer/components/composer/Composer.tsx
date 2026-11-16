@@ -45,6 +45,9 @@ type ComposerProps = {
 	thinking: boolean;
 	/** 撤回的队列文本；seq 变化时写回草稿。 */
 	sessionRestore: DraftRestore | null;
+	/** 当前会话是否开着沉浸模式；工具栏那颗按钮的状态与开关。 */
+	immersive: boolean;
+	onToggleImmersive: () => void;
 	/** 撤回当前全部排队消息。 */
 	onWithdrawQueue: () => void;
 	/** 选文件与把拖入的文件换算成磁盘路径；两个都由主进程那边的桥提供。 */
@@ -97,6 +100,8 @@ export function Composer({
 	models,
 	thinking,
 	sessionRestore,
+	immersive,
+	onToggleImmersive,
 	askDock,
 	todoDock,
 	onWithdrawQueue,
@@ -402,6 +407,8 @@ export function Composer({
 						canSend={value.trim().length > 0 || attachments.length > 0}
 						canAttach={attachments.length < MAX_ATTACHMENTS}
 						showThinkingLevel={thinking && agent.reasoning}
+						immersive={immersive}
+						onToggleImmersive={onToggleImmersive}
 						modelPickerOpen={modelAnchor !== null}
 						thinkingPickerOpen={thinkingAnchor !== null}
 						onAttachFiles={pickAttachments}

@@ -8,6 +8,7 @@ import { formatClock } from "../../lib/format.ts";
 import { type TurnFileChange, turnChanges } from "../../lib/turn-changes.ts";
 import { layoutTurn } from "../../lib/turn-entries.ts";
 import { cx } from "../../ui.tsx";
+import { ArtifactCard } from "../artifact/ArtifactCard.tsx";
 import { Markdown } from "../Markdown.tsx";
 import { TurnActivity } from "./TurnActivity.tsx";
 import { TurnChangesCard } from "./TurnChangesCard.tsx";
@@ -16,6 +17,11 @@ import { TurnMeta } from "./TurnMeta.tsx";
 type AssistantTurnProps = {
 	/** 一次提问之后的所有 loop，按时间顺序。 */
 	items: readonly Extract<TranscriptItem, { kind: "assistant" }>[];
+	/** 产物帧按会话拼地址；没有活动会话时不会走到这里。 */
+	sessionId: string;
+	theme: "dark" | "light";
+	/** 产物里的交互回成一条用户消息，和输入框发出去的同一条路。 */
+	onPrompt: (text: string) => void;
 	/** 这是最后一轮、且这一轮还没跑完：预览行接着动，用量条先不露。 */
 	live: boolean;
 	showThinking: boolean;
@@ -32,6 +38,9 @@ type AssistantTurnProps = {
  */
 export function AssistantTurn({
 	items,
+	sessionId,
+	theme,
+	onPrompt,
 	live,
 	showThinking,
 	showUsage,
@@ -55,6 +64,18 @@ export function AssistantTurn({
 			<div className="message-col">
 				{entries.map((entry, index) => {
 					if (entry.kind === "interrupted") return <TurnInterrupted key={entry.key} />;
+					if (entry.kind === "artifact") {
+						return (
+							<ArtifactCard
+								key={entry.key}
+								sessionId={sessionId}
+								artifact={entry.artifact}
+								theme={theme}
+								onSubmit={onPrompt}
+								onOpenExternal={onOpenExternal}
+							/>
+						);
+					}
 					if (entry.kind === "text") {
 						return (
 							<div

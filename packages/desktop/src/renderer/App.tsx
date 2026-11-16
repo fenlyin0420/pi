@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { DesktopSettings, MenuAction } from "../shared/contract.ts";
+import { ArtifactStage } from "./components/artifact/ArtifactStage.tsx";
 import { AskDock } from "./components/ask/AskDock.tsx";
 import { CommandPalette, type PaletteAction } from "./components/CommandPalette.tsx";
 import { Composer } from "./components/composer/Composer.tsx";
@@ -58,6 +59,14 @@ export function App() {
 	 */
 	const showConversation = useCallback(() => setIssuesOpen(false), []);
 
+	const activeSessionId = desktop?.activeSessionId ?? null;
+	const immersive = activeSessionId !== null && (settings?.immersiveSessions.includes(activeSessionId) ?? false);
+	// 模式粒度是会话：切换只写这个会话的设置，不动别人正在看的对话。
+	const toggleImmersive = useCallback(() => {
+		if (activeSessionId === null) return;
+		send({ type: "setImmersive", sessionId: activeSessionId, immersive: !immersive });
+	}, [activeSessionId, immersive, send]);
+
 	const runMenuAction = useCallback(
 		(action: MenuAction | PaletteAction) => {
 			switch (action) {
@@ -83,9 +92,13 @@ export function App() {
 				case "issues":
 					setIssuesOpen(true);
 					return;
+				case "immersive":
+					showConversation();
+					toggleImmersive();
+					return;
 			}
 		},
-		[send, settings, updateSettings, showConversation],
+		[send, settings, updateSettings, showConversation, toggleImmersive],
 	);
 
 	// 原生菜单只在 seq 变化时消费一次：同一动作连点两次也要各执行一次，重渲染则不能重复执行。
@@ -136,20 +149,25 @@ export function App() {
 					event.preventDefault();
 					setIssuesOpen((open) => !open);
 					return;
+				case "m":
+					if (!event.shiftKey) return;
+					event.preventDefault();
+					showConversation();
+					toggleImmersive();
+					return;
 				default:
 					return;
 			}
 		};
 		window.addEventListener("keydown", onKey);
 		return () => window.removeEventListener("keydown", onKey);
-	}, [send, settings, updateSettings, showConversation]);
+	}, [send, settings, updateSettings, showConversation, toggleImmersive]);
 
 	const activeSession = desktop?.sessions.find((session) => session.id === desktop.activeSessionId) ?? null;
 	const collapsed = settings?.sidebarCollapsed ?? false;
 	const running = desktop?.agent.status === "running";
 
 	// 换会话就把右栏收起来：面板里的文件和路径都属于上一个会话。
-	const activeSessionId = desktop?.activeSessionId ?? null;
 	const shownDiff = diff !== null && diff.sessionId === activeSessionId ? diff : null;
 	// issue 区的开关是主栏的 surface 切换，侧栏与标题栏不动。
 	const scopedIssues = desktop ? issuesOf(desktop.issues, desktop.workspace, desktop.platform) : [];
@@ -250,60 +268,82 @@ export function App() {
 											{threadIssue ? (
 												<IssueStrip issue={threadIssue} onOpen={() => setIssuesOpen(true)} />
 											) : null}
-											<Transcript
-												items={desktop.transcript}
-												sessionId={desktop.activeSessionId}
-												workspace={desktop.workspace}
-												onAddWorkspace={() => send({ type: "addWorkspace" })}
-												status={desktop.agent.status}
-												activity={desktop.agent.activity}
-												queued={desktop.agent.queued.steering}
-												onWithdraw={() => send({ type: "withdrawQueue" })}
-												showThinking={settings.showThinking}
-												showUsage={settings.showUsage}
-												showToolDetails={settings.showToolDetails}
-												onOpenExternal={(url) => send({ type: "openExternal", url })}
-												onOpenChanges={(files, path) =>
-													setDiff({ sessionId: activeSessionId, files, path })
-												}
-												onPrompt={(text) => send({ type: "prompt", text })}
-											/>
-											<Composer
-												sessionId={desktop.activeSessionId}
-												workspace={desktop.workspace}
-												workspaces={desktop.workspaces}
-												platform={desktop.platform}
-												agent={desktop.agent}
-												models={state.models}
-												thinking={settings.showThinking}
-												sessionRestore={state.draftRestore}
-												askDock={
-													<AskDock
-														asks={state.asks}
-														activeSessionId={desktop.activeSessionId}
-														onSubmit={(flowId, answers, note) =>
-															send({ type: "askAnswer", flowId, answers, note })
-														}
-														onCancel={(flowId) => send({ type: "askCancel", flowId })}
-													/>
-												}
-												todoDock={
-													// key 跟会话走：切回来时状态条是收起的一行，不在新会话里継承上一个的展开状态。
-													<TodoDock key={desktop.activeSessionId ?? "none"} tasks={desktop.todos} />
-												}
-												onWithdrawQueue={() => send({ type: "withdrawQueue" })}
-												attach={window.piDesktop}
-												onSend={(text, attachments) => send({ type: "prompt", text, attachments })}
-												onSteer={(text) => send({ type: "steer", text })}
-												onAbort={() => send({ type: "abort" })}
-												onSetModel={(model) => send({ type: "setModel", model })}
-												onSetThinkingLevel={(level) => send({ type: "setThinkingLevel", level })}
-												onRequestModels={() => send({ type: "listModels" })}
-												onOpenSettings={() => setSettingsOpen(true)}
-												onNewSession={() => send({ type: "newSession" })}
-												onSelectWorkspace={(path) => send({ type: "selectWorkspace", path })}
-												onAddWorkspace={() => send({ type: "addWorkspace" })}
-											/>
+											{immersive && activeSessionId !== null ? (
+												<ArtifactStage
+													// 舞台按会话重挂：轮次选择、源码视图、全屏都不该跨会话残留。
+													key={activeSessionId}
+													sessionId={activeSessionId}
+													title={activeSession?.title ?? "pi"}
+													items={desktop.transcript}
+													theme={theme}
+													status={desktop.agent.status}
+													onSubmit={(text) => send({ type: "prompt", text })}
+													onSteer={(text) => send({ type: "steer", text })}
+													onAbort={() => send({ type: "abort" })}
+													onOpenExternal={(url) => send({ type: "openExternal", url })}
+													onExit={toggleImmersive}
+												/>
+											) : (
+												<Transcript
+													items={desktop.transcript}
+													sessionId={activeSessionId}
+													workspace={desktop.workspace}
+													onAddWorkspace={() => send({ type: "addWorkspace" })}
+													status={desktop.agent.status}
+													activity={desktop.agent.activity}
+													queued={desktop.agent.queued.steering}
+													onWithdraw={() => send({ type: "withdrawQueue" })}
+													showThinking={settings.showThinking}
+													showUsage={settings.showUsage}
+													showToolDetails={settings.showToolDetails}
+													theme={theme}
+													onOpenExternal={(url) => send({ type: "openExternal", url })}
+													onOpenChanges={(files, path) =>
+														setDiff({ sessionId: activeSessionId, files, path })
+													}
+													onPrompt={(text) => send({ type: "prompt", text })}
+												/>
+											)}
+											{immersive ? null : (
+												<Composer
+													sessionId={desktop.activeSessionId}
+													workspace={desktop.workspace}
+													workspaces={desktop.workspaces}
+													platform={desktop.platform}
+													agent={desktop.agent}
+													models={state.models}
+													thinking={settings.showThinking}
+													sessionRestore={state.draftRestore}
+													askDock={
+														<AskDock
+															asks={state.asks}
+															activeSessionId={desktop.activeSessionId}
+															onSubmit={(flowId, answers, note) =>
+																send({ type: "askAnswer", flowId, answers, note })
+															}
+															onCancel={(flowId) => send({ type: "askCancel", flowId })}
+														/>
+													}
+													immersive={immersive}
+													onToggleImmersive={toggleImmersive}
+													todoDock={
+														// key 跟会话走：切回来时状态条是收起的一行，不在新会话里継承上一个的展开状态。
+														<TodoDock key={desktop.activeSessionId ?? "none"} tasks={desktop.todos} />
+													}
+													onWithdrawQueue={() => send({ type: "withdrawQueue" })}
+													attach={window.piDesktop}
+													onSend={(text, attachments) => send({ type: "prompt", text, attachments })}
+													onSteer={(text) => send({ type: "steer", text })}
+													onAbort={() => send({ type: "abort" })}
+													onSetModel={(model) => send({ type: "setModel", model })}
+													onSetThinkingLevel={(level) => send({ type: "setThinkingLevel", level })}
+													onRequestModels={() => send({ type: "listModels" })}
+													onOpenSettings={() => setSettingsOpen(true)}
+													onNewSession={() => send({ type: "newSession" })}
+													onSelectWorkspace={(path) => send({ type: "selectWorkspace", path })}
+													onAddWorkspace={() => send({ type: "addWorkspace" })}
+												/>
+											)}
 										</div>
 										{shownDiff !== null ? (
 											<DiffPanel

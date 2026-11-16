@@ -2,12 +2,20 @@
 
 import { type KeyboardEvent as ReactKeyboardEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import type { SessionSummary, WorkspaceSummary } from "../../shared/contract.ts";
-import { IconFolderOpen, IconIssues, IconPanelLeftClose, IconPlus, IconSearch, IconSettings } from "../icons.tsx";
+import {
+	IconFolderOpen,
+	IconIssues,
+	IconPanelLeftClose,
+	IconPlus,
+	IconSearch,
+	IconSettings,
+	IconSparkles,
+} from "../icons.tsx";
 import { formatSessionTime } from "../lib/format.ts";
 import { cx } from "../ui.tsx";
 
 /** 面板能执行的动作；App 把它们折成对应的命令。 */
-export type PaletteAction = "newSession" | "addWorkspace" | "settings" | "toggleSidebar" | "issues";
+export type PaletteAction = "newSession" | "addWorkspace" | "settings" | "toggleSidebar" | "issues" | "immersive";
 
 type Option =
 	| { kind: "action"; id: string; action: PaletteAction; label: string; icon: ReactNode }
@@ -18,6 +26,7 @@ const ACTIONS: readonly { action: PaletteAction; label: string; icon: ReactNode 
 	{ action: "newSession", label: "New session", icon: <IconPlus size={15} /> },
 	{ action: "addWorkspace", label: "Add workspace…", icon: <IconFolderOpen size={15} /> },
 	{ action: "issues", label: "Issues", icon: <IconIssues size={15} /> },
+	{ action: "immersive", label: "Toggle immersive mode", icon: <IconSparkles size={15} /> },
 	{ action: "settings", label: "Settings", icon: <IconSettings size={15} /> },
 	{ action: "toggleSidebar", label: "Toggle sidebar", icon: <IconPanelLeftClose size={15} /> },
 ];

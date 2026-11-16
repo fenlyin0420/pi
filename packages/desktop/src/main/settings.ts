@@ -41,6 +41,7 @@ export const DEFAULT_SETTINGS: DesktopSettings = {
 	workspaces: [],
 	activeWorkspace: null,
 	pinnedSessions: [],
+	immersiveSessions: [],
 	issuesConcurrency: 3,
 };
 
@@ -175,6 +176,7 @@ function normalizeSettings(input: DesktopSettings): DesktopSettings {
 		activeWorkspace:
 			typeof input.activeWorkspace === "string" && input.activeWorkspace ? input.activeWorkspace : null,
 		pinnedSessions: stringList(input.pinnedSessions, PINNED_LIMIT),
+		immersiveSessions: stringList(input.immersiveSessions, PINNED_LIMIT),
 		issuesConcurrency: Math.round(
 			clamp(
 				Number(input.issuesConcurrency),

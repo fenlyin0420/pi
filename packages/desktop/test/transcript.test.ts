@@ -240,6 +240,123 @@ describe("toTranscriptItems", () => {
 		expect(part.call.summary).toBe("todo list");
 	});
 
+	it("render_html 的合法结果直接成产物，那一行工具卡片不再出现", () => {
+		const html = "<!doctype html><html><body><button>+</button></body></html>";
+		const items = toTranscriptItems(
+			messages(
+				USER,
+				assistant([{ type: "toolCall", id: "r1", name: "render_html", arguments: { title: "Counter", html } }]),
+				{
+					role: "toolResult",
+					toolCallId: "r1",
+					toolName: "render_html",
+					content: [{ type: "text", text: "Rendered." }],
+					details: { title: "Counter", html },
+					isError: false,
+					timestamp: 3,
+				},
+			),
+			{ streamingIndex: null },
+		);
+		const turn = items[1];
+		if (turn?.kind !== "assistant") throw new Error("expected assistant item");
+		expect(turn.parts).toHaveLength(1);
+		expect(turn.parts[0]).toEqual({
+			type: "artifact",
+			artifact: { id: "artifact-1-0", title: "Counter", html, source: "tool" },
+		});
+		expect(turn.parts.some((part) => part.type === "tool")).toBe(false);
+	});
+
+	it("render_html 的结果不合规时退回普通工具卡片", () => {
+		const items = toTranscriptItems(
+			messages(
+				USER,
+				assistant([
+					{ type: "toolCall", id: "r1", name: "render_html", arguments: { title: "Counter", html: "oops" } },
+				]),
+				{
+					role: "toolResult",
+					toolCallId: "r1",
+					toolName: "render_html",
+					content: [{ type: "text", text: "Rendered." }],
+					details: { title: "Counter", html: "oops" },
+					isError: false,
+					timestamp: 3,
+				},
+			),
+			{ streamingIndex: null },
+		);
+		const part = items[1]?.kind === "assistant" ? items[1].parts[0] : undefined;
+		expect(part?.type).toBe("tool");
+	});
+
+	it("render_html 报错时不成产物，那一行工具卡片照常保留", () => {
+		const html = "<!doctype html><html><body>x</body></html>";
+		const items = toTranscriptItems(
+			messages(
+				USER,
+				assistant([{ type: "toolCall", id: "r1", name: "render_html", arguments: { title: "T", html } }]),
+				{
+					role: "toolResult",
+					toolCallId: "r1",
+					toolName: "render_html",
+					content: [{ type: "text", text: "render_html rejected" }],
+					details: { title: "T", html },
+					isError: true,
+					timestamp: 3,
+				},
+			),
+			{ streamingIndex: null },
+		);
+		const part = items[1]?.kind === "assistant" ? items[1].parts[0] : undefined;
+		expect(part?.type).toBe("tool");
+	});
+
+	it("轮末正文里唯一的 html 围栏块兜底成 fence 产物", () => {
+		const html = "<!doctype html><title>Chart</title><p>x</p>";
+		const items = toTranscriptItems(
+			messages(USER, assistant([{ type: "text", text: ["Here:", "", "```html", html, "```"].join("\n") }])),
+			{ streamingIndex: null },
+		);
+		const part = items[1]?.kind === "assistant" ? items[1].parts.at(-1) : undefined;
+		expect(part).toEqual({
+			type: "artifact",
+			artifact: { id: "artifact-fence-1", title: "Chart", html, source: "fence" },
+		});
+	});
+
+	it("已经有工具产物时不再走围栏兜底", () => {
+		const html = "<!doctype html><title>Counter</title><p>x</p>";
+		const items = toTranscriptItems(
+			messages(
+				USER,
+				assistant(
+					[
+						{ type: "toolCall", id: "r1", name: "render_html", arguments: { title: "Counter", html } },
+						{ type: "text", text: ["Also:", "", "```html", html, "```"].join("\n") },
+					],
+					{ stopReason: "stop" },
+				),
+				{
+					role: "toolResult",
+					toolCallId: "r1",
+					toolName: "render_html",
+					content: [{ type: "text", text: "Rendered." }],
+					details: { title: "Counter", html },
+					isError: false,
+					timestamp: 3,
+				},
+			),
+			{ streamingIndex: null },
+		);
+		const turn = items[1];
+		if (turn?.kind !== "assistant") throw new Error("expected assistant item");
+		const artifacts = turn.parts.filter((part) => part.type === "artifact");
+		expect(artifacts).toHaveLength(1);
+		expect(artifacts[0]?.type === "artifact" ? artifacts[0].artifact.source : null).toBe("tool");
+	});
+
 	it("bash 执行消息渲染成 notice，失败退出码标记为 error", () => {
 		const items = toTranscriptItems(
 			messages({

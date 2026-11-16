@@ -3,6 +3,7 @@
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { splitAttachedFiles } from "../shared/attached-files.ts";
 import type { AssistantPart, ToolCallView, ToolDiffView, TranscriptItem, TurnUsage } from "../shared/contract.ts";
+import { fenceArtifact, readArtifactCall } from "./immersive.ts";
 import { readTodoCall } from "./todo-call.ts";
 
 const SUMMARY_LIMIT = 140;
@@ -72,7 +73,7 @@ export function toTranscriptItems(messages: readonly AgentMessage[], options: Tr
 				items.push({
 					kind: "assistant",
 					id,
-					parts: toParts(message, results, options, index === options.streamingIndex),
+					parts: toParts(message, results, options, index === options.streamingIndex, index),
 					timestamp: message.timestamp,
 					streaming: index === options.streamingIndex,
 					model: `${message.provider}/${message.model}`,
@@ -124,6 +125,7 @@ function toParts(
 	results: ReadonlyMap<string, ToolResultInfo>,
 	options: TranscriptOptions,
 	streaming: boolean,
+	messageIndex: number,
 ): AssistantPart[] {
 	const parts: AssistantPart[] = [];
 	for (const [blockIndex, block] of message.content.entries()) {
@@ -133,6 +135,22 @@ function toParts(
 			parts.push({ type: "thinking", text: block.redacted ? "[redacted]" : block.thinking });
 		} else if (block.type === "toolCall") {
 			const result = results.get(block.id);
+			// 报错的结果不算产物：details 形状碰巧合规也不能把那一行工具卡片吃掉。
+			const artifact = result && !result.isError ? readArtifactCall(block.name, result.details) : null;
+			// 合规矩的产物顶掉工具卡片：沉浸模式下这一行没有信息量，卡片位置就是产物位置。
+			if (artifact) {
+				parts.push({
+					type: "artifact",
+					artifact: {
+						// id 只在会话里唯一：带上消息下标，两个回合里同一位置的产物才不会互相盖掉。
+						id: `artifact-${messageIndex}-${blockIndex}`,
+						title: artifact.title,
+						html: artifact.html,
+						source: "tool",
+					},
+				});
+				continue;
+			}
 			const running = options.runningToolIds?.has(block.id) === true;
 			const call: ToolCallView = {
 				id: `tool-${blockIndex}`,
@@ -148,7 +166,32 @@ function toParts(
 			parts.push({ type: "tool", call });
 		}
 	}
+	if (!streaming && message.stopReason !== "toolUse" && !parts.some((part) => part.type === "artifact")) {
+		// 兜底：这一轮不再要工具，正文里又只有一块 HTML 围栏，就当它是产物。
+		const text = lastTextBlock(message);
+		const artifact = text === null ? null : fenceArtifact(text);
+		if (artifact) {
+			parts.push({
+				type: "artifact",
+				artifact: {
+					id: `artifact-fence-${messageIndex}`,
+					title: artifact.title,
+					html: artifact.html,
+					source: "fence",
+				},
+			});
+		}
+	}
 	return parts;
+}
+
+/** 一条 assistant 消息里最后一段输出正文；围栏兜底只看它。 */
+function lastTextBlock(message: Extract<AgentMessage, { role: "assistant" }>): string | null {
+	for (let index = message.content.length - 1; index >= 0; index -= 1) {
+		const block = message.content[index];
+		if (block?.type === "text" && block.text.trim()) return block.text;
+	}
+	return null;
 }
 
 /** 工具调用 id 到结果正文；同名工具并行时按 id 区分。 */

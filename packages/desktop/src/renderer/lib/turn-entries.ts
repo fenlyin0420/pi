@@ -1,7 +1,7 @@
 // 助手一轮回答的渲染单元：相邻的思考与工具调用合成一条活动链，整轮只留最后一段模型输出；
 // 活动链那一条标题的文案也在这里算。
 
-import type { AssistantPart, ToolCallView, TranscriptItem } from "../../shared/contract.ts";
+import type { ArtifactView, AssistantPart, ToolCallView, TranscriptItem } from "../../shared/contract.ts";
 import { lineTail } from "./format.ts";
 
 type AssistantItem = Extract<TranscriptItem, { kind: "assistant" }>;
@@ -14,6 +14,8 @@ export type ActivityBlock =
 /** 一轮回答按顺序渲染的东西。 */
 export type TurnEntry =
 	| { kind: "text"; key: string; text: string }
+	/** 一份 HTML 产物；不进活动链，按它在 parts 里的位置单独占一块。 */
+	| { kind: "artifact"; key: string; artifact: ArtifactView }
 	| { kind: "activity"; key: string; blocks: ActivityBlock[] }
 	/** 用户在这里打断了一次；后面还有 loop 就接在这条线下面。 */
 	| { kind: "interrupted"; key: string };
@@ -54,6 +56,10 @@ export function buildTurnEntries(parts: readonly AssistantPart[], showThinking: 
 			entries.push({ kind: "text", key: `text-${index}`, text: part.text });
 			continue;
 		}
+		if (part.type === "artifact") {
+			entries.push({ kind: "artifact", key: `artifact-${index}`, artifact: part.artifact });
+			continue;
+		}
 		// 关掉“显示思考”后整块不进链路，也不留占位。
 		if (part.type === "thinking" && !showThinking) continue;
 		if (part.type === "thinking") {
@@ -81,6 +87,10 @@ export function layoutTurn(items: readonly AssistantItem[], showThinking: boolea
 			const blocks = entry.kind === "activity" ? entry.blocks.map((block) => withKey(item, block)) : [];
 			if (entry.kind === "text") {
 				entries.push({ kind: "text", key: `${item.id}-${entry.key}`, text: entry.text });
+				continue;
+			}
+			if (entry.kind === "artifact") {
+				entries.push({ kind: "artifact", key: `${item.id}-${entry.key}`, artifact: entry.artifact });
 				continue;
 			}
 			const last = entries.at(-1);

@@ -85,6 +85,7 @@ function state(): DesktopState {
 			activeWorkspace: "/tmp",
 			issuesConcurrency: 3,
 			pinnedSessions: [],
+			immersiveSessions: [],
 		},
 		issues: [],
 		issueRun: { running: [], pending: 0, paused: false },

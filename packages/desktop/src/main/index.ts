@@ -20,6 +20,7 @@ import {
 	IPC_OPEN_ATTACHMENT,
 	IPC_SAVE_ISSUE_IMAGE,
 } from "../shared/contract.ts";
+import { installArtifactProtocol, registerArtifactScheme } from "./artifact-protocol.ts";
 import { readImageView } from "./attachment-open.ts";
 import { readAttachments } from "./attachments.ts";
 import { searchProjectFiles } from "./file-search.ts";
@@ -32,6 +33,10 @@ import { SettingsStore } from "./settings.ts";
 import { createMainWindow } from "./window.ts";
 
 const platform = process.platform as Platform;
+
+// 特权 scheme 只认启动前声明的：这一行必须在 app ready 之前跑完。
+registerArtifactScheme();
+
 const settings = new SettingsStore(app.getPath("userData"));
 let mainWindow: BrowserWindow | null = null;
 /** 还没建 issues 服务前的空队列；快照对象复用，免每帧造新的。 */
@@ -147,6 +152,9 @@ function applyWindowControl(action: "minimize" | "maximize" | "close"): void {
 }
 
 app.whenReady().then(async () => {
+	// 产物帧的内容由自定义协议取：handler 要在建窗口之前就位，否则第一帧会 404。
+	installArtifactProtocol({ theme: resolvedTheme });
+
 	nativeTheme.on("updated", () => {
 		if (settings.get().theme !== "system") return;
 		send({ type: "state", state: host.buildState() });

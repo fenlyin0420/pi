@@ -36,6 +36,7 @@ import type {
 	UsageSummary,
 } from "../shared/contract.ts";
 import { folderName, samePath } from "../shared/paths.ts";
+import { artifactKey, clearArtifacts, putArtifact } from "./artifacts.ts";
 import {
 	flowIdOf,
 	PI_ASK_COMPLETED,
@@ -45,6 +46,7 @@ import {
 	toCancelPayload,
 	toSubmitPayload,
 } from "./ask.ts";
+import { createImmersiveExtension } from "./immersive.ts";
 import { imageViewOf } from "./message-images.ts";
 import { idleSteps, type RunSteps, stepActivity, thinkingSteps, toolEnded, toolStarted } from "./run-activity.ts";
 import { deleteSessionFile, listSessionSummaries, renameSessionFile, sessionTimes } from "./session-files.ts";
@@ -125,11 +127,14 @@ export class SessionHost {
 	private readonly pendingAsks = new Map<string, PendingAsk>();
 	/** 全应用共用一份模型目录（和 TUI 一样）：选择器的清单和可用性都从它出。 */
 	private runtime: ModelRuntime | null = null;
+	/** 开着沉浸模式的会话；`before_agent_start` 每轮读一次，改它就从下一轮生效。 */
+	private readonly immersive: Set<string>;
 
 	constructor(cwd: string | null, deps: HostDeps) {
 		this.cwd = cwd;
 		this.workspaces = deps.settings.get().workspaces;
 		this.deps = deps;
+		this.immersive = new Set(deps.settings.get().immersiveSessions);
 	}
 
 	getWorkspace(): string | null {
@@ -209,6 +214,9 @@ export class SessionHost {
 				return;
 			case "pinSession":
 				this.pin(command.id, command.pinned);
+				return;
+			case "setImmersive":
+				this.setImmersive(command.sessionId ?? this.activeId, command.immersive);
 				return;
 			case "updateSettings":
 				this.updateSettings(command.patch);
@@ -356,9 +364,17 @@ export class SessionHost {
 		// 每个会话一条自己的总线：pi-ask 的提问和答案都落在发起它的那条上。
 		// 共用一条就分不出哪个会话在问，后一个问题会把前一个盖掉。
 		const bus = createEventBus();
+		// 内联扩展在建会话时就装好，而它读取的会话 id 此时还没有：工厂闭包读这个壳，
+		// 真正调用发生在新一轮开始时（那时 id 已经填好）。
+		const identity: { sessionId: string | null } = { sessionId: null };
 		const services = await createAgentSessionServices({
 			cwd: workspace,
-			resourceLoaderOptions: { eventBus: bus },
+			resourceLoaderOptions: {
+				eventBus: bus,
+				extensionFactories: [
+					createImmersiveExtension(() => identity.sessionId !== null && this.immersive.has(identity.sessionId)),
+				],
+			},
 			// 唯一的模型目录：选择器列的和会话用的必需是同一份，可用性才不会两边不一致。
 			modelRuntime: this.runtime ?? undefined,
 		});
@@ -370,6 +386,7 @@ export class SessionHost {
 		// 对扩展而言我们是“没有终端、但有传输”的宿主：pi-ask 据此走事件契约而不是 TUI 组件。
 		await session.bindExtensions({ mode: "rpc" });
 		const sessionId = session.sessionId;
+		identity.sessionId = sessionId;
 		bus.on(PI_ASK_STARTED, (data) => this.onAskStarted(sessionId, bus, data));
 		bus.on(PI_ASK_COMPLETED, (data) => this.onAskCompleted(sessionId, data));
 		if (modelFallbackMessage) this.notify("warning", modelFallbackMessage);
@@ -560,6 +577,7 @@ export class SessionHost {
 			this.deps.emit({ type: "askClosed", sessionId: id, flowId });
 		}
 		this.unread.delete(id);
+		clearArtifacts(id);
 		this.deps.sessionRemoved?.(id);
 		if (path) {
 			try {
@@ -572,8 +590,18 @@ export class SessionHost {
 		if (settings.pinnedSessions.includes(id)) {
 			this.deps.settings.update({ pinnedSessions: settings.pinnedSessions.filter((entry) => entry !== id) });
 		}
+		if (this.immersive.delete(id)) this.deps.settings.update({ immersiveSessions: [...this.immersive] });
 		await this.refreshSessions();
 		this.flushNow();
+	}
+
+	/** 开关某个会话的沉浸模式：内存标志（下一轮生效）和设置一起写。 */
+	private setImmersive(id: string | null, immersive: boolean): void {
+		if (id === null) return;
+		if (immersive) this.immersive.add(id);
+		else this.immersive.delete(id);
+		this.deps.settings.update({ immersiveSessions: [...this.immersive] });
+		this.markState();
 	}
 
 	private pin(id: string, pinned: boolean): void {
@@ -588,6 +616,11 @@ export class SessionHost {
 
 	private updateSettings(patch: Partial<DesktopSettings>): void {
 		this.deps.settings.update(patch);
+		// 设置里也能整批改沉浸会话（设置文件、将来别的入口）：内存标志跟着磁盘走，别分叉。
+		if (patch.immersiveSessions !== undefined) {
+			this.immersive.clear();
+			for (const id of this.deps.settings.get().immersiveSessions) this.immersive.add(id);
+		}
 		this.markState();
 	}
 
@@ -704,6 +737,7 @@ export class SessionHost {
 				toolDurations: live.toolDurations,
 				runningToolIds: live.steps.tools,
 			});
+			this.cacheArtifacts(live.id, live.items);
 			live.transcriptDirty = false;
 		}
 		if (!live.partial) return live.items;
@@ -714,7 +748,25 @@ export class SessionHost {
 			runningToolIds: live.steps.tools,
 		});
 		if (!streaming) return live.items;
-		return [...live.items, { ...streaming, id: itemIdAt(live.agent.messages.length) }];
+		const items = [...live.items, { ...streaming, id: itemIdAt(live.agent.messages.length) }];
+		this.cacheArtifacts(live.id, items);
+		return items;
+	}
+
+	/**
+	 * 把这一份投影里的产物写进协议的投递层。真身始终在消息里：这里只是让 iframe 取得到正文，
+	 * 重开会话时由同一条投影路径重新写满。
+	 */
+	private cacheArtifacts(sessionId: string, items: readonly TranscriptItem[]): void {
+		// 每次投影整份替换：压缩后消息下标前移，旧 key 不会再被命中，留着只会漏内存。
+		clearArtifacts(sessionId);
+		for (const item of items) {
+			if (item.kind !== "assistant") continue;
+			for (const part of item.parts) {
+				if (part.type !== "artifact") continue;
+				putArtifact(artifactKey(sessionId, part.artifact.id), part.artifact.html);
+			}
+		}
 	}
 
 	private agentView(live: LiveSession | undefined): AgentView {

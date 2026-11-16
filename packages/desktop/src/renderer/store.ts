@@ -143,7 +143,11 @@ export function transcriptText(items: readonly TranscriptItem[]): string {
 			if (item.kind === "user") return `User:\n${item.text}`;
 			if (item.kind === "notice") return item.text;
 			return item.parts
-				.map((part) => (part.type === "tool" ? `[${part.call.name}] ${part.call.summary}` : part.text))
+				.map((part) => {
+					if (part.type === "tool") return `[${part.call.name}] ${part.call.summary}`;
+					if (part.type === "artifact") return `[html] ${part.artifact.title}`;
+					return part.text;
+				})
 				.join("\n");
 		})
 		.join("\n\n");

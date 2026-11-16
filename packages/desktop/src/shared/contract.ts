@@ -24,6 +24,8 @@ export type DesktopSettings = {
 	/** 当前选中的 workspace；null 表示还没选，此时不能聊天。 */
 	activeWorkspace: string | null;
 	pinnedSessions: string[];
+	/** 开着沉浸模式的会话：主栏由 HTML 舞台替代对话区。 */
+	immersiveSessions: string[];
 	/** 队列同时跑几条 issue（1–5）。并行会在同一个项目里开多个会话，改文件可能互覆。 */
 	issuesConcurrency: number;
 };
@@ -156,10 +158,19 @@ export type ToolCallView = {
 	durationMs: number | null;
 };
 
+/** 一份渲染出来的 HTML 产物：工具产出，或从正文围栏块兜底提取。 */
+export type ArtifactView = {
+	id: string;
+	title: string;
+	html: string;
+	source: "tool" | "fence";
+};
+
 export type AssistantPart =
 	| { type: "text"; text: string }
 	| { type: "thinking"; text: string }
-	| { type: "tool"; call: ToolCallView };
+	| { type: "tool"; call: ToolCallView }
+	| { type: "artifact"; artifact: ArtifactView };
 
 export type TranscriptItem =
 	| {
@@ -262,6 +273,8 @@ export type DesktopCommand =
 	| { type: "renameSession"; id: string; title: string }
 	| { type: "deleteSession"; id: string }
 	| { type: "pinSession"; id: string; pinned: boolean }
+	/** 开关某个会话的沉浸模式；sessionId 为 null 时作用在当前会话上。 */
+	| { type: "setImmersive"; sessionId: string | null; immersive: boolean }
 	| { type: "updateSettings"; patch: Partial<DesktopSettings> }
 	| { type: "setModel"; model: string }
 	| { type: "setThinkingLevel"; level: ThinkingLevel }

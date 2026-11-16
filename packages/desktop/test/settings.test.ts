@@ -63,3 +63,25 @@ describe("SettingsStore workspaces", () => {
 		expect(DEFAULT_SETTINGS.activeWorkspace).toBeNull();
 	});
 });
+
+describe("SettingsStore immersiveSessions", () => {
+	it("默认没有沉浸会话", () => {
+		expect(DEFAULT_SETTINGS.immersiveSessions).toEqual([]);
+	});
+
+	it("去重、丢掉非字符串，并按该上限截断", () => {
+		const settings = storeFrom({
+			version: 2,
+			settings: { immersiveSessions: ["a", "a", 7, null, "b", ""] },
+			window: {},
+		}).get();
+		expect(settings.immersiveSessions).toEqual(["a", "b"]);
+	});
+
+	it("超过上限的部分不保留", () => {
+		const many = Array.from({ length: 600 }, (_, index) => `session-${index}`);
+		const settings = storeFrom({ version: 2, settings: { immersiveSessions: many }, window: {} }).get();
+		expect(settings.immersiveSessions).toHaveLength(500);
+		expect(settings.immersiveSessions.at(-1)).toBe("session-499");
+	});
+});

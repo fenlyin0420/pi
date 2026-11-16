@@ -1,0 +1,462 @@
+/*
+  Immersive mode: the HTML stage that replaces the transcript, and the card the
+  same artifact collapses into outside it. Only tokens and existing primitives
+  are used here; the iframe paints its own document, so nothing below reaches
+  inside it.
+*/
+
+.artifact-stage {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.artifact-stage-bar {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  padding: 0 12px 0 16px;
+  border-bottom: 1px solid var(--ds-border-subtle);
+}
+
+.artifact-stage-title {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ds-text-secondary);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artifact-stage-turns {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  color: var(--ds-text-muted);
+}
+
+.artifact-stage-turns select {
+  padding: 3px 20px 3px 8px;
+  border: 1px solid var(--ds-border-subtle);
+  border-radius: var(--radius-sm);
+  appearance: none;
+  background: transparent;
+  color: var(--ds-text-secondary);
+  font: inherit;
+  font-size: var(--text-xs);
+}
+
+.artifact-stage-turns select:hover {
+  background: var(--ds-tile-hover);
+}
+
+.artifact-stage-turns svg {
+  position: absolute;
+  right: 5px;
+  pointer-events: none;
+}
+
+.artifact-stage-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.artifact-stage-btn {
+  padding: 4px 9px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ds-text-muted);
+  font: inherit;
+  font-size: var(--text-xs);
+}
+
+.artifact-stage-btn:hover {
+  background: var(--ds-tile-hover);
+  color: var(--ds-text-primary);
+}
+
+.artifact-stage-btn.active {
+  background: var(--ds-bg-active);
+  color: var(--ds-text-primary);
+}
+
+.artifact-stage-body {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* 一页 = 这一轮用户消息（含附件）+ 文档本身：消息由宿主固定在上面，模型不用回显。 */
+.artifact-stage-page {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.artifact-stage-echo {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: flex-start;
+  gap: 10px;
+  max-height: 32vh;
+  padding: 10px 16px 12px;
+  overflow: auto;
+  border-bottom: 1px solid var(--ds-border-subtle);
+  background: var(--ds-bg-secondary);
+}
+
+.artifact-stage-echo-label {
+  flex: 0 0 auto;
+  padding-top: 1px;
+  color: var(--ds-text-faint);
+  font-size: var(--text-2xs);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+}
+
+.artifact-stage-echo-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.artifact-stage-echo-text {
+  margin: 0;
+  color: var(--ds-text-primary);
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* 入口页：还没有产物时的一张说明，输入口在底部那一条 composer 里。 */
+.artifact-stage-entry {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  padding: 32px 24px;
+  background: radial-gradient(110% 80% at 50% 0%, var(--ds-tile) 0%, transparent 62%), var(--ds-bg-primary);
+}
+
+.artifact-stage-entry-inner {
+  display: flex;
+  width: min(520px, 100%);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.artifact-stage-entry-badge {
+  padding: 3px 9px;
+  border: 1px solid var(--ds-border-subtle);
+  border-radius: var(--radius-round);
+  color: var(--ds-text-muted);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+}
+
+.artifact-stage-entry-title {
+  margin: 2px 0 0;
+  color: var(--ds-text-primary);
+  font-size: var(--text-xl);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--tracking-tight);
+}
+
+.artifact-stage-entry-hint {
+  margin: 0;
+  color: var(--ds-text-muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+}
+
+.artifact-stage-entry-examples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.artifact-stage-entry-examples button {
+  padding: 6px 12px;
+  border: 1px solid var(--ds-border-subtle);
+  border-radius: var(--radius-round);
+  background: var(--ds-tile);
+  color: var(--ds-text-secondary);
+  font: inherit;
+  font-size: var(--text-xs);
+}
+
+.artifact-stage-entry-examples button:hover {
+  background: var(--ds-tile-hover);
+  color: var(--ds-text-primary);
+}
+
+/* 底部输入条：沉浸模式里唯一的输入口，风格跟对话区 composer 一致。 */
+.stage-composer {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 16px 12px;
+  border-top: 1px solid var(--ds-border-subtle);
+  background: var(--ds-bg-primary);
+}
+
+.stage-composer-field {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 8px 8px 8px 12px;
+  border: 1px solid var(--ds-border-default);
+  border-radius: var(--radius-lg);
+  background: var(--ds-bg-composer);
+  box-shadow: var(--ds-shadow-composer);
+}
+
+.stage-composer-field:focus-within {
+  border-color: var(--ds-border-strong);
+}
+
+.stage-composer-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-height: 160px;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: var(--ds-text-primary);
+  font: inherit;
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+  outline: none;
+  resize: none;
+}
+
+.stage-composer-input::placeholder {
+  color: var(--ds-text-faint);
+}
+
+.stage-composer-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+}
+
+.stage-composer-send {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--radius-round);
+  background: var(--ds-accent);
+  color: var(--ds-bg-primary);
+}
+
+.stage-composer-send:disabled {
+  background: var(--ds-send-disabled-bg);
+  color: var(--ds-send-disabled-fg);
+}
+
+.stage-composer-hint {
+  color: var(--ds-text-faint);
+  font-size: var(--text-2xs);
+}
+
+/* 帧自己滚动：宿主不给它加滚动容器，页面里的 fixed/100vh 才有意义。 */
+.artifact-frame {
+  display: block;
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+  background: var(--ds-bg-inset);
+}
+
+.artifact-source {
+  flex: 1 1 auto;
+  margin: 0;
+  padding: 16px 20px;
+  overflow: auto;
+  background: var(--ds-bg-inset);
+  color: var(--ds-text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* 本轮没有新页面（模型只写了正文）：给一个手动重试入口，不自动追问。 */
+.artifact-stage-notice {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--ds-border-subtle);
+  background: var(--ds-bg-secondary);
+  color: var(--ds-text-muted);
+  font-size: var(--text-xs);
+}
+
+.artifact-stage-notice button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border: 1px solid var(--ds-border-default);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ds-text-secondary);
+  font: inherit;
+  font-size: var(--text-xs);
+}
+
+.artifact-stage-notice button:hover {
+  background: var(--ds-tile-hover);
+  color: var(--ds-text-primary);
+}
+
+/* 运行中保留上一版：只在帧上沿盖一条提示，不换文档。 */
+.artifact-working {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  transform: translateX(-50%);
+  border: 1px solid var(--ds-border-subtle);
+  border-radius: var(--radius-round);
+  background: var(--ds-bg-elevated);
+  box-shadow: var(--ds-shadow-composer);
+  color: var(--ds-text-secondary);
+  font-size: var(--text-xs);
+  pointer-events: none;
+}
+
+/* 对话区里的卡片：标题一行 + 限高预览，点开才全屏。 */
+.artifact-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--ds-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--ds-bg-secondary);
+}
+
+.artifact-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 12px;
+}
+
+.artifact-card-title {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ds-text-secondary);
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artifact-card-badge {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border-radius: var(--radius-round);
+  background: var(--ds-tile);
+  color: var(--ds-text-faint);
+  font-size: var(--text-2xs);
+}
+
+.artifact-card-expand {
+  margin-left: auto;
+}
+
+.artifact-card-preview {
+  position: relative;
+  height: 220px;
+  border-top: 1px solid var(--ds-border-subtle);
+}
+
+/* 预览只显示，不接交互：点击一律当成“打开全屏”。 */
+.artifact-card-frame {
+  height: 100%;
+  pointer-events: none;
+}
+
+.artifact-card-shade {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: transparent;
+  cursor: zoom-in;
+}
+
+.artifact-card-shade:hover {
+  background: color-mix(in oklab, var(--ds-text-primary) 4%, transparent);
+}
+
+/* 全屏预览：盖住整个窗口，Esc 或右上角关闭。 */
+.artifact-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  background: var(--ds-bg-inset);
+}
+
+.artifact-overlay-bar {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--ds-border-subtle);
+  background: var(--ds-bg-secondary);
+}
+
+.artifact-overlay-title {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ds-text-secondary);
+  font-size: var(--text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artifact-overlay-bar .icon-btn {
+  margin-left: auto;
+}
+
+.artifact-overlay-frame {
+  flex: 1 1 auto;
+}

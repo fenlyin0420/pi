@@ -1,7 +1,7 @@
 // 输入框工具栏：左侧模型与思考等级，右侧上下文占用、费用和发送/停止。
 
 import type { AgentView } from "../../../shared/contract.ts";
-import { IconArrowUp, IconChevronDown, IconPaperclip, IconStop } from "../../icons.tsx";
+import { IconArrowUp, IconChevronDown, IconPaperclip, IconSparkles, IconStop } from "../../icons.tsx";
 import { formatCost, formatTokens } from "../../lib/format.ts";
 import { cx } from "../../ui.tsx";
 import { thinkingLevelLabel } from "./ThinkingPicker.tsx";
@@ -17,6 +17,9 @@ type ComposerToolbarProps = {
 	canAttach: boolean;
 	/** 模型支持思考、且用户没有关掉思考显示时才给等级入口。 */
 	showThinkingLevel: boolean;
+	/** 这个会话开着沉浸模式：主栏是 HTML 舞台而不是对话区。 */
+	immersive: boolean;
+	onToggleImmersive: () => void;
 	modelPickerOpen: boolean;
 	thinkingPickerOpen: boolean;
 	onAttachFiles: () => void;
@@ -34,6 +37,8 @@ export function ComposerToolbar({
 	canSend,
 	canAttach,
 	showThinkingLevel,
+	immersive,
+	onToggleImmersive,
 	modelPickerOpen,
 	thinkingPickerOpen,
 	onAttachFiles,
@@ -93,6 +98,16 @@ export function ComposerToolbar({
 			</div>
 
 			<div className="composer-right">
+				<button
+					type="button"
+					className={cx("icon-btn", "composer-immersive-btn", immersive && "active")}
+					aria-pressed={immersive}
+					aria-label="Immersive mode"
+					title={immersive ? "Leave immersive mode" : "Immersive mode: the model renders an interactive page"}
+					onClick={onToggleImmersive}
+				>
+					<IconSparkles size={14} aria-hidden="true" />
+				</button>
 				{usage && contextPercent !== null ? (
 					<span
 						className="composer-usage"
