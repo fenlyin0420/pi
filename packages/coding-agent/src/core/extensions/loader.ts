@@ -11,7 +11,7 @@ import type { Provider } from "@earendil-works/pi-ai";
 import { mcpNamespace } from "@earendil-works/pi-mcp";
 import type { KeyId } from "@earendil-works/pi-tui";
 import type { createJiti } from "jiti";
-import { CONFIG_DIR_NAME, getAgentDir, isBunBinary, isBundledNode } from "../../config.ts";
+import { CONFIG_DIR_NAME, ENV_AGENT_DIR, getAgentDir, isBunBinary, isBundledNode } from "../../config.ts";
 import { canonicalizePath, pathsEqual, resolvePath } from "../../utils/paths.ts";
 import { createEventBus, type EventBus } from "../event-bus.ts";
 import type { ExecOptions } from "../exec.ts";
@@ -708,6 +708,12 @@ async function loadExtensionsInternal(
 	runtime?: ExtensionRuntime,
 	useCache = false,
 ): Promise<LoadExtensionsResult> {
+	// Extensions that keep host-scoped config beside pi's own (pi-lens reads its
+	// global config from `$PI_CODING_AGENT_DIR/extensions/<name>.json`, and the MCP
+	// child processes it spawns inherit the same variable) need pi to name its
+	// config dir. An explicit value from the user or the embedder wins.
+	process.env[ENV_AGENT_DIR] ??= getAgentDir();
+
 	const extensions: Extension[] = [];
 	const errors: Array<{ path: string; error: string }> = [];
 	const warnings: Array<{ path: string; warning: string }> = [];
