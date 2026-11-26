@@ -1,0 +1,668 @@
+/*
+  对话区的自有样式。messages.css / prose.css / chat-shell.css 已经带着参考实现的
+  行、气泡、工具卡片和 markdown 排版，这里只补我们这套 DOM 需要的部分：滚动容器、
+  空会话、系统提示、github 主题的代码底色、流式光标、逐行 diff 的底座、运行状态行
+  和打断分隔线。
+*/
+
+/* ---------- 滚动容器 ---------- */
+
+/*
+  对话区右侧留出一条定位条的位置：滚动条还在滚动容器自己的右边缘，定位条浮在它左侧的
+  留白里，两者不抢位。
+*/
+.transcript-body {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+/*
+  .chat-surface 是 chat-shell.css 给的相对定位列容器；滚动留给这个元素。
+  没有用 .thread-scroll：它的底部渐隐遮罩按“composer 浮在对话上”预留了高度，
+  而我们的 composer 是滚动区下面的并列 flex 子项。
+*/
+.transcript-scroll {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* 贴底跟随自己改 scrollTop，交给浏览器的滚动锚定会互相拉扯。 */
+  overflow-anchor: none;
+  scrollbar-gutter: stable;
+}
+
+/* ---------- 用户消息定位条 ---------- */
+
+/*
+  刻度均分整条高度：位置只由“第几条用户消息”决定，与内容高度无关。
+  整条都能按下并拖动，刻度本身是按钮，键盘也能逐个跳。
+*/
+.message-rail {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  /* 滚动条约 6px：定位条落在它左侧的 12px 里，不挡拖动条，也不进窗口的缩放边。 */
+  right: 12px;
+  z-index: 6;
+  display: flex;
+  width: 16px;
+  flex-direction: column;
+  justify-content: center;
+  padding: 12px 0;
+  user-select: none;
+  touch-action: none;
+}
+
+.message-rail-mark {
+  display: flex;
+  flex: 1 1 0;
+  min-height: 2px;
+  max-height: 14px;
+  width: 100%;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.message-rail-mark::before {
+  content: "";
+  width: 6px;
+  height: 2px;
+  border-radius: var(--radius-full);
+  background: color-mix(in oklab, var(--ds-text-primary) 22%, transparent);
+  transition:
+    width var(--motion-duration-fast) var(--motion-ease-out),
+    background var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.message-rail-mark:hover::before,
+.message-rail-mark:focus-visible::before {
+  width: 10px;
+  background: var(--ds-text-secondary);
+}
+
+/* 视口顶部那条用户消息：刻度加长加亮，位置感靠它。 */
+.message-rail-mark.is-active::before {
+  width: 10px;
+  height: 3px;
+  background: var(--ds-text-primary);
+}
+
+/* 悬浮预览卡：贴在定位条左侧，以悬浮的刻度为中心。 */
+.message-rail-popover {
+  position: absolute;
+  right: calc(100% + 10px);
+  display: flex;
+  width: 260px;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--ds-border-default);
+  border-radius: var(--radius-md);
+  background: var(--ds-bg-elevated-opaque);
+  box-shadow: var(--ds-shadow-composer);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.message-rail-popover-role {
+  color: var(--ds-text-muted);
+  font-size: var(--text-2xs);
+}
+
+.message-rail-popover-text {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  color: var(--ds-text-secondary);
+  font-size: var(--text-sm);
+  line-height: var(--leading-body);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+/* ---------- 一轮的活动链 ---------- */
+
+/*
+  活动行复用工具分组的壳（.tool-activity-group / .tool-activity-header），
+  只补行内的排布：一段思考自己折成一行标题（默认收起），中途草稿直接铺开。
+*/
+.turn-activity-body > .thinking-fold {
+  margin: 6px 0 2px;
+}
+
+.turn-activity-body > .turn-activity-text {
+  margin: 4px 0 8px;
+}
+
+.turn-activity-body > .thinking-fold:first-child,
+.turn-activity-body > .turn-activity-text:first-child {
+  margin-top: 2px;
+}
+
+/*
+  展开后的过程里，每一段思考也各自折成一行标题，默认收起：一段思考常比它周围的
+  工具调用长得多，铺开会把整条过程撑满，翻到后面的工具结果要跨过好几屏。
+  折叠头与工具卡片同一套行内几何：内容宽、圆角、悬停底色出血 4px。
+*/
+.thinking-fold {
+  min-width: 0;
+}
+
+.thinking-fold-header {
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 24px;
+  align-items: center;
+  gap: 4px;
+  margin: 0 -4px;
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
+  color: var(--ds-text-muted);
+  font-size: var(--text-sm-plus);
+  text-align: left;
+}
+
+.thinking-fold-header:hover {
+  background: var(--ds-bg-hover);
+  color: var(--ds-text-secondary);
+}
+
+.thinking-fold-label {
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+}
+
+/* 箭头紧跟标题，与活动行同一条规矩：不推到行尾（见 .tool-activity-caret）。 */
+.thinking-fold-caret {
+  display: inline-flex;
+  flex: none;
+  opacity: 0.65;
+  transition: transform var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.thinking-fold.open > .thinking-fold-header > .thinking-fold-caret {
+  transform: rotate(90deg);
+}
+
+/* 正文不额外缩进：折叠头的文字起点就是正文的左边缘（两边都让出 4px 出血）。 */
+.thinking-fold-body {
+  margin: 4px 0 6px;
+}
+
+/*
+  折叠头的箭头跟着开合转。messages.css 那条 .tool-activity-group.open > .tool-activity-header
+  接不到它：这里的按钮裹在走廊里（.turn-activity-head），箭头既不是开合容器的直接子元素，
+  中间还隔了一层。
+*/
+.turn-activity.open > .turn-activity-head .tool-activity-caret {
+  transform: rotate(90deg);
+}
+
+/*
+  展开后的过程可能比一屏还长：吸顶的是标题外面那一层整行走廊，关闭折叠的箭头始终在手边，
+  不用翻回上面再关。标题按钮本身只有内容宽（见 .tool-activity-header），所以底色铺在走廊上：
+  它必须不透明，正文才能从旁边滚过去而不透出来；悬停底色照旧叠在按钮自己身上。
+*/
+.turn-activity.open > .turn-activity-head {
+  position: sticky;
+  top: 0;
+  /* 正文就在同一条活动链里、排在标题后面：给走廊一层叠放，它才盖得住正文。 */
+  z-index: 1;
+  background-color: var(--ds-bg-primary);
+}
+
+/*
+  展开的过程自己滚，高度封顶：一轮二十来个工具调用铺开会把中间那张阅读面整块吃掉，
+  正文和后面的轮次都被挤出视口。封顶后仍比一屏矮一截（与 .subagent-run-rows 同一个数），
+  滚到块尾再滚就接着滚外面的对话（没设 overscroll-behavior：这里没人接手滚动，
+  滚不动就这样卡住比滚过头更难用）。
+  收起动画在 .tool-activity-collapse 的网格行上，这里只管高度上限，两者互不干扰。
+*/
+.turn-activity-body {
+  max-height: min(420px, 48vh);
+  max-height: min(420px, 48dvh);
+  overflow-y: auto;
+  /* 内容超过上限时会出现滚动条：先留出这条 6px 的位置，超过那一下正文不横向跳。 */
+  scrollbar-gutter: stable;
+  /* 行头（.tool-row-header）的悬停底色向右出血 4px，滚动容器会在内边距处剪掉它：
+     让出 4px 内边距装下这块出血，再用负外边距把正文宽度还给内容盒。 */
+  padding-right: 4px;
+  margin-right: -4px;
+}
+
+/*
+  标题下面那一行：当前这一步的预览。左边让出图标的位（14px + 标题的 5px 间隔），与标题文字同左。
+  思考的尾巴靠右排、左边渐隐——最新那几个字就贴着行尾；工具摘要从头读，超长时在右边渐隐收尾。
+*/
+.turn-activity-preview {
+  margin: 1px 0 3px 19px;
+  overflow: hidden;
+  color: var(--ds-text-secondary);
+  font-size: var(--text-sm-plus);
+  white-space: nowrap;
+}
+
+.turn-activity-preview.tail {
+  display: flex;
+  justify-content: flex-end;
+  mask-image: linear-gradient(90deg, transparent, #000 2.5ch);
+}
+
+.turn-activity-preview.tail > * {
+  flex: none;
+}
+
+.turn-activity-preview.plain {
+  mask-image: linear-gradient(270deg, transparent, #000 2.5ch);
+}
+
+/* 阅读带宽与 token 里的 --chat-content-max-width 对齐，横向留白不随窗口缩放抖动。 */
+.transcript-content {
+  width: min(100%, var(--chat-content-max-width, 760px));
+  margin: 0 auto;
+  padding: 20px 32px 28px;
+}
+
+/* 空会话时把内容区撑满视口，才能把提示行居中；有消息时行高就是内容高。 */
+.transcript-content.is-empty {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+}
+
+/* 回到底部按钮贴在滚动区右下角，而不是参考实现的屏幕中下（那里之上是浮层 composer）。 */
+.chat-surface > .jump-latest-btn {
+  bottom: 16px;
+  left: auto;
+  right: 16px;
+  translate: none;
+}
+
+/* ---------- 空会话 ---------- */
+
+.chat-empty {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 48px 0;
+  text-align: center;
+}
+
+.chat-empty-label {
+  color: var(--ds-text-muted);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+}
+
+/* 没选 workspace 时的引导：一句说明，宽度跟正文一致，不抢空态的居中节奏。 */
+.chat-empty-hint {
+  max-width: 38ch;
+  margin: 0;
+  color: var(--ds-text-secondary);
+  font-size: var(--text-md);
+  line-height: var(--leading-prose);
+}
+
+.chat-empty-path {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--ds-text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm-plus);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-empty-prompts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.chat-empty-prompt {
+  padding: 7px 12px;
+  border-radius: var(--radius-md);
+  background: var(--ds-tile);
+  color: var(--ds-text-secondary);
+  font-size: var(--text-sm-plus);
+  text-align: left;
+  transition:
+    background var(--motion-duration-fast) var(--motion-ease-out),
+    color var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.chat-empty-prompt:hover {
+  background: var(--ds-bg-hover);
+  color: var(--ds-text-primary);
+}
+
+.chat-empty-prompt:focus-visible {
+  outline: 2px solid var(--ds-accent);
+  outline-offset: 2px;
+}
+
+/* ---------- 系统提示 ---------- */
+
+/* 提示行沿用 assistant 列的阅读带宽；已经是 pre，换行和缩进都按原文。 */
+.message-row.notice .message-col {
+  width: min(100%, var(--chat-prose-max-width, 720px));
+}
+
+.message-notice {
+  margin: 0;
+  max-height: 320px;
+  overflow: auto;
+  border-radius: var(--radius-md);
+  background: var(--ds-tile);
+  padding: 10px 12px;
+  color: var(--ds-text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs-plus);
+  line-height: var(--leading-relaxed);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.message-notice.is-warning {
+  background: color-mix(in oklab, var(--ds-warning) 9%, transparent);
+  color: color-mix(in oklab, var(--ds-warning) 70%, var(--ds-text-primary));
+}
+
+.message-notice.is-error {
+  background: color-mix(in oklab, var(--ds-error) 9%, transparent);
+  color: color-mix(in oklab, var(--ds-error) 70%, var(--ds-text-primary));
+}
+
+/* ---------- 逐行 diff ---------- */
+
+/*
+  diff 行的底座本在 work-panel.css（工作面板不参与对话渲染），这里把它补齐：
+  符号列固定宽度，正文列吃掉剩余宽度并自行折行。
+*/
+.diff-line {
+  display: flex;
+  min-width: 0;
+  align-items: stretch;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs-plus);
+  line-height: var(--leading-relaxed);
+}
+
+.diff-line-sign {
+  flex: 0 0 auto;
+  width: 18px;
+  text-align: center;
+  user-select: none;
+  color: var(--ds-text-muted);
+}
+
+.diff-line-text {
+  flex: 1;
+  min-width: 0;
+  padding-right: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.diff-line.add .diff-line-sign {
+  color: var(--ds-success);
+}
+
+.diff-line.remove .diff-line-sign {
+  color: var(--ds-error);
+}
+
+/* ---------- 代码块（github 主题） ---------- */
+
+/*
+  prose.css 的代码底色是按 one-dark-pro / one-light 定的；高亮走的是 github-dark /
+  github-light（见 lib/highlight.ts），底色和默认墨色要跟着换，否则 token 颜色和
+  底板不在一个调子上。浅色的 .code-block-lang / 复制按钮已在 prose.css 里。
+  底板本身走 --ds-code-surface：浅色下必须是比页面深一档的纸面，不能是白色。
+*/
+.code-block {
+  --code-block-bg: var(--ds-code-surface);
+  color: #e1e4e8;
+}
+
+:root[data-theme="light"] .code-block {
+  color: #24292e;
+}
+
+.code-block-lang {
+  color: color-mix(in oklab, #e1e4e8 62%, transparent);
+}
+
+:root[data-theme="light"] .code-block-lang {
+  color: color-mix(in oklab, #24292e 62%, transparent);
+}
+
+/* 没有语言标签（或语法未就绪）时的裸 pre 兜底，同样跟 github 主题走。 */
+.prose-chat pre {
+  background: var(--ds-code-surface);
+  color: #e1e4e8;
+}
+
+:root[data-theme="light"] .prose-chat pre {
+  color: #24292e;
+}
+
+/* ---------- 流式光标 ---------- */
+
+/*
+  光标总跟着最后一块内容：段落、列表末项、引用末段和代码块末行都要有。
+  在列表、代码块直接加 ::after 会掉到块外，所以逐个降级到它们的末尾子节点。
+*/
+@keyframes transcript-stream-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+.assistant-turn-fragment.streaming .prose-chat > :last-child:not(ul):not(ol):not(blockquote):not(pre):not(table):not(.table-wrap)::after,
+.assistant-turn-fragment.streaming .prose-chat > :is(ul, ol):last-child li:last-child:not(:has(ul, ol)):not(:has(p))::after,
+.assistant-turn-fragment.streaming .prose-chat > :is(ul, ol):last-child li:last-child > p:last-child::after,
+.assistant-turn-fragment.streaming .prose-chat > blockquote:last-child > p:last-child::after,
+.assistant-turn-fragment.streaming .prose-chat > pre:last-child > code::after {
+  content: "";
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: var(--ds-text-primary);
+  animation: transcript-stream-blink 1s step-end infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .assistant-turn-fragment.streaming .prose-chat > :last-child:not(ul):not(ol):not(blockquote):not(pre):not(table):not(.table-wrap)::after,
+  .assistant-turn-fragment.streaming .prose-chat > :is(ul, ol):last-child li:last-child:not(:has(ul, ol)):not(:has(p))::after,
+  .assistant-turn-fragment.streaming .prose-chat > :is(ul, ol):last-child li:last-child > p:last-child::after,
+  .assistant-turn-fragment.streaming .prose-chat > blockquote:last-child > p:last-child::after,
+  .assistant-turn-fragment.streaming .prose-chat > pre:last-child > code::after {
+    animation: none;
+    opacity: 0.7;
+  }
+}
+
+/* ---------- 运行状态行 ---------- */
+
+/*
+  贴在对话尾部的运行状态：发送那一帧出现，整轮结束消失。文案每八秒换一句、与当前步骤无关，
+  秒表是整轮的总时长，文字走已有的 .text-shimmer 扫光；具体在做什么由上面那条活动行预览。
+  秒表只重渲染自己，不牵动对话区。
+  上内边距是给“状态行上面没有预览行”的场合留的段距（整轮刚开跑、正文还在写）。
+*/
+.run-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0 2px;
+  color: var(--ds-text-secondary);
+  font-size: var(--text-sm);
+  line-height: var(--leading-tight);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+  预览行在场时，状态行是那一块的第三行，不是新起的一段。两者之间原本叠着三层段距：活动分组的
+  7px 下边距、行自己的 12px 下内边距、状态行 10px 上内边距，合起来空出整整一行，文案看着掉到了
+  下面。这三层在“预览行 + 状态行”这一对里收掉，秒表就贴着预览行；其它场合（正文后面、整轮结束
+  后）段距不变。
+*/
+.message-row:has(.turn-activity-preview):has(+ .run-status) {
+  padding-bottom: 0;
+}
+
+.message-row:has(.turn-activity-preview):has(+ .run-status) .tool-activity-group:has(> .turn-activity-preview) {
+  margin-bottom: 0;
+}
+
+.message-row:has(.turn-activity-preview) + .run-status {
+  padding-top: 2px;
+}
+
+.run-status-mark {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: currentColor;
+  animation: run-status-pulse 1.2s ease-in-out infinite;
+}
+
+.run-status-text {
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.run-status-tail {
+  color: var(--ds-text-faint);
+}
+
+@keyframes run-status-pulse {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .run-status-mark {
+    animation: none;
+    opacity: 0.7;
+  }
+}
+
+/* ---------- 待送达的插话 ---------- */
+
+/*
+  模型还没取走的那一条：和用户气泡共用一副骨架，换虚线边、压低对比，上方一行 Queued。
+  它不是一条记录（不进 agent.messages、不进定位条），所以也没有 data-item-id。
+*/
+.message-row.user.is-pending {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.message-row.user.is-pending .message-bubble {
+  border: 1px dashed var(--ds-border-default);
+  background: color-mix(in oklab, var(--ds-text-primary) 4%, transparent);
+  color: var(--ds-text-secondary);
+}
+
+.pending-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 2px;
+  color: var(--ds-text-faint);
+  font-size: var(--text-2xs);
+  line-height: var(--leading-tight);
+}
+
+.pending-meta-label {
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* 一条文字按钮：撤回是低频动作，不抢气泡的注意力。 */
+.pending-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 2px 0 6px;
+}
+
+.pending-withdraw {
+  border: 0;
+  background: none;
+  padding: 2px 4px;
+  color: var(--ds-text-faint);
+  font-size: var(--text-2xs);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: color var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.pending-withdraw:hover,
+.pending-withdraw:focus-visible {
+  color: var(--ds-text-secondary);
+}
+
+/* ---------- 打断分隔线 ---------- */
+
+/*
+  用户打断不是失败：这一轮在一条居中带文字的分隔线上结束，不画错误卡片。
+  `.message-col` 是 `align-items: flex-start` 的列容器，不 stretch 的话这一行会缩到
+  文字宽，两侧的线就没地方长了。
+*/
+.turn-interrupted {
+  display: flex;
+  align-self: stretch;
+  align-items: center;
+  gap: 12px;
+  margin: 6px 0 2px;
+  color: var(--ds-text-faint);
+  font-size: var(--text-xs);
+  line-height: var(--leading-compact);
+  user-select: none;
+}
+
+.turn-interrupted::before,
+.turn-interrupted::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+}
+
+/* 靠文字那头实，向两端渐隐：线从中间往两边淡掉。 */
+.turn-interrupted::before {
+  background: linear-gradient(to left, var(--ds-border-strong), transparent);
+}
+
+.turn-interrupted::after {
+  background: linear-gradient(to right, var(--ds-border-strong), transparent);
+}
