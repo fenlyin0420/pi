@@ -1,0 +1,383 @@
+/* sidebar-extra：本切片自有的样式；共享 token 与通用规则在 tokens.css / app.css。 */
+
+/*
+  拖拽柄 4px：共享 .sidebar-resize-handle 给的是 8px 命中区，这里的切片规格是 4px。
+  hr 元素先清掉浏览器默认边框，视觉指示条仍由共享的 ::after 绘制。
+*/
+hr.sidebar-resize-handle {
+	width: 4px;
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+
+/* Workspaces 区块的标题行：左边是标签，右边是“加 workspace”按钮。 */
+.sidebar-section-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	min-height: 24px;
+	padding: 2px 2px 0;
+	color: var(--ds-text-muted);
+	font-size: var(--text-xs);
+	letter-spacing: var(--tracking-wide);
+	text-transform: uppercase;
+}
+
+/* 新建会话：主体按钮，比行略窄并居中，虚线边框，内容（图标/文字/快捷键）居中。 */
+.sidebar-new-session {
+	display: flex;
+	width: calc(100% - 24px);
+	flex: 0 0 auto;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	min-height: 34px;
+	margin: 4px auto 8px;
+	padding: 0 8px;
+	border: 1px dashed var(--ds-border-strong);
+	border-radius: var(--radius-md);
+	background: var(--ds-tile-hover);
+	color: var(--ds-text-primary);
+	font-size: var(--text-md);
+	line-height: var(--leading-row);
+	text-align: center;
+	transition:
+		background var(--motion-duration-fast) var(--motion-ease-out),
+		border-color var(--motion-duration-fast) var(--motion-ease-out),
+		color var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.sidebar-new-session:hover:not(:disabled) {
+	background: var(--ds-bg-hover);
+	border-color: var(--ds-text-muted);
+}
+
+.sidebar-new-session:disabled {
+	color: var(--ds-text-muted);
+	cursor: default;
+}
+
+.sidebar-new-session-label {
+	min-width: 0;
+	flex: 0 1 auto;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* 一个 workspace：一行目录头 + 展开后的会话分组。 */
+.sidebar-workspace {
+	min-width: 0;
+}
+
+/* 整行就是一个按钮：目录名吃掉剩余宽度，目录图标在左、未读和加载圈在右。 */
+.sidebar-workspace-row {
+	position: relative;
+	display: flex;
+	width: 100%;
+	align-items: center;
+	gap: 6px;
+	min-height: 28px;
+	border: 0;
+	padding: 0 6px;
+	border-radius: var(--radius-sm);
+	background: transparent;
+	color: var(--ds-text-primary);
+	text-align: left;
+	transition:
+		background var(--motion-duration-fast) var(--motion-ease-out),
+		color var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.sidebar-workspace-row:hover {
+	background: var(--ds-bg-hover);
+}
+
+/*
+  激活的 workspace：不再用一块常驻的深色底，目录名也不常驻提亮，
+  只在行首留一根 12px 的灰短线：知道新会话落在哪儿就够了。
+*/
+.sidebar-workspace-row.is-active::before {
+	position: absolute;
+	top: 50%;
+	left: 0;
+	width: 2px;
+	height: 12px;
+	border-radius: var(--radius-round);
+	background: var(--ds-text-muted);
+	transform: translateY(-50%);
+	content: "";
+}
+
+/*
+  目录图标就是展开开关：开着的夹子表示展开、合着的夹子表示折叠。尺寸固定，
+  两种图标切换时目录名不会横向跳动。颜色不随状态变：项目行始终黑，见下。
+*/
+.sidebar-workspace-icon {
+	display: inline-flex;
+	width: 14px;
+	flex: 0 0 auto;
+	align-items: center;
+	justify-content: center;
+}
+
+.sidebar-workspace-name {
+	min-width: 0;
+	flex: 1 1 auto;
+	overflow: hidden;
+	font-size: var(--text-md);
+	line-height: var(--leading-row);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/*
+  展开的会话缩进一格，和 workspace 行的目录图标对齐。折叠不用条件渲染而是 0fr：
+  只有盒子一直在，收起和展开才有过渡；内容被裁掉而不是消失，收起时整段 inert。
+*/
+.sidebar-workspace-body {
+	display: grid;
+	grid-template-rows: 1fr;
+	padding-left: 8px;
+	transition: grid-template-rows var(--motion-duration-normal) var(--motion-ease-out);
+}
+
+.sidebar-workspace-body.is-collapsed {
+	grid-template-rows: 0fr;
+	pointer-events: none;
+}
+
+/* 0fr 只在内容能被裁到 0 高时才收得紧。 */
+.sidebar-workspace-clip {
+	min-width: 0;
+	min-height: 0;
+	overflow: hidden;
+}
+
+/*
+  标题单行：放不下的部分在右端渐隐，而不是切一刀；鼠标悬停时整段文字从右往左横移露出结尾，
+  渐隐同时撤掉，最后几个字也看得清。距离和时长由 SessionRow 的 measureMarquee 量完写进
+  两个变量：距离决定终点，时长按固定 px/s 换算，所以长短标题都是一个速度；走到终点直接
+  回到起点重来，不来回摆。
+*/
+.sidebar .thread-item-title {
+	display: block;
+	overflow: hidden;
+	white-space: nowrap;
+	-webkit-mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent);
+	mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent);
+}
+
+.sidebar .thread-item-title:hover {
+	-webkit-mask-image: none;
+	mask-image: none;
+}
+
+.sidebar .thread-item-title-text {
+	display: inline-block;
+	min-width: 100%;
+}
+
+.sidebar .thread-item-title:hover .thread-item-title-text {
+	animation: sidebar-title-scroll var(--marquee-duration, 0ms) linear infinite;
+}
+
+@keyframes sidebar-title-scroll {
+	to {
+		transform: translateX(calc(-1 * var(--marquee-distance, 0px)));
+	}
+}
+
+/* 项目行里的目录名吃掉剩余宽度，折叠箭头贴右。 */
+.sidebar-project-name {
+	min-width: 0;
+	flex: 1 1 auto;
+}
+
+/* 分组标题占满剩余宽度，未读圆点和加载圈因此贴在行尾。 */
+.sidebar-group-label {
+	min-width: 0;
+	flex: 1 1 auto;
+	text-align: left;
+}
+
+/*
+  运行中的加载圈：会话行、它的分组行、workspace 行共用同一个 14px 的槽，空的槽也占宽度，
+  有会话在跑时旁边的文字不会错位。同一个会话只在一层出现：会话行看得见就在会话行，
+  被收起的分组或 workspace 藏起来才上提到那一行，所以不会同时出现两个。
+*/
+.running-status {
+	display: inline-flex;
+	width: 14px;
+	height: 14px;
+	flex: 0 0 auto;
+	align-items: center;
+	justify-content: center;
+	color: var(--ds-text-muted);
+}
+
+/* 没有动画时：环本身仍然是个缺口，标题停住不动，只靠渐隐和 tooltip 看全。 */
+@media (prefers-reduced-motion: reduce) {
+	.sidebar .running-status .spinner {
+		animation: none;
+	}
+
+	.sidebar .thread-item-title:hover .thread-item-title-text {
+		animation: none;
+	}
+
+	/* 折叠动画同理：状态靠图标、颜色和显隐表达，不靠过渡。 */
+	.sidebar-workspace-body,
+	.sidebar-session-group-body {
+		transition: none;
+	}
+}
+
+/*
+  未读圆点：会话在后台跑出新内容、用户还没切回去看过。同一个未读只在一层出现：
+  会话行可见时落在会话行，被收起的分组或 workspace 藏起来才上提到那一行。
+  默认是行内元素（父行用，排在行尾）；会话行的圆点和加载圈一起包在 .thread-item-status
+  里，同样落在行尾，而且跑着时让位给加载圈。
+*/
+.unread-dot {
+	width: 6px;
+	height: 6px;
+	flex: 0 0 auto;
+	border-radius: 50%;
+	background: var(--ds-text-primary);
+}
+
+/* 在等你回答的那一行：空心点，和实心的未读点分开；两者都成立时先报提问。 */
+.awaiting-dot {
+	box-sizing: border-box;
+	width: 6px;
+	height: 6px;
+	flex: 0 0 auto;
+	border: 1px solid var(--ds-accent);
+	border-radius: 50%;
+}
+
+/* 会话行行尾的状态簇：未读圆点在前、加载圈在后，和父行一样贴在右端。 */
+.thread-item-status {
+	display: inline-flex;
+	flex: 0 0 auto;
+	align-items: center;
+	gap: 4px;
+	padding-right: 4px;
+}
+
+/* 会话列表：ul/li 的语义保留，行距与 .sidebar-session-groups 的 1px 节奏一致。 */
+.sidebar-session-list {
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+	margin: 0;
+	padding: 2px 0 7px;
+	list-style: none;
+}
+
+/*
+  左边栏不画滚动条：会话列表的滚动容器在 sidebar-threads.css 里（整条列表
+  .sidebar-session-groups，以及各自限高的 Standalone、Pinned 两段），列表本身能滚，
+  滚动位置也看得出来，再画一条 6px 的滚动条只是多占一列宽度。
+  scrollbar-width: none 会让 Chromium 忽略这些元素上的 ::-webkit-scrollbar 规则
+  （base.css 的通用滚动条样式），这里要的正是这个效果。
+*/
+.sidebar-session-groups,
+.sidebar-session-group-body.standalone,
+.sidebar-session-group-body.pinned {
+	scrollbar-width: none;
+}
+
+/* 折叠分组同样不拆掉 DOM：0fr 收起，内容被裁掉，展开/折叠都有过渡。 */
+.sidebar-session-group-body {
+	display: grid;
+	grid-template-rows: 1fr;
+	transition: grid-template-rows var(--motion-duration-normal) var(--motion-ease-out);
+}
+
+.sidebar-session-group-body.is-collapsed {
+	grid-template-rows: 0fr;
+	pointer-events: none;
+}
+
+/*
+  第二层（Pinned / Today / …）也没有箭头：折叠时里面所有会话都藏着，标题画黑；
+  展开时内容就在下面，退成灰。项目行（目录）始终黑，和展开分组的灰形成对比，
+  于是三层一眼分得开：黑目录 = 项目，灰 = 展开中，黑标题 = 折叠着。
+*/
+.sidebar-session-group-title.is-collapsed .sidebar-group-label {
+	color: var(--ds-text-primary);
+}
+
+.sidebar-session-group-title.is-expanded .sidebar-group-label {
+	color: var(--ds-text-muted);
+}
+
+/* 搜索框：本地过滤，样式贴近 composer 的输入底色。 */
+.sidebar-search {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	min-height: 28px;
+	margin-top: 4px;
+	padding: 0 6px;
+	border-radius: var(--radius-sm);
+	background: var(--ds-tile-hover);
+	color: var(--ds-text-muted);
+	transition: background var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.sidebar-search:focus-within {
+	background: var(--ds-raised);
+	box-shadow: 0 0 0 2px color-mix(in oklab, var(--ds-accent) 22%, transparent);
+}
+
+.sidebar-search-input {
+	min-width: 0;
+	flex: 1 1 auto;
+	border: 0;
+	background: transparent;
+	color: var(--ds-text-primary);
+	font-size: var(--text-md);
+	line-height: var(--leading-compact);
+	outline: none;
+}
+
+.sidebar-search-input::placeholder {
+	color: var(--ds-text-muted);
+}
+
+.sidebar-search-action {
+	display: inline-flex;
+	flex: 0 0 auto;
+	align-items: center;
+	justify-content: center;
+	border: 0;
+	border-radius: var(--radius-2xs);
+	padding: 0;
+	background: transparent;
+	color: var(--ds-text-muted);
+}
+
+.sidebar-search-action:hover,
+.sidebar-search-action:focus-visible {
+	color: var(--ds-text-primary);
+}
+
+.sidebar-search-count {
+	margin: 4px 0 0;
+	padding: 0 4px;
+	color: var(--ds-text-muted);
+	font-size: var(--text-xs);
+}
+
+/* 空状态：一行提示加一个新建入口，左对齐到列表的内容网格。 */
+.sidebar-empty {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 8px;
+	padding: 6px 0;
+}
