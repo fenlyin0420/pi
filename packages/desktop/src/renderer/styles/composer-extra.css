@@ -1,0 +1,299 @@
+/* composer-extra：输入区自有样式：命令/引用面板容器、附件托盘、模型与等级浮层壳、用量读数和快捷键提示。
+   参考实现里已移植的 composer.css / composer-menus.css class 不在这里重复。 */
+
+/* 面板贴在输入框上沿：它挂在输入框上，不改变 shell 的布局高度。 */
+.composer-palette {
+	position: absolute;
+	inset-inline: 0;
+	bottom: calc(100% + 6px);
+	z-index: 20;
+	display: flex;
+	flex-direction: column;
+	max-height: min(320px, 50vh);
+	overflow: hidden;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--radius-lg);
+	background: var(--ds-bg-elevated-opaque);
+	box-shadow: var(--ds-shadow-dialog);
+}
+
+.composer-palette .composer-ac-list {
+	overflow-y: auto;
+}
+
+/* 附件托盘：一行缩略图，超过一行就换行，最多 MAX_ATTACHMENTS 张。 */
+.composer-attachments {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	width: 100%;
+	margin-bottom: 8px;
+}
+
+.composer-attachment {
+	position: relative;
+	width: 56px;
+	height: 56px;
+	margin: 0;
+	overflow: hidden;
+	border-radius: var(--radius-md);
+	background: var(--ds-tile-deep);
+}
+
+.composer-attachment-image {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+/* 删除入口压在右下角：缩略图本身没有可点的地方，光标移上去才浮出来。 */
+.composer-attachment-remove {
+	position: absolute;
+	top: 2px;
+	right: 2px;
+	display: inline-flex;
+	width: 16px;
+	height: 16px;
+	align-items: center;
+	justify-content: center;
+	border-radius: var(--radius-full);
+	background: color-mix(in oklab, var(--ds-text-primary) 32%, transparent);
+	color: var(--ds-bg-primary);
+	opacity: 0;
+	transition: opacity var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.composer-attachment:hover .composer-attachment-remove,
+.composer-attachment-remove:focus-visible {
+	opacity: 1;
+}
+
+/* 非图片附件：一个带名字和大小的 chip，名字过长就截断，全路径走 title。 */
+.composer-attachment-file {
+	display: inline-flex;
+	max-width: 220px;
+	align-items: center;
+	gap: 5px;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--radius-md);
+	background: var(--ds-tile-deep);
+	padding: 4px 4px 4px 7px;
+	color: var(--ds-text-secondary);
+	font-size: var(--text-sm-plus);
+	line-height: var(--leading-compact);
+}
+
+.composer-attachment-file-name {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.composer-attachment-file-size {
+	color: var(--ds-text-muted);
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+.composer-attachment-file-remove {
+	display: inline-flex;
+	width: 16px;
+	height: 16px;
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	border-radius: var(--radius-full);
+	color: var(--ds-text-muted);
+}
+
+.composer-attachment-file-remove:hover,
+.composer-attachment-file-remove:focus-visible {
+	background: color-mix(in oklab, var(--ds-text-primary) 12%, transparent);
+	color: var(--ds-text-primary);
+}
+
+/* 附件到上限时回形针禁用：禁用态不响应 hover 底色，免得看起来还能点。 */
+.composer-attach-btn:disabled {
+	opacity: 0.4;
+	cursor: default;
+}
+
+.composer-attach-btn:disabled:hover {
+	background: transparent;
+	color: var(--ds-text-secondary);
+}
+
+/* 浮层外壳：列表自己滚动，搜索框与分组行的样式来自 composer-menus.css。 */
+.composer-model-picker {
+	display: flex;
+	flex-direction: column;
+	max-height: min(420px, 60vh);
+}
+
+.composer-thinking-picker {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	padding: 4px;
+}
+
+/* 没配凭据的 provider：行留在列表里说明它存在，但不可选。 */
+.composer-model-option:disabled {
+	cursor: default;
+	opacity: 0.45;
+}
+
+.composer-model-option-unavailable {
+	color: var(--ds-text-faint);
+	font-size: var(--text-2xs);
+}
+
+/* 用量读数：百分比是正文，token 与费用是它的注脚。 */
+.composer-usage {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 0 4px;
+	color: var(--ds-text-muted);
+	font-size: var(--text-2xs);
+	white-space: nowrap;
+}
+
+.composer-usage-context {
+	color: var(--ds-text-secondary);
+	font-variant-numeric: tabular-nums;
+}
+
+.composer-usage-tokens,
+.composer-usage-cost {
+	color: var(--ds-text-faint);
+	font-variant-numeric: tabular-nums;
+}
+
+/* 输入框底沿一行：左边是当前 workspace，右边是快捷键提示。 */
+.composer-hints {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+	padding: 6px 8px 0;
+	color: var(--ds-text-faint);
+	font-size: var(--text-2xs);
+}
+
+/* workspace chip：就是“这一段会话在哪个目录”，点开可以换一个。 */
+.composer-workspace-chip {
+	display: inline-flex;
+	min-width: 0;
+	max-width: 60%;
+	align-items: center;
+	gap: 5px;
+	border: 0;
+	border-radius: var(--radius-2xs);
+	padding: 2px 6px;
+	background: transparent;
+	color: var(--ds-text-faint);
+	font-size: var(--text-2xs);
+	line-height: var(--leading-tight);
+	transition:
+		background var(--motion-duration-fast) var(--motion-ease-out),
+		color var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.composer-workspace-chip:hover,
+.composer-workspace-chip.active {
+	background: var(--ds-tile-hover);
+	color: var(--ds-text-secondary);
+}
+
+.composer-workspace-chip-name {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* 快捷键提示靠右；键帽之间用列间隔，跟 chip 分开成两侧。 */
+.composer-hints-keys {
+	display: inline-flex;
+	flex: 0 0 auto;
+	align-items: center;
+	gap: 10px;
+}
+
+.composer-hints-keys > span {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+}
+
+/* 下一轮才发的消息：输入框上方一条窄条，单行截断，右侧一个整批撤回入口。 */
+.queued-bar {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin: 0 0 6px;
+	padding: 6px 10px;
+	border: 1px solid var(--ds-border-subtle);
+	border-radius: var(--radius-lg);
+	background: var(--ds-bg-elevated-opaque);
+	color: var(--ds-text-secondary);
+	font-size: var(--text-2xs);
+	line-height: var(--leading-tight);
+}
+
+.queued-bar-label {
+	flex: 0 0 auto;
+	color: var(--ds-text-faint);
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+}
+
+.queued-bar-list {
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.queued-bar-item {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+}
+
+.queued-bar-text {
+	overflow: hidden;
+	min-width: 0;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.queued-bar-files {
+	flex: 0 0 auto;
+	color: var(--ds-text-faint);
+	font-variant-numeric: tabular-nums;
+}
+
+.queued-bar-withdraw {
+	flex: 0 0 auto;
+	border: 0;
+	background: none;
+	padding: 2px 4px;
+	color: var(--ds-text-faint);
+	font-size: inherit;
+	cursor: pointer;
+	border-radius: var(--radius-sm);
+	transition: color var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.queued-bar-withdraw:hover,
+.queued-bar-withdraw:focus-visible {
+	color: var(--ds-text-secondary);
+}
