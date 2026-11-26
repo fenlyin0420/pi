@@ -138,6 +138,7 @@ import {
 	SessionManager,
 	type SessionProjection,
 } from "./session-manager.ts";
+import { generateSessionTitle, SESSION_TITLE_ALIAS, type SessionTitleGenerator } from "./session-title.ts";
 import {
 	applyToolModifiers,
 	type CacheWarmingMode,
@@ -519,6 +520,11 @@ export class AgentSession {
 	// invalidates the provider's KV cache, so the level is pinned for the session.
 	private _autoStickyLevel: ThinkingLevel | undefined;
 	private _autoStickyForModelId: string | undefined;
+
+	// A session is titled once, from its first user message, next to the run it belongs to.
+	private _sessionTitleStarted = false;
+	// Aborts title generation when the session goes away.
+	private readonly _sessionTitleAbort = new AbortController();
 
 	// Tool registry for extension getTools/setTools
 	private _toolRegistry: Map<string, AgentTool> = new Map();
@@ -1509,6 +1515,7 @@ export class AgentSession {
 			this.abortCompaction();
 			this.abortBranchSummary();
 			this.abortBash();
+			this._sessionTitleAbort.abort();
 			this.agent.abort();
 		} catch {
 			// Dispose must succeed even if an abort hook throws.
@@ -2232,6 +2239,8 @@ export class AgentSession {
 		} finally {
 			this._promptPreflightCount--;
 		}
+		// The title call runs next to the run, not inside it: the answer must not wait for it.
+		if (trigger?.messageType === "user") this._startSessionTitle(trigger.prompt);
 		if (trigger) await this._startRun(trigger, () => preflightResult?.("started"));
 	}
 
@@ -4267,6 +4276,51 @@ export class AgentSession {
 		const event = { type: "session_info_changed", name: this.sessionManager.getSessionName() } as const;
 		this._emit(event);
 		void this._extensionRunner.emit(event);
+	}
+
+	/**
+	 * Title a new session from its first user message. Runs once per session, next to the first run;
+	 * a session that already has a name, or one that has talked before, keeps its name.
+	 */
+	private _startSessionTitle(prompt: string): void {
+		if (this._sessionTitleStarted) return;
+		if (this.sessionManager.getSessionName()) return;
+		if (this.messages.some((message) => message.role === "user")) return;
+		this._sessionTitleStarted = true;
+		void this._generateSessionTitle(prompt);
+	}
+
+	private async _generateSessionTitle(prompt: string): Promise<void> {
+		const signal = this._sessionTitleAbort.signal;
+		const generator = await this._buildSessionTitleGenerator(signal);
+		if (!generator) return;
+		const title = await generateSessionTitle(generator, prompt, signal);
+		if (!title || signal.aborted) return;
+		// The user may have renamed the session while the title was being written.
+		if (this.sessionManager.getSessionName()) return;
+		this.setSessionName(title);
+	}
+
+	/** The title model: whatever the settings map the `haiku` alias to. */
+	private async _buildSessionTitleGenerator(signal?: AbortSignal): Promise<SessionTitleGenerator | undefined> {
+		const spec = resolveModelAlias(SESSION_TITLE_ALIAS, this.settingsManager.getModelAliases());
+		const slash = spec.indexOf("/");
+		if (slash <= 0 || slash === spec.length - 1) return undefined;
+		const model = this._modelRuntime.getModel(spec.slice(0, slash), spec.slice(slash + 1));
+		if (!model) return undefined;
+		try {
+			const resolution = await this._modelRuntime.getAuth(model, { signal });
+			if (!resolution?.auth.apiKey) return undefined;
+			return {
+				model: resolution.auth.baseUrl ? { ...model, baseUrl: resolution.auth.baseUrl } : model,
+				streamFn: this.agent.streamFunction,
+				apiKey: resolution.auth.apiKey,
+				headers: resolution.auth.headers,
+				sessionId: this.agent.sessionId,
+			};
+		} catch {
+			return undefined;
+		}
 	}
 
 	// =========================================================================
