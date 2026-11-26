@@ -48,6 +48,7 @@ import { AuthStorage, ReadOnlyAuthStorage } from "./core/auth-storage.ts";
 import { exportFromFile } from "./core/export-html/index.ts";
 import type { InlineExtension } from "./core/extensions/types.ts";
 import { applyHttpProxySettings, configureHttpDispatcher } from "./core/http-dispatcher.ts";
+import { resolveModelAlias, resolveModelPair } from "./core/model-aliases.ts";
 import { resolveCliModel, resolveModelScopeWithDiagnostics, type ScopedModel } from "./core/model-resolver.ts";
 import { ModelRuntime } from "./core/model-runtime.ts";
 import { restoreStdout, takeOverStdout } from "./core/output-guard.ts";
@@ -502,6 +503,7 @@ function buildSessionOptions(
 } {
 	const options: CreateAgentSessionOptions = {};
 	const diagnostics: AgentSessionRuntimeDiagnostic[] = [];
+	const modelAliases = settingsManager.getModelAliases();
 	let cliThinkingFromModel = false;
 
 	// Model from CLI
@@ -516,7 +518,7 @@ function buildSessionOptions(
 	if (parsed.model) {
 		const resolved = resolveCliModel({
 			cliProvider: parsed.provider,
-			cliModel: parsed.model,
+			cliModel: resolveModelAlias(parsed.model, modelAliases),
 			cliThinking: parsed.thinking,
 			inlineApiKey: Boolean(parsed.apiKey),
 			modelRuntime,
@@ -540,9 +542,12 @@ function buildSessionOptions(
 
 	if (!options.model && scopedModels.length > 0 && !hasExistingSession) {
 		// Check if saved default is in scoped models - use it if so, otherwise first scoped model
-		const savedProvider = settingsManager.getDefaultProvider();
-		const savedModelId = settingsManager.getDefaultModel();
-		const savedModel = savedProvider && savedModelId ? modelRuntime.getModel(savedProvider, savedModelId) : undefined;
+		const savedDefault = resolveModelPair(
+			settingsManager.getDefaultProvider(),
+			settingsManager.getDefaultModel(),
+			modelAliases,
+		);
+		const savedModel = savedDefault ? modelRuntime.getModel(savedDefault.provider, savedDefault.modelId) : undefined;
 		const savedInScope = savedModel ? scopedModels.find((sm) => modelsAreEqual(sm.model, savedModel)) : undefined;
 
 		if (savedInScope) {
@@ -878,7 +883,9 @@ export async function main(args: string[], options?: MainOptions) {
 			})),
 		];
 
-		const modelPatterns = parsed.models ?? settingsManager.getEnabledModels();
+		const modelPatterns = (parsed.models ?? settingsManager.getEnabledModels())?.map((pattern) =>
+			resolveModelAlias(pattern, settingsManager.getModelAliases()),
+		);
 		const { scopedModels, diagnostics: modelScopeDiagnostics } =
 			modelPatterns && modelPatterns.length > 0
 				? await resolveModelScopeWithDiagnostics(modelPatterns, modelRuntime, {

@@ -122,6 +122,7 @@ import {
 import { type BeforeAgentStartTrigger, emitSessionShutdownEvent } from "./extensions/runner.ts";
 import { createToolNameMatcher, isMcpToolName } from "./mcp-servers.ts";
 import { type BashExecutionMessage, type CustomMessage, convertToLlm } from "./messages.ts";
+import { resolveModelAlias } from "./model-aliases.ts";
 import { ModelRegistry } from "./model-registry.ts";
 import type { ModelRuntime } from "./model-runtime.ts";
 import { NestedToolCallRunner } from "./nested-tool-calls.ts";
@@ -2924,7 +2925,10 @@ export class AgentSession {
 
 	/** Build the optional classifier call from the `autoThinkingClassifier` setting. */
 	private async _buildAutoThinkingClassifier(signal?: AbortSignal): Promise<AutoThinkingClassifier | undefined> {
-		const spec = this.settingsManager.getAutoThinkingClassifier();
+		const configuredSpec = this.settingsManager.getAutoThinkingClassifier();
+		const spec = configuredSpec
+			? resolveModelAlias(configuredSpec, this.settingsManager.getModelAliases())
+			: undefined;
 		if (process.env.PI_DEBUG_AUTO_THINKING) console.error(`[auto-thinking] classifier spec=${spec ?? "(unset)"}`);
 		if (!spec) return undefined;
 		const slash = spec.indexOf("/");
@@ -3954,7 +3958,7 @@ export class AgentSession {
 			extensionsResult.runtime,
 			this._cwd,
 			this.sessionManager,
-			new ModelRegistry(this._modelRuntime),
+			new ModelRegistry(this._modelRuntime, () => this.settingsManager.getModelAliases()),
 		);
 		if (this._extensionRunnerRef) {
 			this._extensionRunnerRef.current = this._extensionRunner;

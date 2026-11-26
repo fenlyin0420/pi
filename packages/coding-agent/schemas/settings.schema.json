@@ -26,6 +26,15 @@
     "defaultModel": {
       "type": "string"
     },
+    "modelAliases": {
+      "type": "object",
+      "patternProperties": {
+        "^.*$": {
+          "type": "string"
+        }
+      },
+      "description": "Short model names mapped to \"provider/modelId\", usable wherever a model is named: --model, --models, defaultModel, /model, classifier settings and agent files."
+    },
     "defaultThinkingLevel": {
       "$ref": "#/$defs/ModelThinkingLevel"
     },

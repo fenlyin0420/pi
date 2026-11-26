@@ -98,6 +98,7 @@ import { FooterDataProvider, type ReadonlyFooterDataProvider } from "../../core/
 import { configureHttpDispatcher, formatHttpIdleTimeoutMs } from "../../core/http-dispatcher.ts";
 import { type AppKeybinding, KeybindingsManager } from "../../core/keybindings.ts";
 import { createCompactionSummaryMessage, createCustomMessage } from "../../core/messages.ts";
+import { resolveModelAlias } from "../../core/model-aliases.ts";
 import {
 	defaultModelPerProvider,
 	findExactModelReferenceMatch,
@@ -5490,7 +5491,9 @@ export class InteractiveMode {
 			return;
 		}
 
-		const model = await this.findExactModelMatch(searchTerm);
+		const model = await this.findExactModelMatch(
+			resolveModelAlias(searchTerm, this.settingsManager.getModelAliases()),
+		);
 		if (model) {
 			try {
 				await this.session.setModel(model, { persist: false });

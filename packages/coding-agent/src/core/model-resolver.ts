@@ -13,6 +13,7 @@ import {
 import { minimatch } from "minimatch";
 import { isValidThinkingLevel } from "../cli/args.ts";
 import { DEFAULT_THINKING_LEVEL } from "./defaults.ts";
+import { type ModelAliases, resolveModelPair } from "./model-aliases.ts";
 import type { ModelRuntime } from "./model-runtime.ts";
 
 /** Default chat model IDs for providers with built-in chat models. */
@@ -538,6 +539,7 @@ export async function findInitialModel(options: {
 	isContinuing: boolean;
 	defaultProvider?: string;
 	defaultModelId?: string;
+	modelAliases?: ModelAliases;
 	defaultThinkingLevel?: ThinkingLevel;
 	modelThinkingLevels?: Record<string, ThinkingLevel>;
 	modelRuntime: ModelRuntime;
@@ -547,6 +549,7 @@ export async function findInitialModel(options: {
 		isContinuing,
 		defaultProvider,
 		defaultModelId,
+		modelAliases,
 		defaultThinkingLevel,
 		modelThinkingLevels,
 		modelRuntime,
@@ -566,12 +569,14 @@ export async function findInitialModel(options: {
 		};
 	}
 
-	// 2. Try saved default from settings if auth is configured.
-	if (defaultProvider && defaultModelId) {
-		const found = modelRuntime.getModel(defaultProvider, defaultModelId);
+	// 2. Try saved default from settings if auth is configured. A `modelAliases`
+	// entry replaces the stored provider/model pair.
+	const savedDefault = resolveModelPair(defaultProvider, defaultModelId, modelAliases);
+	if (savedDefault) {
+		const found = modelRuntime.getModel(savedDefault.provider, savedDefault.modelId);
 		if (found && modelRuntime.hasConfiguredAuth(found.provider)) {
 			model = found;
-			const perModel = modelThinkingLevels?.[`${defaultProvider}/${defaultModelId}`];
+			const perModel = modelThinkingLevels?.[`${savedDefault.provider}/${savedDefault.modelId}`];
 			if (perModel) {
 				thinkingLevel = perModel;
 			} else if (defaultThinkingLevel) {
