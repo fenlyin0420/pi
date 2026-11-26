@@ -310,6 +310,9 @@ function isUsageSessionEntry(item: RenderSessionItem): item is Extract<SessionEn
 // ENOTTY: the tty was revoked (macOS) and stdin is no longer a terminal.
 const DEAD_TERMINAL_ERROR_CODES = new Set(["EIO", "EPIPE", "ENOTCONN", "ENOTTY"]);
 
+/** Window in which a second Escape press confirms interrupting a running answer or command. */
+const INTERRUPT_CONFIRM_WINDOW_MS = 1500;
+
 function isDeadTerminalError(error: unknown): boolean {
 	if (!error || typeof error !== "object" || !("code" in error)) {
 		return false;
@@ -583,6 +586,9 @@ export class InteractiveMode {
 
 	private lastSigintTime = 0;
 	private lastEscapeTime = 0;
+	private lastInterruptEscapeTime = 0;
+	private interruptEscapeHintVisible = false;
+	private interruptEscapeHintTimer: ReturnType<typeof setTimeout> | undefined = undefined;
 	private changelogMarkdown: string | undefined = undefined;
 	private extensionChangelogUpdates: ExtensionChangelogUpdate[] = [];
 	private startupNoticesShown = false;
@@ -3288,11 +3294,11 @@ export class InteractiveMode {
 	private setupKeyHandlers(): void {
 		// Set up handlers on defaultEditor - they use this.editor for text access
 		// so they work correctly regardless of which editor is active
-		this.defaultEditor.onEscape = () => {
+		const mainEscapeHandler = () => {
 			if (this.session.isStreaming) {
-				this.restoreQueuedMessagesToEditor({ abort: true });
+				this.confirmInterruptEscape(() => this.restoreQueuedMessagesToEditor({ abort: true }));
 			} else if (this.session.isBashRunning) {
-				this.session.abortBash();
+				this.confirmInterruptEscape(() => this.session.abortBash());
 			} else if (this.isBashMode) {
 				this.editor.setText("");
 				this.isBashMode = false;
@@ -3315,6 +3321,7 @@ export class InteractiveMode {
 				}
 			}
 		};
+		this.defaultEditor.onEscape = mainEscapeHandler;
 
 		// Register app action handlers
 		this.defaultEditor.onAction("app.clear", () => this.handleCtrlC());
@@ -5026,6 +5033,54 @@ export class InteractiveMode {
 			const hintText = theme.fg("dim", `↳ ${dequeueHint} to edit all queued messages`);
 			this.pendingMessagesContainer.addChild(new TruncatedText(hintText, 1, 0));
 		}
+		if (this.interruptEscapeHintVisible) {
+			if (this.pendingMessagesContainer.children.length === 0) {
+				this.pendingMessagesContainer.addChild(new Spacer(1));
+			}
+			const interruptKey = this.getAppKeyDisplay("app.interrupt");
+			const interruptHint = theme.fg("dim", `↳ Press ${interruptKey} again to stop`);
+			this.pendingMessagesContainer.addChild(new TruncatedText(interruptHint, 1, 0));
+		}
+	}
+
+	/**
+	 * Interrupting a running answer or command takes two Escape presses: the first one
+	 * advertises the second, so a stray Escape cannot throw away a response in progress.
+	 * A second press outside the confirm window only advertises again.
+	 */
+	private confirmInterruptEscape(interrupt: () => void): void {
+		if (Date.now() - this.lastInterruptEscapeTime < INTERRUPT_CONFIRM_WINDOW_MS) {
+			// The confirmed press consumes the window, so the next Escape starts over.
+			this.lastInterruptEscapeTime = 0;
+			this.clearInterruptEscapeHint();
+			interrupt();
+			return;
+		}
+		this.lastInterruptEscapeTime = Date.now();
+		this.showInterruptEscapeHint();
+	}
+
+	private showInterruptEscapeHint(): void {
+		this.interruptEscapeHintVisible = true;
+		if (this.interruptEscapeHintTimer) clearTimeout(this.interruptEscapeHintTimer);
+		this.interruptEscapeHintTimer = setTimeout(() => {
+			this.interruptEscapeHintTimer = undefined;
+			this.lastInterruptEscapeTime = 0;
+			this.clearInterruptEscapeHint();
+		}, INTERRUPT_CONFIRM_WINDOW_MS);
+		this.updatePendingMessagesDisplay();
+		this.ui.requestRender();
+	}
+
+	private clearInterruptEscapeHint(): void {
+		if (this.interruptEscapeHintTimer) {
+			clearTimeout(this.interruptEscapeHintTimer);
+			this.interruptEscapeHintTimer = undefined;
+		}
+		if (!this.interruptEscapeHintVisible) return;
+		this.interruptEscapeHintVisible = false;
+		this.updatePendingMessagesDisplay();
+		this.ui.requestRender();
 	}
 
 	private restoreQueuedMessagesToEditor(options?: { abort?: boolean; currentText?: string }): number {
