@@ -37,7 +37,7 @@ type GoogleApiType = "google-generative-ai" | "google-vertex";
  * Mirrors Google's ThinkingLevel enum values.
  */
 export type GoogleApiThinkingLevel = "THINKING_LEVEL_UNSPECIFIED" | "MINIMAL" | "LOW" | "MEDIUM" | "HIGH" | "XHIGH";
-export type ResolvedGoogleThinkingLevel = Exclude<ThinkingLevel, "max">;
+export type ResolvedGoogleThinkingLevel = Exclude<ThinkingLevel, "max" | "auto">;
 
 const GOOGLE_SDK_THINKING_LEVEL_MAP: Record<GoogleApiThinkingLevel, GoogleSdkThinkingLevel> = {
 	THINKING_LEVEL_UNSPECIFIED: GoogleSdkThinkingLevel.THINKING_LEVEL_UNSPECIFIED,

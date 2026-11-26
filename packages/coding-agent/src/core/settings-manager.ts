@@ -1201,6 +1201,26 @@ export class SettingsManager {
 		return this.settings.thinkingBudgets;
 	}
 
+	getAutoThinkingClassifier(): string | undefined {
+		return this.settings.autoThinkingClassifier;
+	}
+
+	setAutoThinkingClassifier(spec: string | undefined): void {
+		this.globalSettings.autoThinkingClassifier = spec;
+		this.markModified("autoThinkingClassifier");
+		this.save();
+	}
+
+	getAutoThinkingClassifierTimeoutMs(): number | undefined {
+		return this.settings.autoThinkingClassifierTimeoutMs;
+	}
+
+	setAutoThinkingClassifierTimeoutMs(timeoutMs: number | undefined): void {
+		this.globalSettings.autoThinkingClassifierTimeoutMs = timeoutMs;
+		this.markModified("autoThinkingClassifierTimeoutMs");
+		this.save();
+	}
+
 	getTerminalCapabilityOverrides(): Partial<TerminalCapabilities> {
 		const terminal = this.settings.terminal;
 		const images = terminal?.images;

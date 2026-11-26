@@ -12,8 +12,10 @@ Add `"$schema": "https://pi.dev/schemas/settings.schema.json"` to `settings.json
 |---|---|---|---|
 | `defaultProvider` | string | Automatic | Startup AI provider. |
 | `defaultModel` | string | Automatic | Startup model ID. |
-| `defaultThinkingLevel` | `"off" \| "minimal" \| "low" \| "medium" \| "high" \| "xhigh" \| "max"` | `"medium"` | Startup thinking level. |
+| `defaultThinkingLevel` | `"off" \| "auto" \| "minimal" \| "low" \| "medium" \| "high" \| "xhigh" \| "max"` | `"auto"` | Startup thinking level. `"auto"` lets Pi pick a concrete level per user turn based on task complexity. The level is stable within a user turn; for models that render the level into the prompt (chat-template configs with a `thinking.effort` binding) it is pinned for the session, because a level change there rewrites the prompt prefix and invalidates the provider's KV cache. |
 | `modelThinkingLevels` | object | None | Per-model startup thinking levels keyed by exact `provider/modelId`. |
+| `autoThinkingClassifier` | string | None | `"provider/modelId"` of a cheap model used to classify task complexity for the `"auto"` thinking level, once per user turn. A deterministic heuristic is used when this is unset or the classifier call fails or times out. |
+| `autoThinkingClassifierTimeoutMs` | number | 6000 | Upper bound in milliseconds for the auto thinking classifier call before falling back to the heuristic. |
 | `thinkingBudgets` | object | Built-in budgets | Token budgets for `minimal`, `low`, `medium`, and `high` thinking levels. |
 | `enabledModels` | `string[]` | All available models | Model patterns used for startup selection and model cycling. Uses the same format as `--models`. |
 | `hideThinkingBlock` | boolean | `false` | Hide thinking blocks in the transcript. |

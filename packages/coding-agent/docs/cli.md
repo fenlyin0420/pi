@@ -69,7 +69,7 @@ See [Choose a Model](models.md) for model selection and [Providers](providers.md
 - `--api-key <key>`<br>
   Uses a non-persistent API-key override. It requires a model selected through `--model` or `--models`. It does not choose between providers that offer the same model.
 - `--thinking <level>`<br>
-  Sets `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`. It overrides a `--model` suffix and is clamped to the model's capabilities.
+  Sets `off`, `auto`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`. It overrides a `--model` suffix and is clamped to the model's capabilities. `auto` is kept for reasoning models and resolved per request.
 - `--models <patterns>`<br>
   Sets a comma-separated scope for startup and cycling. It accepts exact IDs, fuzzy matches, case-insensitive globs, and optional `:<thinking>` suffixes. A model offered by several providers is added for each, with a warning.
 - `--list-models [search]`<br>

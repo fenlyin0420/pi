@@ -52,6 +52,7 @@ import type {
 	ProviderRequestOptions,
 	ProviderStreams,
 	SimpleStreamOptions,
+	ThinkingLevel,
 	TranscriptContext,
 	Usage,
 } from "./types.ts";
@@ -1311,6 +1312,30 @@ export function calculateCost(model: AnyModel, usage: Usage): Usage["cost"] {
 
 const EXTENDED_THINKING_LEVELS: ModelThinkingLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 
+/** Whether the model's provider accepts a native "auto" thinking level. */
+export function hasNativeAutoThinking<TApi extends Api>(model: Model<TApi>): boolean {
+	return model.reasoning === true && model.thinkingLevelMap?.auto !== undefined;
+}
+
+/**
+ * Whether the model's thinking level is rendered into the prompt text by the
+ * server (chat-template kwargs or baseten chat-template args bound to
+ * `thinking.effort`) instead of being sent as a separate wire parameter.
+ * Changing the level on such a model rewrites the prompt prefix, invalidating
+ * the provider's KV/prompt cache.
+ */
+export function isThinkingLevelEmbeddedInPrompt<TApi extends Api>(model: Model<TApi>): boolean {
+	// Only openai-completions compat carries chat template kwargs/args; on every
+	// other API both fields are absent, so the cast is safe.
+	const compat = (model as Model<"openai-completions">).compat;
+	if (!compat) return false;
+	const values = [
+		...(compat.chatTemplateKwargs ? Object.values(compat.chatTemplateKwargs) : []),
+		...(compat.chatTemplateArgs ? Object.values(compat.chatTemplateArgs) : []),
+	];
+	return values.some((value) => typeof value === "object" && value !== null && value.$var === "thinking.effort");
+}
+
 export function getSupportedThinkingLevels<TApi extends Api>(model: Model<TApi>): ModelThinkingLevel[] {
 	if (!model.reasoning) return ["off"];
 
@@ -1326,6 +1351,19 @@ export function clampThinkingLevel<TApi extends Api>(
 	model: Model<TApi>,
 	level: ModelThinkingLevel,
 ): ModelThinkingLevel {
+	if (level === "auto") {
+		if (!model.reasoning) return "off";
+		if (hasNativeAutoThinking(model)) return "auto";
+		// Fall back to a supported middle-ish level; "medium" may be absent from
+		// a model's thinkingLevelMap, so prefer whichever of these it does support.
+		const available = getSupportedThinkingLevels(model).filter((candidate) => candidate !== "off");
+		const preferred: ThinkingLevel[] = ["medium", "low", "high", "minimal", "xhigh", "max"];
+		for (const candidate of preferred) {
+			if (available.includes(candidate)) return candidate;
+		}
+		return available[0] ?? "off";
+	}
+
 	const availableLevels = getSupportedThinkingLevels(model);
 	if (availableLevels.includes(level)) return level;
 

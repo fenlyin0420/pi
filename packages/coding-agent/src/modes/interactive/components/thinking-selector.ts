@@ -22,6 +22,7 @@ const THINKING_SELECT_LIST_LAYOUT: SelectListLayoutOptions = {
 
 const LEVEL_DESCRIPTIONS: Record<ThinkingLevel, string> = {
 	off: "No reasoning",
+	auto: "Model picks the level by task complexity",
 	minimal: "Very brief reasoning (~1k tokens)",
 	low: "Light reasoning (~2k tokens)",
 	medium: "Moderate reasoning (~8k tokens)",
