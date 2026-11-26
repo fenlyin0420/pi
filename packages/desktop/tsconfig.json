@@ -1,0 +1,29 @@
+{
+	"extends": "../../tsconfig.json",
+	"compilerOptions": {
+		"module": "ESNext",
+		"moduleResolution": "Bundler",
+		"lib": [
+			"ES2024",
+			"DOM",
+			"DOM.Iterable"
+		],
+		"jsx": "react-jsx",
+		"noEmit": true,
+		"declaration": false,
+		"declarationMap": false,
+		"sourceMap": false,
+		"inlineSources": false
+	},
+	"include": [
+		"src/**/*",
+		"test/**/*",
+		"electron.vite.config.ts",
+		"vitest.config.ts",
+		"../coding-agent/src/**/*.d.ts"
+	],
+	"exclude": [
+		"out",
+		"node_modules"
+	]
+}

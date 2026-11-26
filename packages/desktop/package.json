@@ -1,0 +1,43 @@
+{
+	"name": "@earendil-works/pi-desktop",
+	"version": "1.6.1",
+	"private": true,
+	"type": "module",
+	"description": "Electron desktop shell for pi",
+	"author": "Fenlyin",
+	"license": "LGPL-3.0",
+	"main": "./out/main/index.js",
+	"scripts": {
+		"dev": "electron-vite dev",
+		"build": "electron-vite build",
+		"preview": "electron-vite preview",
+		"dist": "electron-vite build && electron-builder --win --x64",
+		"dist:dir": "electron-vite build && electron-builder --win --x64 --dir",
+		"typecheck": "tsc -p tsconfig.json --noEmit",
+		"clean": "shx rm -rf out release",
+		"icons": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/make-icons.ps1",
+		"test": "vitest --run"
+	},
+	"dependencies": {
+		"@earendil-works/pi-coding-agent": "1.6.1",
+		"lucide-react": "1.70.0",
+		"react": "19.3.0",
+		"react-dom": "19.3.0",
+		"react-markdown": "10.1.0",
+		"remark-gfm": "4.0.1",
+		"shiki": "4.6.0",
+		"typebox": "1.3.27"
+	},
+	"devDependencies": {
+		"@types/node": "22.19.19",
+		"@types/react": "19.2.14",
+		"@types/react-dom": "19.2.3",
+		"@vitejs/plugin-react": "6.2.1",
+		"electron": "44.7.0",
+		"electron-builder": "26.18.0",
+		"electron-vite": "6.0.0",
+		"typescript": "5.9.3",
+		"vite": "8.3.6",
+		"vitest": "4.1.12"
+	}
+}
