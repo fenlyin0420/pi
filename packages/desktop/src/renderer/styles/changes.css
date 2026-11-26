@@ -1,0 +1,464 @@
+/*
+  已编辑文件：轮末卡片（对话里）与右栏 diff 面板（右侧）。两者共用计数与路径的样式，
+  所以放在同一个文件里；面板的骨架（`.main-body` / `.main-column`）在 app.css。
+*/
+
+/* ---------- 轮末卡片 ---------- */
+
+/* 轮末小结：卡片居中放在正文列里，不跟着聊天列靠左，也不撑满整列宽度。 */
+.turn-changes {
+  align-self: center;
+  width: min(100%, 640px);
+  margin: 12px 0 2px;
+  border: 1px solid var(--ds-border-default);
+  border-radius: var(--radius-md);
+  background: var(--ds-tile);
+  overflow: hidden;
+}
+
+.turn-changes-header {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.turn-changes-header:hover {
+  background: var(--ds-tile-hover);
+}
+
+.turn-changes-tile {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-2xs);
+  background: var(--ds-tile-deep);
+  color: var(--ds-text-secondary);
+}
+
+.turn-changes-titles {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.turn-changes-title {
+  color: var(--ds-text-primary);
+  font-size: var(--text-sm);
+  line-height: var(--leading-tight);
+}
+
+.turn-changes-stat {
+  display: flex;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  line-height: var(--leading-tight);
+}
+
+/* 计数：加绿减红，颜色只在数字上，不铺一整行底色。 */
+.turn-changes-added {
+  color: var(--ds-success);
+}
+
+.turn-changes-deleted {
+  color: var(--ds-error);
+}
+
+.turn-changes-truncated {
+  color: var(--ds-text-faint);
+}
+
+/* 文件行：路径左、计数右，行间一条细线，跟卡片的边框同色系。 */
+.turn-changes-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--ds-border-subtle);
+}
+
+.turn-changes-list > li + li {
+  border-top: 1px solid var(--ds-border-subtle);
+}
+
+.turn-changes-row {
+  display: flex;
+  width: 100%;
+  align-items: baseline;
+  gap: 12px;
+  padding: 7px 12px;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.turn-changes-row:hover {
+  background: var(--ds-tile-hover);
+}
+
+/* 路径只有一行：长了就从中间省掉，保住文件名和目录尾部。 */
+.turn-changes-path {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--ds-text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.turn-changes-row-counts {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+}
+
+.turn-changes-fold {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border: 0;
+  border-top: 1px solid var(--ds-border-subtle);
+  background: none;
+  color: var(--ds-text-muted);
+  font-size: var(--text-2xs);
+  cursor: pointer;
+}
+
+.turn-changes-fold:hover {
+  background: var(--ds-tile-hover);
+  color: var(--ds-text-primary);
+}
+
+/* ---------- 右栏 diff 面板 ---------- */
+
+/*
+  面板自己是一列：标题行、文件清单、选中文件的 diff。宽度由 main.jsx 写在
+  --ds-diff-width 上（根节点设置项，拖动改它），左边缘是一条可拖动的分隔条。
+*/
+.diff-panel {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  border-left: 1px solid var(--ds-border-default);
+  background: var(--ds-bg-secondary);
+}
+
+/*
+  全屏：脱离分栏、盖住整个主栏内容区（标题栏之下）。对话列仍然挂着，
+  只是被盖住，收起全屏时它的滚动位置和草稿都在。
+*/
+.diff-panel.is-fullscreen {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  border-left: 0;
+}
+
+.diff-panel.is-fullscreen > .diff-panel-resize {
+  display: none;
+}
+
+/*
+  分隔条压在面板左边缘、跨满整条高度：向左拖变宽，向右拖变窄。
+  视觉上和侧栏那条一致：平时透明，悬停/拖动时才露出中间的细线。
+*/
+.diff-panel-resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -4px;
+  z-index: 4;
+  width: 8px;
+  margin: 0;
+  border: 0;
+  cursor: col-resize;
+  touch-action: none;
+  user-select: none;
+}
+
+.diff-panel-resize::after {
+  position: absolute;
+  top: 50%;
+  left: 3px;
+  width: 2px;
+  height: 32px;
+  content: "";
+  border-radius: var(--radius-full);
+  background: color-mix(in oklab, var(--ds-text-primary) 20%, transparent);
+  opacity: 0;
+  transform: translateY(-50%);
+  transition: opacity var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.diff-panel-resize:hover::after,
+.diff-panel-resize:focus-visible::after,
+.diff-panel-resize.is-resizing::after {
+  opacity: 1;
+}
+
+/* 拖动中把整个窗口的光标钉在 col-resize，指针跑出分隔条也不会闪成别的形状。 */
+document:has(.diff-panel-resize.is-resizing) {
+  cursor: col-resize;
+}
+
+.diff-panel-header {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--ds-border-subtle);
+}
+
+.diff-panel-title {
+  color: var(--ds-text-primary);
+  font-size: var(--text-sm);
+}
+
+/* Split / Unified：两个并排的小按钮，选中项用底色区分，靠右放在关闭按钮旁边。 */
+.diff-panel-layout {
+  display: flex;
+  flex: 1;
+  justify-content: flex-end;
+  gap: 2px;
+}
+
+.diff-panel-layout-option {
+  padding: 2px 8px;
+  border: 0;
+  border-radius: var(--radius-3xs);
+  background: none;
+  color: var(--ds-text-faint);
+  font-size: var(--text-2xs);
+  cursor: pointer;
+}
+
+.diff-panel-layout-option:hover {
+  color: var(--ds-text-primary);
+}
+
+.diff-panel-layout-option.active {
+  background: var(--ds-bg-active);
+  color: var(--ds-text-primary);
+}
+
+.diff-panel-close {
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radius-3xs);
+  background: none;
+  color: var(--ds-text-muted);
+  cursor: pointer;
+}
+
+.diff-panel-close:hover {
+  background: var(--ds-bg-hover);
+  color: var(--ds-text-primary);
+}
+
+/* 文件清单最多占一小半高度：剩下的留给 diff，列表自己在框内滚。 */
+.diff-panel-files {
+  flex: 0 1 auto;
+  max-height: 40%;
+  margin: 0;
+  padding: 4px 0;
+  overflow-y: auto;
+  list-style: none;
+  border-bottom: 1px solid var(--ds-border-subtle);
+}
+
+.diff-panel-file {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border: 0;
+  background: none;
+  color: var(--ds-text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  text-align: left;
+  cursor: pointer;
+}
+
+.diff-panel-file:hover {
+  background: var(--ds-bg-hover);
+}
+
+.diff-panel-file.active {
+  background: var(--ds-bg-active);
+  color: var(--ds-text-primary);
+}
+
+.diff-panel-file-path {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diff-panel-file-counts {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.diff-panel-body {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+/* 选中文件的路径条：滚动时留在面板顶部，长 diff 里也知道自己在看哪个文件。 */
+.diff-panel-body-head {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--ds-border-subtle);
+  background: var(--ds-bg-primary);
+}
+
+.diff-panel-body-path {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--ds-text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diff-panel-note {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--ds-border-subtle);
+  color: var(--ds-text-faint);
+  font-size: var(--text-2xs);
+}
+
+/* diff 正文：只有这一段滚动，路径条和文件清单钉在外面。 */
+.diff-panel-lines {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  padding: 6px 0 12px;
+}
+
+/*
+  单列视图是终端式的：一个物理行就是一行，长了左右滚，不软换行把代码折成文字墙。
+  行号顶格（容器留 6px），没有符号列，编号和正文之间留 12px。
+  这条宽度规则只管单列：左右对比要的是撑满面板，不能让内容把面板拉宽。
+*/
+.diff-body.unified {
+  width: max-content;
+  min-width: 100%;
+}
+
+.diff-panel-lines .diff-line {
+  gap: 12px;
+  padding: 0 12px 0 6px;
+}
+
+.diff-body.unified .diff-line-text {
+  white-space: pre;
+  overflow-wrap: normal;
+}
+
+/* 行号：固定宽度、按最大行号补零，读数不跳宽。 */
+.diff-line-number {
+  flex: 0 0 auto;
+  color: var(--ds-text-faint);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+  white-space: pre;
+}
+
+/* 改动行整行上色：底色落在行上，行号那一格也跟着变色。 */
+.diff-panel-lines .diff-line.add {
+  background: color-mix(in oklab, var(--ds-success) 10%, transparent);
+}
+
+.diff-panel-lines .diff-line.remove {
+  background: color-mix(in oklab, var(--ds-error) 10%, transparent);
+}
+
+/*
+  左右对比：两列等分，每一格自己上色（左边只会是删除或未变，右边只会是新增或未变），
+  中间一条细线分开。表格宽度锁在面板内：行不超出面板，底色才能铺到右边缘。
+*/
+.diff-body.split {
+  width: 100%;
+}
+
+.diff-body.split .diff-line-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.diff-split-row {
+  display: flex;
+  width: 100%;
+  align-items: stretch;
+}
+
+.diff-split-cell {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 0;
+  gap: 12px;
+  padding: 0 12px 0 6px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs-plus);
+  line-height: var(--leading-relaxed);
+  overflow-wrap: anywhere;
+}
+
+.diff-split-cell + .diff-split-cell {
+  border-left: 1px solid var(--ds-border-subtle);
+}
+
+.diff-split-cell.add {
+  background: color-mix(in oklab, var(--ds-success) 10%, transparent);
+}
+
+.diff-split-cell.remove {
+  background: color-mix(in oklab, var(--ds-error) 10%, transparent);
+}
+
+/* 对面没有这一行：留一条更淡的底，看得出是补位而不是空内容。 */
+.diff-split-cell.empty {
+  background: var(--ds-tile);
+}
