@@ -154,6 +154,15 @@ import {
 	type NormalizedBuildSystemPromptOptions,
 	normalizeBuildSystemPromptOptions,
 } from "./system-prompt.ts";
+import {
+	createJobToolDefinition,
+	DEFAULT_TOOL_SUPERVISION_LIMITS,
+	jobSettledNotice,
+	type SupervisedJob,
+	superviseTool,
+	ToolSupervisor,
+	unwrapSupervisedTool,
+} from "./tool-jobs/index.ts";
 import { type BashOperations, createLocalBashOperations } from "./tools/bash.ts";
 import { createAllToolDefinitions } from "./tools/index.ts";
 import { createToolDefinitionFromAgentTool } from "./tools/tool-definition-wrapper.ts";
@@ -528,6 +537,8 @@ export class AgentSession {
 
 	// Tool registry for extension getTools/setTools
 	private _toolRegistry: Map<string, AgentTool> = new Map();
+	/** Suspends tool calls that outlive their deadline into jobs that keep running. */
+	private _toolSupervisor: ToolSupervisor | undefined;
 	/** Created on the first `ctx.executeTool()` call. */
 	private _nestedToolCalls: NestedToolCallRunner | undefined;
 	/** Declared tools whose declarations requests leave out, from `prepareLoadout` hooks. */
@@ -1515,6 +1526,7 @@ export class AgentSession {
 			this.abortCompaction();
 			this.abortBranchSummary();
 			this.abortBash();
+			this._toolSupervisor?.dispose();
 			this._sessionTitleAbort.abort();
 			this.agent.abort();
 		} catch {
@@ -1685,10 +1697,14 @@ export class AgentSession {
 	 * `codemode` or `deferred` tool.
 	 */
 	private _getCallableTools(active: ReadonlySet<string> = new Set(this.getActiveToolNames())): AgentTool[] {
-		return [...this._toolRegistry.values()].filter((tool) => {
-			const exposure = this._getToolExposure(tool.name);
-			return exposure === "codemode" || exposure === "deferred" || (exposure === "direct" && active.has(tool.name));
-		});
+		return [...this._toolRegistry.values()]
+			.filter((tool) => {
+				const exposure = this._getToolExposure(tool.name);
+				return (
+					exposure === "codemode" || exposure === "deferred" || (exposure === "direct" && active.has(tool.name))
+				);
+			})
+			.map((tool) => unwrapSupervisedTool(tool));
 	}
 
 	/**
@@ -2654,6 +2670,8 @@ export class AgentSession {
 		this.abortRetry();
 		this.abortCompaction();
 		this.abortBranchSummary();
+		// An interrupted session stops the commands it started.
+		this._toolSupervisor?.killAll();
 		if (this._isBeforeSettle) this._abortDuringBeforeSettle = true;
 		this.agent.abort();
 		await this.waitForIdle();
@@ -3820,6 +3838,29 @@ export class AgentSession {
 		);
 	}
 
+	/**
+	 * Leave a finished background job in the transcript for the next turn, without starting a run.
+	 * Appending it while the agent streams is deferred to the turn end by `sendCustomMessage`.
+	 */
+	private _reportJobSettled(job: SupervisedJob): void {
+		void this.sendCustomMessage(
+			{ customType: "tool_job", content: jobSettledNotice(job), display: true },
+			{ triggerTurn: false },
+		).catch(() => {
+			// A settle notice is best effort: losing it must not fail the run.
+		});
+	}
+
+	/**
+	 * Make the decision surface available when a call is suspended: a session whose tools were chosen
+	 * explicitly may not have declared `job`, and a suspension without it has no way out.
+	 */
+	private _ensureJobToolActive(): void {
+		if (!this._toolRegistry.has("job") || !this._isAllowedTool("job")) return;
+		if (this.getActiveToolNames().includes("job")) return;
+		this.setActiveToolsByName([...this.getActiveToolNames(), "job"]);
+	}
+
 	private _refreshToolRegistry(options?: { activeToolNames?: string[]; includeAllExtensionTools?: boolean }): void {
 		// Tools that were already activated on registration. A tool whose exposure changes to
 		// `direct` or `model-only` (for example from `hidden`) is activated like a new tool.
@@ -3885,9 +3926,11 @@ export class AgentSession {
 			runner,
 		);
 
-		const toolRegistry = new Map(wrappedBuiltInTools.map((tool) => [tool.name, tool]));
+		const toolRegistry = new Map(
+			wrappedBuiltInTools.map((tool) => [tool.name, superviseTool(tool, this._toolSupervisor)]),
+		);
 		for (const tool of wrappedExtensionTools as AgentTool[]) {
-			toolRegistry.set(tool.name, tool);
+			toolRegistry.set(tool.name, superviseTool(tool, this._toolSupervisor));
 		}
 		this._toolRegistry = toolRegistry;
 
@@ -3939,6 +3982,16 @@ export class AgentSession {
 		const autoResizeImages = this.settingsManager.getImageAutoResize();
 		const shellCommandPrefix = this.settingsManager.getShellCommandPrefix();
 		const shellPath = this.settingsManager.getShellPath();
+		this._toolSupervisor?.dispose();
+		const supervision = this.settingsManager.getToolSupervision();
+		this._toolSupervisor =
+			supervision.enabled && this._baseToolsOverride === undefined
+				? new ToolSupervisor(
+						{ ...supervision, maxWaitMs: DEFAULT_TOOL_SUPERVISION_LIMITS.maxWaitMs },
+						{ onSettled: (job) => this._reportJobSettled(job), onSuspend: () => this._ensureJobToolActive() },
+					)
+				: undefined;
+		const timeoutAction = this._toolSupervisor ? "ignore" : "kill";
 		const baseToolDefinitions = this._baseToolsOverride
 			? Object.fromEntries(
 					Object.entries(this._baseToolsOverride).map(([name, tool]) => [
@@ -3948,12 +4001,16 @@ export class AgentSession {
 				)
 			: createAllToolDefinitions(this._cwd, {
 					read: { autoResizeImages },
-					bash: { commandPrefix: shellCommandPrefix, shellPath },
+					bash: { commandPrefix: shellCommandPrefix, shellPath, timeoutAction },
+					powershell: { timeoutAction },
 				});
 
 		this._baseToolDefinitions = new Map(
 			Object.entries(baseToolDefinitions).map(([name, tool]) => [name, tool as ToolDefinition]),
 		);
+		if (this._toolSupervisor) {
+			this._baseToolDefinitions.set("job", createJobToolDefinition(this._toolSupervisor) as ToolDefinition);
+		}
 
 		const extensionsResult = this._resourceLoader.getExtensions();
 		if (options.flagValues) {
@@ -3977,7 +4034,7 @@ export class AgentSession {
 
 		const defaultActiveToolNames = this._baseToolsOverride
 			? Object.keys(this._baseToolsOverride)
-			: ["read", "bash", "edit", "write"];
+			: ["read", "bash", "edit", "write", ...(this._toolSupervisor ? ["job"] : [])];
 		const baseActiveToolNames = options.activeToolNames ?? defaultActiveToolNames;
 		this._refreshToolRegistry({
 			activeToolNames: baseActiveToolNames,

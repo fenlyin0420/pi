@@ -16,6 +16,7 @@ import type {
 	AgentToolUpdateCallback,
 	ThinkingLevel,
 	ToolExecutionMode,
+	ToolSupervisionPolicy,
 } from "@earendil-works/pi-agent-core";
 import type {
 	AnyModel,
@@ -671,6 +672,9 @@ export interface ToolDefinition<TParams extends TSchema = TSchema, TDetails = un
 	 * If omitted, the default execution mode applies.
 	 */
 	executionMode?: ToolExecutionMode;
+
+	/** Supervised-execution policy. Absent means the session's default policy applies. */
+	supervision?: ToolSupervisionPolicy;
 
 	/** Execute the tool. */
 	execute(

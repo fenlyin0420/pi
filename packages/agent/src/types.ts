@@ -473,6 +473,20 @@ export type AgentToolParams<TParameters> = IsAny<TParameters> extends true ? any
 type IsAny<T> = boolean extends (T extends never ? true : false) ? true : false;
 
 /**
+ * Policy for supervised execution: an app may suspend a tool call that outlives its deadline into a
+ * job that keeps running in the background, so the agent decides from reported evidence whether to
+ * keep waiting, stop it, or collect the result later.
+ */
+export interface ToolSupervisionPolicy {
+	/** Whether the app may suspend this tool call while it keeps running. Default: the app's own default. */
+	suspendable?: boolean;
+	/** Deadline in milliseconds for one call. Undefined uses the app's default deadline. */
+	softDeadlineMs?: number;
+	/** Declared duration of one call, which replaces `softDeadlineMs` when it returns a number. */
+	deadlineMs?: (params: unknown) => number | undefined;
+}
+
+/**
  * Tool definition used by the agent runtime. `parameters` is any JSON Schema object; see {@link AgentToolParams} for
  * the type `execute` receives.
  */
@@ -501,6 +515,8 @@ export interface AgentTool<TParameters extends object = object, TDetails = any> 
 	) => Promise<AgentToolResult<TDetails>>;
 	/** Recovery policy for an effect whose durable intent exists but whose outcome is unknown. */
 	replay?: "never" | "safe";
+	/** Supervised-execution policy. Absent means the app's default policy applies. */
+	supervision?: ToolSupervisionPolicy;
 	/**
 	 * Per-tool execution mode override.
 	 * - "sequential": this tool must execute one at a time with other tool calls.

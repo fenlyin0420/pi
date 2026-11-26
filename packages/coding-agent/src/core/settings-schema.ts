@@ -2,7 +2,7 @@ import { type Static, type TSchemaOptions, Type } from "typebox";
 import { ModelThinkingLevelSchema } from "./pi-ai-schemas.ts";
 import { SETTINGS_DEFAULTS } from "./settings-defaults.ts";
 
-function nonNegativeSafeInteger(options: { default?: number } = {}) {
+function nonNegativeSafeInteger(options: TSchemaOptions & { default?: number } = {}) {
 	return Type.Integer({ minimum: 0, maximum: Number.MAX_SAFE_INTEGER, ...options });
 }
 
@@ -191,6 +191,34 @@ const CodemodeSettingsSchema = Type.Object({
 			minimum: 0,
 			description: "Estimated tokens available for inline codemode tool declarations.",
 			default: SETTINGS_DEFAULTS.codemode.inlineBudget,
+		}),
+	),
+});
+
+const ToolSupervisionSettingsSchema = Type.Object({
+	enabled: Type.Optional(
+		Type.Boolean({
+			description:
+				"Suspend a tool call that outlives its deadline into a job that keeps running, and let the model decide from reported progress whether to keep waiting or stop it.",
+			default: SETTINGS_DEFAULTS.toolSupervision.enabled,
+		}),
+	),
+	softDeadlineMs: Type.Optional(
+		nonNegativeSafeInteger({
+			description: "Deadline in milliseconds for one tool call that declares none.",
+			default: SETTINGS_DEFAULTS.toolSupervision.softDeadlineMs,
+		}),
+	),
+	maxWallMs: Type.Optional(
+		nonNegativeSafeInteger({
+			description: "Wall-clock limit in milliseconds for one tool call, whatever the model decides; 0 disables it.",
+			default: SETTINGS_DEFAULTS.toolSupervision.maxWallMs,
+		}),
+	),
+	maxJobs: Type.Optional(
+		nonNegativeSafeInteger({
+			description: "Concurrently suspended tool calls; 0 disables suspension.",
+			default: SETTINGS_DEFAULTS.toolSupervision.maxJobs,
 		}),
 	),
 });
@@ -437,6 +465,7 @@ export const SettingsSchema = Type.Object(
 		warnings: Type.Optional(WarningSettingsSchema),
 		notices: Type.Optional(NoticeSettingsSchema),
 		codemode: Type.Optional(CodemodeSettingsSchema),
+		toolSupervision: Type.Optional(ToolSupervisionSettingsSchema),
 		sessionDir: Type.Optional(
 			Type.String({
 				description: "Custom session storage directory, in the same format as the --session-dir CLI flag.",

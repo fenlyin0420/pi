@@ -10,6 +10,7 @@ import {
 	type createBashTool,
 	createLocalShellOperations,
 	createShellToolDefinition,
+	type ShellTimeoutAction,
 	type ShellToolConfig,
 } from "./bash.ts";
 import { wrapToolDefinition } from "./tool-definition-wrapper.ts";
@@ -36,22 +37,22 @@ export type PowerShellToolDetails = BashToolDetails;
 export type PowerShellToolInput = BashToolInput;
 
 export interface PowerShellToolOptions
-	extends Pick<BashToolOptions, "operations" | "exposeSessionEnvironment" | "spawnHook"> {}
+	extends Pick<BashToolOptions, "operations" | "exposeSessionEnvironment" | "spawnHook" | "timeoutAction"> {}
 
-export function createLocalPowerShellOperations(): PowerShellOperations {
+export function createLocalPowerShellOperations(options?: {
+	timeoutAction?: ShellTimeoutAction;
+}): PowerShellOperations {
 	return {
-		exec: async (command, cwd, options) => {
+		exec: async (command, cwd, execOptions) => {
 			const shellConfig = getPowerShellConfig();
 			// A final backtick would continue the user's last line into the suffix, so leave such commands unchanged.
 			const suffix =
 				win32.basename(shellConfig.shell).toLowerCase() === "powershell.exe" && !command.endsWith("`")
 					? WINDOWS_POWERSHELL_EXIT_SUFFIX
 					: "";
-			return createLocalShellOperations("PowerShell", () => shellConfig).exec(
-				`${UTF8_OUTPUT_PREFIX}${command}${suffix}`,
-				cwd,
-				options,
-			);
+			return createLocalShellOperations("PowerShell", () => shellConfig, {
+				timeoutAction: options?.timeoutAction,
+			}).exec(`${UTF8_OUTPUT_PREFIX}${command}${suffix}`, cwd, execOptions);
 		},
 	};
 }
@@ -72,7 +73,7 @@ export function createPowerShellToolDefinition(
 ): ReturnType<typeof createShellToolDefinition> {
 	return createShellToolDefinition(cwd, powershellToolConfig, {
 		...options,
-		operations: options?.operations ?? createLocalPowerShellOperations(),
+		operations: options?.operations ?? createLocalPowerShellOperations({ timeoutAction: options?.timeoutAction }),
 	});
 }
 

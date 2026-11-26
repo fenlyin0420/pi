@@ -685,6 +685,37 @@
         }
       }
     },
+    "toolSupervision": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Suspend a tool call that outlives its deadline into a job that keeps running, and let the model decide from reported progress whether to keep waiting or stop it.",
+          "default": true
+        },
+        "softDeadlineMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Deadline in milliseconds for one tool call that declares none.",
+          "default": 120000
+        },
+        "maxWallMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Wall-clock limit in milliseconds for one tool call, whatever the model decides; 0 disables it.",
+          "default": 2700000
+        },
+        "maxJobs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Concurrently suspended tool calls; 0 disables suspension.",
+          "default": 8
+        }
+      }
+    },
     "sessionDir": {
       "type": "string",
       "description": "Custom session storage directory, in the same format as the --session-dir CLI flag."
