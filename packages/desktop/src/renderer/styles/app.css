@@ -1,0 +1,642 @@
+/*
+  Our own shell and primitives. The ported reference layers (base, chat-shell,
+  chrome, ui-kit …) carry the visual language; this file holds what our DOM
+  contract adds on top of them: the window chrome (titlebar + window buttons),
+  the primitives declared in renderer/ui.tsx, and the shell states our root
+  element sets as data attributes.
+
+  Dark is the default because tokens.css puts the dark palette on :root; light
+  only ever arrives through :root[data-theme="light"]. No colour, font size or
+  radius is written literally here — those all go through a token.
+*/
+
+/* ---------- Shell ---------- */
+
+/*
+  Shell split: sidebar column left, main pane right. base.css already makes
+  .app-shell a flex row with height:100%; the layout is restated here so the
+  contract sits next to the pane rules that depend on it, and min-height:0 is
+  what keeps the shell from growing to its content.
+*/
+.app-shell {
+  flex-direction: row;
+  min-height: 0;
+}
+
+/*
+  chat-shell.css gives .main-pane its flex column and flex:1, but no block-axis
+  floor: without min-height:0 the composer and the transcript push the pane
+  taller than the window and the titlebar scrolls away.
+*/
+.main-pane {
+  min-height: 0;
+}
+
+/*
+  The pane keeps its titlebar across the full width and splits the rest into
+  chat column + optional diff panel from the turn's changed-files card. Before
+  the panel there is no split element at all: the transcript and the composer
+  are the pane's own children, so both live in a row wrapper now and the
+  panel takes its width on the right without shrinking the chat below its
+  floor.
+*/
+.main-body {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.main-column {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+}
+
+/*
+  The panel's width is a setting (--ds-diff-width, written by DiffPanel's drag
+  handle); the clamp happens in the renderer, not here, so the stored value and
+  what is painted cannot disagree.
+*/
+.main-body > .diff-panel {
+  flex: 0 0 var(--ds-diff-width, 480px);
+}
+
+/*
+  chat-shell.css gives the chat surface a 450px floor because it used to own the
+  whole pane. Beside the diff panel that floor plus the panel's 320px no longer
+  fit a narrow window, so the column takes the loss instead of overflowing.
+*/
+.main-column > .chat-surface {
+  min-width: 0;
+}
+
+/* Boot placeholder: the shell is painted but there is no desktop state yet. */
+.app-loading {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Available to assistive tech only; the transcript announces agent state with it. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---------- Titlebar ---------- */
+
+/*
+  44px is the chrome strip height, not a type or colour value: it has to match
+  the native window-button geometry the main process sets, and the 28px square
+  controls inside leave 8px of air above and below.
+*/
+.titlebar {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--ds-border-subtle);
+  background: var(--ds-bg-primary);
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+.titlebar-left {
+  display: flex;
+  flex: 0 1 auto;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+/*
+  The centre is the only elastic part: it absorbs whatever the two side groups
+  leave, so the session title stays centred while the button groups keep their
+  natural width.
+*/
+.titlebar-center {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  color: var(--ds-text-secondary);
+  font-size: var(--text-sm-plus);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.titlebar-right {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+/*
+  Reference spelling for drag regions (chat-shell.css owns both classes). Inside
+  the titlebar the no-drag side wins on every interactive child, otherwise a
+  click on a button is swallowed by the window drag rectangle.
+*/
+.titlebar .drag {
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+.titlebar .no-drag {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+/*
+  macOS draws its traffic lights natively at the window's top-left, so the lead
+  group starts after them instead of underneath them. 78px is the cluster's
+  footprint plus the same 8px gap the strip gives everywhere else.
+*/
+:root[data-platform="darwin"] .titlebar-left {
+  padding-left: 78px;
+}
+
+/* ---------- Popover and menus ---------- */
+
+/*
+  Anchored floating card. Fixed positioning because Popover measures its own
+  box against the viewport and flips when it would leave the window; z-index 60
+  keeps it over pane content and under the right-click menu.
+*/
+.popover {
+  position: fixed;
+  z-index: 60;
+  min-width: 180px;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--ds-border-default);
+  border-radius: var(--radius-md);
+  background: var(--ds-bg-elevated-opaque);
+  box-shadow: var(--ds-shadow-dialog);
+  color: var(--ds-text-primary);
+}
+
+.menu-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.menu-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  border-radius: var(--radius-xs);
+  padding: 7px 8px;
+  color: var(--ds-text-primary);
+  font-size: var(--text-sm-plus);
+  line-height: var(--leading-compact);
+  text-align: left;
+  transition: background var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.menu-item:hover:not(:disabled) {
+  background: var(--ds-bg-hover);
+}
+
+.menu-item:disabled {
+  color: var(--ds-text-muted);
+}
+
+/* Checked rows read as already sampled, so the mark lands on a filled row. */
+.menu-item.is-checked {
+  background: var(--ds-bg-active);
+}
+
+.menu-item-icon {
+  display: inline-flex;
+  width: 16px;
+  flex: 0 0 16px;
+  align-items: center;
+  justify-content: center;
+  color: var(--ds-text-muted);
+}
+
+.menu-item-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The detail eats the spring: it sits at the trailing edge, check mark after it. */
+.menu-item-detail {
+  margin-left: auto;
+  color: var(--ds-text-muted);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.menu-item-check {
+  display: inline-flex;
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: var(--ds-text-primary);
+}
+
+.menu-item-detail + .menu-item-check {
+  margin-left: 0;
+}
+
+.menu-separator {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--ds-border-subtle);
+}
+
+/*
+  Right-click menu: the reference surface (ui-kit.css) with its reveal gated on
+  .is-open, which our ContextMenu never sets — it portals the menu only once it
+  is measured. Restore the visible state and lift it above the popover layer.
+*/
+.context-menu {
+  z-index: 70;
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+/* ---------- Switch, segmented, field, kbd, spinner ---------- */
+
+.switch {
+  position: relative;
+  display: inline-flex;
+  width: 34px;
+  height: 20px;
+  flex: 0 0 34px;
+  align-items: center;
+  border-radius: var(--radius-full);
+  background: var(--ds-switch-track-off);
+  box-shadow: inset 0 0 0 1px var(--ds-switch-ring-off);
+  transition:
+    background var(--motion-duration-fast) var(--motion-ease-out),
+    box-shadow var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.switch:hover {
+  background: var(--ds-switch-track-off-hover);
+}
+
+/* On inverts to the solid accent, so the knob flips polarity with the track. */
+.switch.is-on {
+  background: var(--ds-accent);
+  box-shadow: none;
+}
+
+.switch-knob {
+  width: 14px;
+  height: 14px;
+  margin-left: 3px;
+  border-radius: var(--radius-round);
+  background: var(--ds-switch-knob-off);
+  transition:
+    background var(--motion-duration-fast) var(--motion-ease-out),
+    transform var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.switch.is-on .switch-knob {
+  background: var(--ds-switch-knob-on);
+  transform: translateX(14px);
+}
+
+.segmented {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--ds-tile);
+}
+
+.segmented-item {
+  border-radius: var(--radius-xs);
+  padding: 5px 10px;
+  color: var(--ds-text-secondary);
+  font-size: var(--text-sm);
+  line-height: var(--leading-tight);
+  transition:
+    background var(--motion-duration-fast) var(--motion-ease-out),
+    color var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.segmented-item:hover:not(.is-active) {
+  color: var(--ds-text-primary);
+}
+
+/* The active stop is a raised pill, not a tint: one layer must read as chosen. */
+.segmented-item.is-active {
+  background: var(--ds-raised);
+  box-shadow: var(--ds-raised-shadow);
+  color: var(--ds-text-primary);
+}
+
+.field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field-label {
+  color: var(--ds-text-secondary);
+  font-size: var(--text-sm-plus);
+  font-weight: var(--font-weight-medium);
+}
+
+.field-hint {
+  color: var(--ds-text-muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+}
+
+.kbd {
+  display: inline-flex;
+  min-width: 18px;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 5px;
+  border: 1px solid var(--ds-border-default);
+  border-radius: var(--radius-3xs);
+  background: var(--ds-tile);
+  color: var(--ds-text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+}
+
+/*
+  Ring spinner. messages.css defines the same animation for the tool rows; it is
+  declared again here so .spinner does not depend on a feature layer's keyframe
+  surviving an import reorder.
+*/
+.spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-round);
+  border: 2px solid var(--ds-border-strong);
+  border-top-color: var(--ds-text-secondary);
+  animation: spin 800ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------- Overlay host ---------- */
+
+/*
+  The fixed, click-through host itself lives in ui-kit.css (imported earlier).
+  Our primitives are its direct children — Popover, ContextMenu, Dialog — and
+  they are interactive surfaces, so they opt back into hit testing.
+*/
+#pi-desktop-overlays > * {
+  pointer-events: auto;
+}
+
+/* ---------- Additions on top of the ported layers ---------- */
+
+/* Dialog sections (ui.tsx splits the card into title, body, footer). */
+.dialog-title {
+  margin: 0 0 6px;
+  color: var(--ds-text-primary);
+  font-size: var(--text-md-plus);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--leading-compact-plus);
+}
+
+.dialog-body {
+  color: var(--ds-text-secondary);
+  font-size: var(--text-md);
+  line-height: var(--leading-body);
+  overflow-wrap: anywhere;
+}
+
+.dialog-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+/* ---------- ask_user 作答 ---------- */
+
+/*
+  提问卡片贴在输入框上方，样式复用 messages.css 的 .asktool-card 决策卡（和 Plan/Goal 审批同一套
+  表面）。这里只补它没有的几块：原生选项框、推荐角标、整次备注、必答提示、丢弃确认。
+  没有遮罩层：卡片是 composer 栈里的普通流内元素，点它外面不会关掉任何东西。
+*/
+.asktool-option-input {
+  margin: 3px 0 0;
+  accent-color: var(--ds-accent);
+}
+
+.asktool-option-tag {
+  margin-left: 8px;
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+  background: var(--ds-tile-deep);
+  color: var(--ds-text-muted);
+  font-size: var(--text-2xs);
+}
+
+.asktool-note {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  color: var(--ds-text-muted);
+  font-size: var(--text-xs);
+}
+
+.asktool-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* 上一题/下一题在左，提交在右：多题时不用回到头顶那一排圆点。 */
+.asktool-nav {
+  display: flex;
+  gap: 4px;
+  margin-right: auto;
+}
+
+.asktool-hint {
+  margin: 6px 0 0;
+  color: var(--ds-text-faint);
+  font-size: var(--text-xs);
+}
+
+.asktool-confirm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  color: var(--ds-text-secondary);
+  font-size: var(--text-xs);
+}
+
+.asktool-confirm span {
+  margin-right: auto;
+}
+
+/*
+  Toast stack sits bottom-right and stacks downward (overlays.css docks it top
+  centre), and it outranks the dialog overlay so a toast is never buried by a
+  scrim. The frame is inert; each .toast re-enables pointer events itself.
+*/
+.toast-viewport {
+  position: fixed;
+  top: auto;
+  right: 16px;
+  bottom: 16px;
+  left: auto;
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  width: min(360px, calc(100vw - 32px));
+  transform: none;
+  pointer-events: none;
+}
+
+/*
+  icon-btn (composer.css) spells its pressed state .active; our IconButton
+  renders is-active when it gets `active`, so both spellings paint the same.
+*/
+.icon-btn.is-active {
+  background: var(--ds-bg-active);
+  color: var(--ds-text-primary);
+}
+
+/* ---------- Shell states ---------- */
+
+/*
+  Collapse drops the sidebar column outright: App writes data-sidebar-collapsed
+  on the root, and the reference's .sidebar-collapsed class never appears in our
+  tree, so the width has to come from here.
+*/
+.app-shell[data-sidebar-collapsed] .sidebar {
+  display: none;
+}
+
+/*
+  Windows and Linux run frameless with renderer-drawn buttons, so the shell
+  still has to draw its own edge: the line sits above the sidebar and the main
+  pane (both opaque), hence a pseudo-element rather than a border or an inset
+  shadow the children would paint over. A maximized window already has the
+  screen edges. macOS uses the OS frame and needs none of this.
+*/
+:root[data-platform="win32"] .app-shell::after,
+:root[data-platform="linux"] .app-shell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 200;
+  border: 1px solid var(--ds-border-default);
+  pointer-events: none;
+}
+
+:root[data-platform="win32"] .app-shell[data-maximized]::after,
+:root[data-platform="linux"] .app-shell[data-maximized]::after {
+  border-color: transparent;
+}
+
+/* ---------- 我们的三段式外壳 ---------- */
+
+/*
+  参考实现把标题栏和输入区都做成绝对定位浮层，让对话内容从它们下面滚过去；
+  我们的 .main-pane 是「标题栏 / 滚动区 / 输入区」三段并列，浮层会把首行和
+  输入框压住，所以这两块回到文档流。
+*/
+.main-pane > .conversation-topbar {
+  position: relative;
+  inset: auto;
+  flex: 0 0 var(--ds-toolbar-height);
+}
+
+/*
+  chrome.css reserves the frameless window-button band with `right: 120px`,
+  which is right for its absolutely positioned bar and wrong for ours: as a
+  relative box it pulls the whole strip 120px off the left edge, so with the
+  sidebar collapsed the only remaining toggle sits at x=-108 and cannot be
+  clicked. The platform selector is what outranks chrome.css. The buttons
+  themselves are drawn at the end of `.ct-right`, so the strip needs no band of
+  its own.
+*/
+:root[data-platform="win32"] .main-pane > .conversation-topbar,
+:root[data-platform="linux"] .main-pane > .conversation-topbar {
+  right: auto;
+}
+
+/*
+  Same story for the lane padding: 36px of air exists so a floating bar clears
+  the window buttons it does not own. Ours sits in `.ct-right` and ends at the
+  strip's own 12px padding.
+*/
+.main-pane > .conversation-topbar .ct-right {
+  padding-right: 0;
+}
+
+.main-pane > .composer-dock,
+.main-column > .composer-dock {
+  position: relative;
+  inset: auto;
+  flex: 0 0 auto;
+  padding: 0 24px 10px;
+}
+
+/* 输入区底部快捷键提示：一行低对比度文字，不参与滚动。 */
+.composer-hints {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  padding: 6px 0 0;
+  color: var(--ds-text-faint);
+  font-size: var(--text-2xs);
+  line-height: var(--leading-tight);
+  user-select: none;
+}
+
+.composer-hints > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 滚动区已经有自己的上下留白，标题栏回到流里后不需要额外避让。 */
+.transcript-content {
+  padding-top: 18px;
+}
