@@ -5,7 +5,7 @@ import { stripBom, stripJsonComments } from "./config-json.ts";
 import { LockedFile } from "./locked-file.ts";
 
 const integer = (minimum: number) => int({ minimum });
-const thinkingLevels = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
+const thinkingLevels = ["off", "auto", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
 const queueModes = ["all", "one-at-a-time"] as const;
 const schema = obj({
 	defaultModel: opt(obj({ provider: str({ minLength: 1 }), modelId: str({ minLength: 1 }) })),

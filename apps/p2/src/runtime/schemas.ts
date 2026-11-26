@@ -30,7 +30,7 @@ export const ModelRefSchema = obj({
 });
 
 /** Thinking levels a session or conversation may ask for (clamped to the model when it runs), as Pi Mobile accepts. */
-export const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
+export const THINKING_LEVELS = ["off", "auto", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
 export type ThinkingLevel = (typeof THINKING_LEVELS)[number];
 /**
  * A string enum (pi-ai's `StringEnum` shape), validated wherever a thinking level is set. Its static type stays

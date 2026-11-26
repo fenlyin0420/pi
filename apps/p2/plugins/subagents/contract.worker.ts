@@ -22,7 +22,7 @@ import type { P2Tool } from "@p2/app/v1/worker";
 import { modelRefOf } from "./contract.ts";
 import { closeModels } from "./model-list.ts";
 
-export const THINKING = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
+export const THINKING = ["off", "auto", "minimal", "low", "medium", "high", "xhigh", "max"];
 export const TEAM_TOOL = "team";
 
 export type Subagent = {

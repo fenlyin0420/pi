@@ -3,7 +3,7 @@
 // `:thinkingLevel` suffix. Exact references win over globs; duplicates keep their first position.
 import type { ModelInfo } from "./contract.ts";
 
-const LEVELS = new Set(["off", "minimal", "low", "medium", "high", "xhigh", "max"]);
+const LEVELS = new Set(["off", "auto", "minimal", "low", "medium", "high", "xhigh", "max"]);
 
 export type ScopedModel = { provider: string; modelId: string; thinkingLevel?: string };
 export type ScopeResult = { models: ScopedModel[]; unmatched: string[] };

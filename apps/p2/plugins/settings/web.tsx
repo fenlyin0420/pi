@@ -48,7 +48,7 @@ type Retry = NonNullable<MobileSettings["retry"]>;
 type Compaction = NonNullable<MobileSettings["compaction"]>;
 
 const DETAILS = [1, 2, 3, 4] as const;
-const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
+const THINKING_LEVELS = ["off", "auto", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
 const QUEUE_MODES = [
 	{ value: "one-at-a-time", label: "One at a time" },
 	{ value: "all", label: "All at once" },
