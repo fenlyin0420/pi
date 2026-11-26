@@ -52,15 +52,22 @@ export function DiffPanel({ files, selected, width, onSelect, onResize, onClose 
 	const [layout, setLayout] = useState<"split" | "unified">("split");
 	// 全屏：面板盖住整个主栏内容区，看大 diff 时不用拖窄对话列。
 	const [fullscreen, setFullscreen] = useState(false);
-	// 拖动中只改本地宽度，指针抬起时提交一次设置。
-	const [draftWidth, setDraftWidth] = useState<number | null>(null);
+	// 拖动中只改本地宽度，指针抬起时提交一次设置；提交后本地值继续撑着，直到设置在同一个
+	// 宽度上回推（main 写完设置才把新状态发回来）。中间放开会先跳回旧宽度再跳回新宽度。
+	const [heldWidth, setHeldWidth] = useState<number | null>(null);
 	const dragRef = useRef<{ pointerId: number; startX: number; startWidth: number; width: number } | null>(null);
-	const shownWidth = clampWidth(draftWidth ?? width);
+	const settingsWidth = clampWidth(width);
+	const shownWidth = heldWidth ?? settingsWidth;
 	// CSS 变量不在 CSSProperties 的类型里：只此一处 cast，让样式表里的宽度规则一起跟随。
 	const widthVars = { "--ds-diff-width": `${shownWidth}px` } as CSSProperties;
 
 	// 拖动中间被卸载时别把全局光标留在 col-resize。
 	useEffect(() => () => document.documentElement.removeAttribute("data-diff-resizing"), []);
+
+	// 设置回推到位就放开本地值：之后（含重启）都听设置的。
+	useEffect(() => {
+		if (heldWidth !== null && heldWidth === settingsWidth) setHeldWidth(null);
+	}, [heldWidth, settingsWidth]);
 
 	/** 面板在右边，往左拖就是变宽，所以位移取反。 */
 	const onPointerDown = (event: ReactPointerEvent<HTMLElement>) => {
@@ -73,7 +80,7 @@ export function DiffPanel({ files, selected, width, onSelect, onResize, onClose 
 			startWidth: shownWidth,
 			width: shownWidth,
 		};
-		setDraftWidth(shownWidth);
+		setHeldWidth(shownWidth);
 		document.documentElement.setAttribute("data-diff-resizing", "true");
 	};
 
@@ -81,9 +88,10 @@ export function DiffPanel({ files, selected, width, onSelect, onResize, onClose 
 		const drag = dragRef.current;
 		if (!drag || drag.pointerId !== event.pointerId) return;
 		drag.width = clampWidth(drag.startWidth + drag.startX - event.clientX);
-		setDraftWidth(drag.width);
+		setHeldWidth(drag.width);
 	};
 
+	/** 抬起时提交一次设置，本地值留到设置回推；取消或没挪动则直接回到设置里的宽度。 */
 	const finishResize = (commit: boolean, element?: HTMLElement, pointerId?: number) => {
 		const drag = dragRef.current;
 		dragRef.current = null;
@@ -91,8 +99,12 @@ export function DiffPanel({ files, selected, width, onSelect, onResize, onClose 
 		if (element && pointerId !== undefined && element.hasPointerCapture(pointerId)) {
 			element.releasePointerCapture(pointerId);
 		}
-		setDraftWidth(null);
-		if (commit && drag && drag.width !== drag.startWidth) onResize(drag.width);
+		if (commit && drag && drag.width !== drag.startWidth) {
+			setHeldWidth(drag.width);
+			onResize(drag.width);
+			return;
+		}
+		setHeldWidth(null);
 	};
 
 	// 键盘同样能调宽：左变宽、右变窄，Home/End 到两端。
@@ -109,13 +121,15 @@ export function DiffPanel({ files, selected, width, onSelect, onResize, onClose 
 							: null;
 		if (next === null) return;
 		event.preventDefault();
-		if (next !== width) onResize(next);
+		if (next === shownWidth) return;
+		setHeldWidth(next);
+		onResize(next);
 	};
 
 	return (
 		<aside className={cx("diff-panel", fullscreen && "is-fullscreen")} style={widthVars} aria-label="Changes">
 			<hr
-				className={cx("diff-panel-resize", draftWidth !== null && "is-resizing")}
+				className={cx("diff-panel-resize", heldWidth !== null && "is-resizing")}
 				aria-orientation="vertical"
 				aria-label="Resize changes panel"
 				aria-valuenow={shownWidth}

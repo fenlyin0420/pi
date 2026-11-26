@@ -80,8 +80,9 @@ export function Sidebar({
 	const [renameTarget, setRenameTarget] = useState<SessionSummary | null>(null);
 	const [renameTitle, setRenameTitle] = useState("");
 	const [deleteTarget, setDeleteTarget] = useState<SessionSummary | null>(null);
-	// 拖动中只改本地宽度，指针抬起时提交一次设置。
-	const [draftWidth, setDraftWidth] = useState<number | null>(null);
+	// 拖动中只改本地宽度，指针抬起时提交一次设置；提交后本地值继续撑着，直到设置在同一个
+	// 宽度上回推（main 写完设置才把新状态发回来）。中间放开会先跳回旧宽度再跳回新宽度。
+	const [heldWidth, setHeldWidth] = useState<number | null>(null);
 	const dragRef = useRef<{ pointerId: number; startX: number; startWidth: number; width: number } | null>(null);
 
 	// App 传进来的回调是内联箭头函数，每次渲染都换身份；用 ref 转发让列表行 props 保持引用稳定，
@@ -91,7 +92,8 @@ export function Sidebar({
 		latestRowHandlers.current = { onOpenSession, onPinSession, onNewSessionIn, onRemoveWorkspace };
 	});
 
-	const width = clampWidth(draftWidth ?? state.settings.sidebarWidth);
+	const settingsWidth = clampWidth(state.settings.sidebarWidth);
+	const width = heldWidth ?? settingsWidth;
 	// CSS 变量不在 CSSProperties 的类型里：只此一处 cast，让共享样式表里的宽度规则一起跟随。
 	const widthVars = { "--ds-sidebar-width": `${width}px` } as CSSProperties;
 	const searching = query.trim().length > 0;
@@ -106,6 +108,11 @@ export function Sidebar({
 
 	// 拖动中间被卸载时别把全局光标留在 col-resize。
 	useEffect(() => () => document.documentElement.removeAttribute("data-sidebar-resizing"), []);
+
+	// 设置回推到位就放开本地值：之后（含重启）都听设置的。
+	useEffect(() => {
+		if (heldWidth !== null && heldWidth === settingsWidth) setHeldWidth(null);
+	}, [heldWidth, settingsWidth]);
 
 	const filtered = useMemo(() => {
 		const needle = query.trim().toLowerCase();
@@ -164,17 +171,18 @@ export function Sidebar({
 		event.preventDefault();
 		event.currentTarget.setPointerCapture(event.pointerId);
 		dragRef.current = { pointerId: event.pointerId, startX: event.clientX, startWidth: width, width };
-		setDraftWidth(width);
 		document.documentElement.setAttribute("data-sidebar-resizing", "true");
+		setHeldWidth(width);
 	};
 
 	const onResizePointerMove = (event: ReactPointerEvent<HTMLHRElement>) => {
 		const drag = dragRef.current;
 		if (!drag || drag.pointerId !== event.pointerId) return;
 		drag.width = clampWidth(drag.startWidth + event.clientX - drag.startX);
-		setDraftWidth(drag.width);
+		setHeldWidth(drag.width);
 	};
 
+	/** 抬起时提交一次设置，本地值留到设置回推；取消或没挪动则直接回到设置里的宽度。 */
 	const finishResize = (commit: boolean, element?: HTMLHRElement, pointerId?: number) => {
 		const drag = dragRef.current;
 		dragRef.current = null;
@@ -182,8 +190,12 @@ export function Sidebar({
 		if (element && pointerId !== undefined && element.hasPointerCapture(pointerId)) {
 			element.releasePointerCapture(pointerId);
 		}
-		setDraftWidth(null);
-		if (commit && drag && drag.width !== drag.startWidth) onResize(drag.width);
+		if (commit && drag && drag.width !== drag.startWidth) {
+			setHeldWidth(drag.width);
+			onResize(drag.width);
+			return;
+		}
+		setHeldWidth(null);
 	};
 
 	// 键盘同样能调宽：左右各 16px，Home/End 到两端，一次按键提交一次。
@@ -200,7 +212,9 @@ export function Sidebar({
 							: null;
 		if (next === null) return;
 		event.preventDefault();
-		if (next !== width) onResize(next);
+		if (next === width) return;
+		setHeldWidth(next);
+		onResize(next);
 	};
 
 	const renderGroup = (workspace: string, section: SessionSection) => {
@@ -386,7 +400,7 @@ export function Sidebar({
 			</div>
 
 			<hr
-				className={cx("sidebar-resize-handle", draftWidth !== null && "is-resizing")}
+				className={cx("sidebar-resize-handle", heldWidth !== null && "is-resizing")}
 				aria-orientation="vertical"
 				aria-label="Resize sidebar"
 				aria-valuenow={width}
