@@ -1,0 +1,388 @@
+// 共享 UI 原语：按钮、图标按钮、菜单、弹层、开关、字段。所有浮层都挂到 body 层，避免被布局裁剪。
+
+import {
+	type ButtonHTMLAttributes,
+	type CSSProperties,
+	createContext,
+	type ReactNode,
+	useContext,
+	useEffect,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from "react";
+import { createPortal } from "react-dom";
+
+export function cx(...parts: Array<string | false | null | undefined>): string {
+	return parts.filter(Boolean).join(" ");
+}
+
+/**
+ * 运行中的文字扫光：同一段文字叠两层，上层用渐变画扫过的高光。
+ * 两层同格叠放，所以文字不断变长时宽度不跳，扫光也不会重启。
+ */
+export function ShimmerText({ text }: { text: string }) {
+	return (
+		<span className="text-shimmer" data-active="true">
+			<span className="text-shimmer-base">{text}</span>
+			<span className="text-shimmer-peak">{text}</span>
+		</span>
+	);
+}
+
+const OVERLAY_ROOT_ID = "pi-desktop-overlays";
+
+function overlayRoot(): HTMLElement {
+	const existing = document.getElementById(OVERLAY_ROOT_ID);
+	if (existing) return existing;
+	const root = document.createElement("div");
+	root.id = OVERLAY_ROOT_ID;
+	document.body.appendChild(root);
+	return root;
+}
+
+type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+	variant?: "primary" | "secondary" | "ghost";
+};
+
+/** 文本按钮，三种语气：primary 用强调色，secondary 用磁贴底色，ghost 只在悬停时上色。 */
+export function Button({ variant = "secondary", className, children, ...rest }: ButtonProps) {
+	return (
+		<button type="button" className={cx("btn", `btn-${variant}`, className)} {...rest}>
+			{children}
+		</button>
+	);
+}
+
+type IconButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+	label: string;
+	active?: boolean;
+	size?: "default" | "small";
+};
+
+/** 纯图标按钮；label 同时做 aria-label 和原生 tooltip。 */
+export function IconButton({ label, active, size = "default", className, children, ...rest }: IconButtonProps) {
+	return (
+		<button
+			type="button"
+			className={cx("icon-btn", size === "default" && "icon-btn-square", active && "is-active", className)}
+			aria-label={label}
+			title={label}
+			{...rest}
+		>
+			{children}
+		</button>
+	);
+}
+
+export function Badge({
+	tone = "neutral",
+	children,
+}: {
+	tone?: "neutral" | "success" | "warning" | "error";
+	children: ReactNode;
+}) {
+	return <span className={cx("badge", `badge-${tone}`)}>{children}</span>;
+}
+
+export function Kbd({ children }: { children: ReactNode }) {
+	return <kbd className="kbd">{children}</kbd>;
+}
+
+export function Spinner({ size = 14 }: { size?: number }) {
+	return <span className="spinner" style={{ width: size, height: size }} aria-hidden="true" />;
+}
+
+/** 表单字段：标签 + 说明 + 控件，统一竖直间距。 */
+export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+	return (
+		<div className="field">
+			<span className="field-label">{label}</span>
+			{children}
+			{hint ? <span className="field-hint">{hint}</span> : null}
+		</div>
+	);
+}
+
+export function Switch({
+	checked,
+	onChange,
+	label,
+}: {
+	checked: boolean;
+	onChange: (checked: boolean) => void;
+	label: string;
+}) {
+	return (
+		<button
+			type="button"
+			role="switch"
+			aria-checked={checked}
+			aria-label={label}
+			className={cx("switch", checked && "is-on")}
+			onClick={() => onChange(!checked)}
+		>
+			<span className="switch-knob" />
+		</button>
+	);
+}
+
+export function Segmented<T extends string>({
+	value,
+	options,
+	onChange,
+	ariaLabel,
+}: {
+	value: T;
+	options: readonly { value: T; label: string }[];
+	onChange: (value: T) => void;
+	ariaLabel: string;
+}) {
+	return (
+		<div className="segmented" role="tablist" aria-label={ariaLabel}>
+			{options.map((option) => (
+				<button
+					key={option.value}
+					type="button"
+					role="tab"
+					aria-selected={option.value === value}
+					className={cx("segmented-item", option.value === value && "is-active")}
+					onClick={() => onChange(option.value)}
+				>
+					{option.label}
+				</button>
+			))}
+		</div>
+	);
+}
+
+export type MenuItem = {
+	id: string;
+	label: string;
+	/** 第二行说明或右侧值。 */
+	detail?: string;
+	icon?: ReactNode;
+	checked?: boolean;
+	disabled?: boolean;
+	/** 分组分隔线画在这一项上方。 */
+	separatorBefore?: boolean;
+	onSelect?: () => void;
+};
+
+type PopoverProps = {
+	anchor: HTMLElement | null;
+	open: boolean;
+	onClose: () => void;
+	align?: "start" | "end";
+	width?: number;
+	children: ReactNode;
+};
+
+/** 锚定浮层：按锚点矩形定位，越界时翻转；Esc、外部点击、滚动都会关闭。 */
+export function Popover({ anchor, open, onClose, align = "start", width, children }: PopoverProps) {
+	const ref = useRef<HTMLDivElement | null>(null);
+	const [style, setStyle] = useState<CSSProperties>({ visibility: "hidden" });
+
+	// 翻转方向要靠浮层高度算，而高度会变：模型清单是打开时才去拉的，第一次打开量到的是空态高度，
+	// 清单回来后就压到窗口外面了。所以高度一变就重新定位。
+	useLayoutEffect(() => {
+		if (!open || !anchor || !ref.current) return;
+		const node = ref.current;
+		const place = () => {
+			const rect = anchor.getBoundingClientRect();
+			const popWidth = width ?? node.offsetWidth;
+			const popHeight = node.offsetHeight;
+			let left = align === "end" ? rect.right - popWidth : rect.left;
+			left = Math.min(Math.max(8, left), window.innerWidth - popWidth - 8);
+			const below = rect.bottom + 6;
+			const top = below + popHeight > window.innerHeight - 8 ? Math.max(8, rect.top - popHeight - 6) : below;
+			setStyle({ left, top, width, visibility: "visible" });
+		};
+		place();
+		const observer = new ResizeObserver(place);
+		observer.observe(node);
+		return () => observer.disconnect();
+	}, [open, anchor, align, width]);
+
+	useEffect(() => {
+		if (!open) return;
+		const onKey = (event: KeyboardEvent) => {
+			if (event.key === "Escape") {
+				event.stopPropagation();
+				onClose();
+			}
+		};
+		const onPointer = (event: PointerEvent) => {
+			const target = event.target as Node | null;
+			if (!target) return;
+			if (ref.current?.contains(target) || anchor?.contains(target)) return;
+			onClose();
+		};
+		document.addEventListener("keydown", onKey, true);
+		document.addEventListener("pointerdown", onPointer, true);
+		window.addEventListener("blur", onClose);
+		return () => {
+			document.removeEventListener("keydown", onKey, true);
+			document.removeEventListener("pointerdown", onPointer, true);
+			window.removeEventListener("blur", onClose);
+		};
+	}, [open, onClose, anchor]);
+
+	if (!open) return null;
+	return createPortal(
+		<div ref={ref} className="popover" style={style} role="menu">
+			{children}
+		</div>,
+		overlayRoot(),
+	);
+}
+
+/** 菜单项列表，配合 Popover 使用。 */
+export function MenuList({ items, onClose }: { items: readonly MenuItem[]; onClose: () => void }) {
+	return (
+		<div className="menu-list">
+			{items.map((item) => (
+				<div key={item.id}>
+					{item.separatorBefore ? <div className="menu-separator" /> : null}
+					<button
+						type="button"
+						role="menuitem"
+						className={cx("menu-item", item.checked && "is-checked")}
+						disabled={item.disabled}
+						onClick={() => {
+							item.onSelect?.();
+							onClose();
+						}}
+					>
+						<span className="menu-item-icon">{item.icon}</span>
+						<span className="menu-item-label">{item.label}</span>
+						{item.detail ? <span className="menu-item-detail">{item.detail}</span> : null}
+						{item.checked ? <span className="menu-item-check">✓</span> : null}
+					</button>
+				</div>
+			))}
+		</div>
+	);
+}
+
+type ContextMenuState = { x: number; y: number; items: readonly MenuItem[] } | null;
+
+type ContextMenuApi = {
+	open: (event: { clientX: number; clientY: number; preventDefault(): void }, items: readonly MenuItem[]) => void;
+	close: () => void;
+	node: ReactNode;
+};
+
+/** 右键菜单：在光标处弹出，选中或点空白处关闭。 */
+export function useContextMenu(): ContextMenuApi {
+	const [state, setState] = useState<ContextMenuState>(null);
+	const menuRef = useRef<HTMLDivElement | null>(null);
+	const close = () => setState(null);
+
+	useEffect(() => {
+		if (!state) return;
+		const onKey = (event: KeyboardEvent) => {
+			if (event.key === "Escape") setState(null);
+		};
+		// 点在菜单自己身上不算“点空白”：否则 pointerdown 先把菜单卸掉，随后的 click
+		// 永远落不到菜单项上，删除/改名看起来就是“没反应”。
+		const onPointer = (event: PointerEvent) => {
+			const target = event.target as Node | null;
+			if (target && menuRef.current?.contains(target)) return;
+			setState(null);
+		};
+		const onBlur = () => setState(null);
+		document.addEventListener("keydown", onKey, true);
+		document.addEventListener("pointerdown", onPointer, true);
+		window.addEventListener("blur", onBlur);
+		return () => {
+			document.removeEventListener("keydown", onKey, true);
+			document.removeEventListener("pointerdown", onPointer, true);
+			window.removeEventListener("blur", onBlur);
+		};
+	}, [state]);
+
+	const node = state
+		? createPortal(
+				<div
+					ref={menuRef}
+					className="context-menu"
+					style={{
+						left: Math.min(state.x, window.innerWidth - 240),
+						top: Math.min(state.y, window.innerHeight - 40),
+					}}
+					role="menu"
+				>
+					<MenuList items={state.items} onClose={close} />
+				</div>,
+				overlayRoot(),
+			)
+		: null;
+
+	return {
+		open: (event, items) => {
+			event.preventDefault();
+			setState({ x: event.clientX, y: event.clientY, items });
+		},
+		close,
+		node,
+	};
+}
+
+/** 模态框：遮罩 + 居中的卡片，Esc 关闭。没有标题栏时用 label 当无障碍名字。 */
+export function Dialog({
+	open,
+	onClose,
+	title,
+	label,
+	className,
+	children,
+	footer,
+	width = 480,
+}: {
+	open: boolean;
+	onClose: () => void;
+	/** 卡片标题；不给就不渲染标题栏。 */
+	title?: string;
+	/** 没有标题栏时的无障碍名字。 */
+	label?: string;
+	className?: string;
+	children: ReactNode;
+	footer?: ReactNode;
+	width?: number | string;
+}) {
+	useEffect(() => {
+		if (!open) return;
+		const onKey = (event: KeyboardEvent) => {
+			if (event.key === "Escape") onClose();
+		};
+		document.addEventListener("keydown", onKey);
+		return () => document.removeEventListener("keydown", onKey);
+	}, [open, onClose]);
+
+	if (!open) return null;
+	return createPortal(
+		<div
+			className="overlay"
+			role="presentation"
+			onPointerDown={(event) => event.target === event.currentTarget && onClose()}
+		>
+			<div
+				className={cx("dialog", className)}
+				role="dialog"
+				aria-modal="true"
+				aria-label={title ?? label}
+				style={{ width }}
+			>
+				{title === undefined ? null : <h2 className="dialog-title">{title}</h2>}
+				<div className="dialog-body">{children}</div>
+				{footer ? <div className="dialog-footer">{footer}</div> : null}
+			</div>
+		</div>,
+		overlayRoot(),
+	);
+}
+
+/** 主题上下文：只传当前主题，深色/浅色由根节点 data-theme 决定。 */
+export const ThemeContext = createContext<"dark" | "light">("dark");
+export const useTheme = () => useContext(ThemeContext);
