@@ -81,6 +81,30 @@ describe("isContextOverflow", () => {
 		expect(isContextOverflow({ ...message, stopReason: "stop" })).toBe(false);
 	});
 
+	it("detects a gateway request-body byte cap reported as HTTP 400", () => {
+		// Regression: a 48 MiB gateway cap arrives as 400, not 413, so pi retried three times and gave
+		// up without compacting. The cap counts bytes, so the token count says nothing about it.
+		const message = createErrorMessage(
+			'400: {"param":null,"type":"invalid_request_error","code":"invalid_request_error","message":"Upstream request failed: [invalid_request_error] decoded body exceeds 50331648 bytes (request_id: gw-ede9672ddf8c-33635dd)"}',
+			"opencode-go",
+		);
+		expect(isContextOverflow(message, 1_000_000)).toBe(true);
+		expect(isContextOverflow(message)).toBe(true);
+	});
+
+	it("detects a comma-grouped gateway byte cap", () => {
+		const message = createErrorMessage("decoded body exceeds 50,331,648 bytes");
+		expect(isContextOverflow(message, 1_000_000)).toBe(true);
+	});
+
+	it.each([
+		'400: {"message":"decoded body exceeds the configured chunk limit"}', // no byte count
+		'400: {"message":"decoded chunk exceeds 1024 bytes"}', // not the body
+		'400: {"message":"stream truncated after decoded body exceeds expected length"}', // no bytes
+	])("does not treat unrelated byte-limit mentions as overflow: %s", (errorMessage) => {
+		expect(isContextOverflow(createErrorMessage(errorMessage), 200000)).toBe(false);
+	});
+
 	it("detects explicit Ollama prompt-too-long errors", () => {
 		const message = createErrorMessage("400 `prompt too long; exceeded max context length by 100918 tokens`");
 		expect(isContextOverflow(message, 32768)).toBe(true);
