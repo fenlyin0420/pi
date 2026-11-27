@@ -24,6 +24,7 @@ import type { AssistantMessage } from "../types.ts";
  * - LM Studio: "tokens to keep from the initial prompt is greater than the context length"
  * - GitHub Copilot: "prompt token count of X exceeds the limit of Y"
  * - GitHub Copilot: 'github-copilot API error (413): {"message":"failed to parse request","code":""}'
+ * - OpenAI-compatible gateways: "Upstream request failed: [invalid_request_error] decoded body exceeds 50331648 bytes"
  * - MiniMax: "invalid params, context window exceeds limit"
  * - Kimi For Coding: "Your request exceeded model token limit: X (requested: Y)"
  * - DS4: "Prompt has X tokens, but the configured context size is Y tokens"
@@ -63,6 +64,10 @@ const OVERFLOW_PATTERNS = [
 	/context[_ ]length[_ ]exceeded/i, // Generic fallback
 	/too many tokens/i, // Generic fallback
 	/token limit exceeded/i, // Generic fallback
+	// A gateway in front of an OpenAI-compatible provider caps the raw request body and reports the
+	// cap as HTTP 400, so the 413 rule below never sees it: "decoded body exceeds 50331648 bytes".
+	// The limit counts bytes rather than tokens, so a small token count does not rule out overflow.
+	/decoded body exceeds [\d,]+ bytes/i, // request-body byte cap on OpenAI-compatible gateways (opencode-go)
 	// HTTP 413 means request-size overflow regardless of provider or body text.
 	// Match raw SDK errors and formatProviderError's prefix, not a status mentioned in the body.
 	/^(?:[\w -]+ API error \(413\):|413(?:\s|:|$))/i,
@@ -105,6 +110,7 @@ const NON_OVERFLOW_PATTERNS = [
  * - xAI (Grok): "maximum prompt length is X but request contains Y"
  * - Groq: "reduce the length of the messages"
  * - GitHub Copilot: HTTP 413 "failed to parse request" (request byte-size overflow)
+ * - OpenAI-compatible gateways: HTTP 400 "decoded body exceeds N bytes" (request byte-size overflow)
  * - Cerebras: 400/413 status code (no body)
  * - Mistral: "Prompt contains X tokens ... too large for model with Y maximum context length"
  * - OpenRouter (most backends): "maximum context length is X tokens"
