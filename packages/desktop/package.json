@@ -16,6 +16,8 @@
 		"typecheck": "tsc -p tsconfig.json --noEmit",
 		"clean": "shx rm -rf out release",
 		"icons": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/make-icons.ps1",
+		"badges": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/make-badges.ps1",
+		"notification-icon": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/make-notification-icon.ps1",
 		"test": "vitest --run"
 	},
 	"dependencies": {

@@ -1,7 +1,14 @@
 // pi-ask 事件桥的单元测试：wire 数据校验成界面契约，答案映射回提交载荷。
 
 import { describe, expect, it } from "vitest";
-import { flowIdOf, toAskRequest, toCancelPayload, toSubmitPayload } from "../src/main/ask.ts";
+import {
+	flowIdOf,
+	PI_ASK_NAMESPACES,
+	piAskChannels,
+	toAskRequest,
+	toCancelPayload,
+	toSubmitPayload,
+} from "../src/main/ask.ts";
 
 const started = {
 	version: 1,
@@ -23,6 +30,19 @@ const started = {
 		},
 	],
 };
+
+describe("piAskChannels", () => {
+	it("上下游两个包名前缀都订，通道名只在前缀上不同", () => {
+		expect(PI_ASK_NAMESPACES).toContain("@fenlyin/pi-ask");
+		expect(PI_ASK_NAMESPACES).toContain("@eko24ive/pi-ask");
+		expect(piAskChannels("@fenlyin/pi-ask")).toEqual({
+			started: "@fenlyin/pi-ask:started",
+			completed: "@fenlyin/pi-ask:completed",
+			submit: "@fenlyin/pi-ask:submit",
+		});
+		expect(piAskChannels("@eko24ive/pi-ask").submit).toBe("@eko24ive/pi-ask:submit");
+	});
+});
 
 describe("toAskRequest", () => {
 	it("把 started 事件读成界面契约", () => {

@@ -16,6 +16,11 @@ const DENSITY_OPTIONS: readonly { value: DesktopSettings["density"]; label: stri
 	{ value: "compact", label: "Compact" },
 ];
 
+const NOTIFY_STYLE_OPTIONS: readonly { value: DesktopSettings["notifyStyle"]; label: string }[] = [
+	{ value: "native", label: "System toast" },
+	{ value: "card", label: "pi card" },
+];
+
 // 并行条数的上限与 main 侧持久化时的校验一致（settings.ts）。
 const MAX_CONCURRENCY = 5;
 
@@ -132,6 +137,45 @@ export function SettingsPage({
 								label="Show usage"
 								checked={settings.showUsage}
 								onChange={(checked) => onUpdate({ showUsage: checked })}
+							/>
+						</SettingsRow>
+					</div>
+				</section>
+
+				<section className="settings-card-block" aria-labelledby="settings-notifications">
+					<h3 className="settings-card-heading" id="settings-notifications">
+						Notifications
+					</h3>
+					<div className="settings-panel">
+						<SettingsRow
+							title="Desktop notifications"
+							detail="A chime and a card in the bottom-right corner when a run finishes or an ask is waiting."
+						>
+							<Switch
+								label="Desktop notifications"
+								checked={settings.notifyDesktop}
+								onChange={(checked) => onUpdate({ notifyDesktop: checked })}
+							/>
+						</SettingsRow>
+						<SettingsRow
+							title="Only when away"
+							detail="Stay quiet while you are already looking at the session that finished."
+						>
+							<Switch
+								label="Only when away"
+								checked={settings.notifyDesktopAwayOnly}
+								onChange={(checked) => onUpdate({ notifyDesktopAwayOnly: checked })}
+							/>
+						</SettingsRow>
+						<SettingsRow
+							title="Notification style"
+							detail="System toasts also stay in the notification centre after they fade."
+						>
+							<Segmented
+								ariaLabel="Notification style"
+								value={settings.notifyStyle}
+								options={NOTIFY_STYLE_OPTIONS}
+								onChange={(value) => onUpdate({ notifyStyle: value })}
 							/>
 						</SettingsRow>
 					</div>

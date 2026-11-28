@@ -18,9 +18,13 @@ export default defineConfig({
 	preload: {
 		build: {
 			rollupOptions: {
-				input: { index: resolve(import.meta.dirname, "src/preload/index.ts") },
+				// 通知窗口有自己的一份桥：它只接卡片，不接对话命令。
+				input: {
+					index: resolve(import.meta.dirname, "src/preload/index.ts"),
+					notification: resolve(import.meta.dirname, "src/preload/notification.ts"),
+				},
 				external: ["electron"],
-				output: { format: "cjs", entryFileNames: "index.cjs" },
+				output: { format: "cjs", entryFileNames: "[name].cjs" },
 			},
 		},
 	},
@@ -29,7 +33,11 @@ export default defineConfig({
 		plugins: [react()],
 		build: {
 			rollupOptions: {
-				input: { index: resolve(import.meta.dirname, "index.html") },
+				input: {
+					index: resolve(import.meta.dirname, "index.html"),
+					// 右下角通知是独立页面：它跑在自己的窗口里，主题与文案都从主进程推过来。
+					notification: resolve(import.meta.dirname, "notification.html"),
+				},
 			},
 		},
 	},

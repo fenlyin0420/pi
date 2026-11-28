@@ -33,6 +33,8 @@ export type AppState = {
 	draftRestore: DraftRestore | null;
 	/** 选中的 issue 正文与评论；null 表示那条 issue 已不存在。 */
 	issueDetail: IssueDetail | null;
+	/** 提示音序号：main 每要响一声就递增，App 据此放一次 chime。 */
+	chime: number;
 };
 
 export const INITIAL_STATE: AppState = {
@@ -44,6 +46,7 @@ export const INITIAL_STATE: AppState = {
 	asks: [],
 	draftRestore: null,
 	issueDetail: null,
+	chime: 0,
 };
 
 let toastId = 0;
@@ -74,6 +77,9 @@ export function reduceEvent(state: AppState, event: DesktopEvent): AppState {
 			return state;
 		case "issueDetail":
 			return { ...state, issueDetail: event.detail };
+		case "chime":
+			// 声音是副作用，由 App 看着这个序号放；状态本身不动。
+			return { ...state, chime: event.seq };
 		case "ask": {
 			// 同一 flowId 再来一次（比如扩展重发）只换那一份，已答完的不影响别的会话。
 			const others = state.asks.filter((entry) => entry.request.flowId !== event.request.flowId);

@@ -12,17 +12,40 @@ Electron 桌面端：main 进程持有 pi 会话，renderer 只通过 IPC 契约
   - `transcript.ts`：消息到 transcript 契约的纯映射（思考块、工具卡片、diff、用量、错误）。
   - `settings.ts`：`userData/settings.json` 的读写（逐字段校验、去抖、原子替换），窗口几何也在里面。
   - `window.ts` / `menu.ts`：无边框窗口、几何恢复、外部链接收口；应用菜单只发动作 id。
-- `src/preload/`：`contextBridge` 暴露 `window.piDesktop`，只做透传。
+  - `notifications.ts` / `notify-policy.ts`：右下角通知（系统 toast 与自绘卡片两种形态）与“该不该响”的判断
+    （后者是纯函数，单测直接调）；`taskbar.ts`：任务栏徽标（Windows 叠图 / macOS dock 数字）。
+- `src/preload/`：`contextBridge` 暴露 `window.piDesktop`（通知窗口另一份，暴露 `window.piNotice`），只做透传。
 - `src/renderer/`：React UI。`App.tsx` 负责主题注入、快捷键与菜单动作分发；
   `store.ts` 折叠事件；`components/` 按区域拆成 sidebar / transcript / composer / settings；
-  `styles/` 是从参考实现移植的设计系统（token、重新着色、组件样式）。
+  `styles/` 是从参考实现移植的设计系统（token、重新着色、组件样式）；
+  `notification/` 是独立页面：右下角那张卡片自己的入口、组件与样式（跟主界面共用 token）。
 - `src/shared/contract.ts`：main 与 renderer 之间全部数据形状、命令与事件。
+  通知窗口那三个通道名在 `notice-ipc.ts`：preload 有两个入口，沙箱里的 preload 只能是单文件，
+  两份入口不能共享运行时模块，否则 rollup 会把公共部分提到 `preload/chunks/`，沙箱加载不到。
 
 ## 功能
 
 - **窗口**：无框 + 自绘标题栏。Windows 与 Linux 上最小化/最大化/关闭由界面自己画（和标题栏
   同层，所以对话框遮罩、hover、主题色都盖得到；系统绘制的 WCO 画在网页之上，盖不到），macOS 保留原生红绿灯；
   窗口位置/尺寸/最大化恢复，系统深色/浅色跟随，字号缩放与密度可调。
+- **桌面通知**：模型这一轮跑完、或 `ask_user` 在等你回答时，响一声并弹出屏幕工作区右下角的一张通知。
+  提示音是 pi-notify 的那个 chime（`src/renderer/assets/notify.wav`，主窗口渲染进程里放），
+  系统那声提示音关掉（`silent: true`），不会响两遍。
+  出场方式两种（设置 → `Notification style`）：默认的 **系统 toast**（Windows / macOS 原生通知，
+  横幅消失后仍留在通知中心，翻得回来；版式照 ChatGPT 桌面端——正文不放大图标，标题栏那颗小图标
+  来自 AUMID 注册项（`src/main/identity.ts`：白底黑线 π + 名字 `Pi Desktop`，每次启动自愈成 userData
+  里的稳定副本，`npm run notification-icon` 重生成），
+  或 **自绘卡片**（无边框透明窗口：不抢焦点、
+  不进任务栏、始终置顶、主题跟着主窗口走，最多叠三张、每张 6.5 秒退场）。系统不支持 toast 时一律回退到卡片。
+  两种形态内容一样：「Finished / Waiting for you + 会话名 + 最后一条消息或第一道题的摘要」，
+  点一下都把主窗口叫到前台并切到那条会话。
+  Esc 打断的那一轮不响——你自己叫停的，不必再告诉你（与 pi-notify 的 `aborted` 判断一致）。
+  设置里三个开关：`Desktop notifications`（总开关）、`Only when away`（只在不在前台时提示，默认关——
+  即默认每次跑完都响一次，与 pi-notify 的 `idle` 行为一致）、`Notification style`。
+- **任务栏徽标**：弹过通知、你还没回来看的会话数，画在任务栏按钮右下角：
+  Windows 走 `setOverlayIcon` 画黑牌白字（1–9，多了写 `9+`，图在 `resources/taskbar/`，
+  `npm run badges` 重生成），macOS 走 `app.dock.setBadge`。口径是“弹过通知且当时没在看”
+  （窗口不在前台，或弹的是别的会话），回窗口后摸掉当前那一条，别的会话的留着。
 - **侧栏**：项目切换与最近项目、会话搜索、按今天/昨天/过去 7 天/更早分组、置顶、右键改名/删除、
   workspace 行右键新建会话，或把它移出列表（只移列表：会话文件留在磁盘，重新 Add workspace 加回来就都在；
   移走的是当前目录时，当前会话接到列表里下一个目录上，列表空了就回到未选择状态）、
@@ -71,7 +94,8 @@ Electron 桌面端：main 进程持有 pi 会话，renderer 只通过 IPC 契约
   只有 X（有草稿时先确认）或 pi-ask 自己结束这次提问才收起，X 走显式 cancel 让那一轮立刻拿到结果。
   提问按会话归属，但只渲染当前会话那一张：切到别的会话时卡片让位（草稿留在缓存里，切回来接着答），
   那份会话只在侧栏行尾画一个空心点。会话以 `mode: rpc` 绑定扩展、宿主自带事件总线（每会话一条），
-  走 pi-ask 的 started/submit 契约。
+  走 pi-ask 的 started/submit 契约。包名换过一次（上游 `@eko24ive/pi-ask`，分叉 `@fenlyin/pi-ask`），
+  两个前缀的通道都订：装的是哪一份都问得出来，回话用发起这次提问的那个前缀。
 - **设置页**：外观（主题/字号/密度/显示项）、当前 agent 状态、会话信息，改动即时生效。
 - **Issues**：侧栏一行 Issues、标题栏一颗图标、命令面板一项（`Ctrl/⌘+Shift+I` 也可开关）。
   issue 区是主栏里的独立面：左边列表（Active / Review / Closed 三档）、右边标题、正文、评论与动作；
@@ -138,6 +162,10 @@ Linux 上 Electron 的 SUID sandbox 需要 root 属主的 `chrome-sandbox`（475
   `write` 带的是新文，旧文按空算，所以覆盖写只报新增行；单次改文件的前后文本截到 24k 字符，
   截过的文件在卡片上标 `partial`。
 - 大目录的 `@` 搜索在 main 同步遍历（上限 2 万文件，5 秒缓存）。
+- 桌面通知只在应用运行时有效：Windows 上关窗口就是退出，没有常驻进程留在后台接通知（已弹的系统 toast
+  仍然留在通知中心）。透明窗口靠桌面合成器，Linux 上没有合成器时卡片的圆角与阴影会丢掉（内容还在）。
+- 任务栏徽标在 Linux 上没有对应接口，不画；系统 toast 在没装安装包/开发模式下可能显示成 “Electron”
+  或不显示（Windows 要快捷方式与 AUMID 对得上，装过就正常）。
 
 ## 许可证
 

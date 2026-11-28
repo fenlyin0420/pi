@@ -2,7 +2,7 @@
 
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { Density, DesktopSettings, ThemeMode } from "../shared/contract.ts";
+import type { Density, DesktopSettings, NoticeStyle, ThemeMode } from "../shared/contract.ts";
 
 /** 窗口几何只在 main 进程使用，不进 renderer 的契约。 */
 export type WindowState = {
@@ -37,6 +37,11 @@ export const DEFAULT_SETTINGS: DesktopSettings = {
 	showThinking: true,
 	showToolDetails: false,
 	showUsage: true,
+	notifyDesktop: true,
+	// 默认每次都提示，跟 pi-notify 的 idle 一样；嫌扰就在设置里改成“仅不在前台”。
+	notifyDesktopAwayOnly: false,
+	// 默认走系统 toast：它会留在通知中心，弹窗消失也翻得到。
+	notifyStyle: "native",
 	sidebarWidth: 272,
 	sidebarCollapsed: false,
 	collapsedGroups: [],
@@ -185,6 +190,9 @@ function normalizeSettings(input: DesktopSettings): DesktopSettings {
 		showThinking: Boolean(input.showThinking),
 		showToolDetails: Boolean(input.showToolDetails),
 		showUsage: Boolean(input.showUsage),
+		notifyDesktop: Boolean(input.notifyDesktop),
+		notifyDesktopAwayOnly: Boolean(input.notifyDesktopAwayOnly),
+		notifyStyle: pick<NoticeStyle>(input.notifyStyle, ["native", "card"], DEFAULT_SETTINGS.notifyStyle),
 		sidebarWidth: Math.round(
 			clamp(Number(input.sidebarWidth), MIN_SIDEBAR_WIDTH, MAX_SIDEBAR_WIDTH, DEFAULT_SETTINGS.sidebarWidth),
 		),

@@ -2,10 +2,27 @@
 
 import type { AskAnswer, AskOptionView, AskQuestionView, AskRequest } from "../shared/contract.ts";
 
-/** 扩展在 `pi.events` 上使用的四个通道（见 pi-ask 的 docs/remote-events.md）。 */
-export const PI_ASK_STARTED = "@eko24ive/pi-ask:started";
-export const PI_ASK_COMPLETED = "@eko24ive/pi-ask:completed";
-export const PI_ASK_SUBMIT = "@eko24ive/pi-ask:submit";
+/**
+ * pi-ask 的通道前缀（见 pi-ask 的 docs/remote-events.md）。包名换过一次：上游是
+ * `@eko24ive/pi-ask`，分叉后是 `@fenlyin/pi-ask`；两者只有前缀不同、载荷一致。
+ * 两个都订——装的是哪一份都问得出来；回话用发起这次提问的那一个前缀，别把答案发到没人听的总线上。
+ */
+export const PI_ASK_NAMESPACES = ["@fenlyin/pi-ask", "@eko24ive/pi-ask"] as const;
+
+export type PiAskNamespace = (typeof PI_ASK_NAMESPACES)[number];
+
+/** 一个命名空间下的三条通道：开始提问、结束提问、提交答案。 */
+export function piAskChannels(namespace: PiAskNamespace): {
+	started: string;
+	completed: string;
+	submit: string;
+} {
+	return {
+		started: `${namespace}:started`,
+		completed: `${namespace}:completed`,
+		submit: `${namespace}:submit`,
+	};
+}
 
 /** 提交事件的版本号，pi-ask 只认 1。 */
 const SUBMIT_VERSION = 1;

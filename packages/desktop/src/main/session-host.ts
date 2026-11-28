@@ -37,17 +37,10 @@ import type {
 } from "../shared/contract.ts";
 import { folderName, samePath } from "../shared/paths.ts";
 import { artifactKey, clearArtifacts, putArtifact } from "./artifacts.ts";
-import {
-	flowIdOf,
-	PI_ASK_COMPLETED,
-	PI_ASK_STARTED,
-	PI_ASK_SUBMIT,
-	toAskRequest,
-	toCancelPayload,
-	toSubmitPayload,
-} from "./ask.ts";
+import { flowIdOf, PI_ASK_NAMESPACES, piAskChannels, toAskRequest, toCancelPayload, toSubmitPayload } from "./ask.ts";
 import { createImmersiveExtension } from "./immersive.ts";
 import { imageViewOf } from "./message-images.ts";
+import type { SessionNotice } from "./notify-policy.ts";
 import { idleSteps, type RunSteps, stepActivity, thinkingSteps, toolEnded, toolStarted } from "./run-activity.ts";
 import {
 	deleteSessionFile,
@@ -83,13 +76,15 @@ export type HostDeps = {
 	issueTools?: { forSession(sessionId: string): ToolDefinition[]; forIssue(issueId: string): ToolDefinition[] };
 	/** 会话被删掉：issue 那边要放开线程引用，下次运行重建。 */
 	sessionRemoved?(sessionId: string): void;
+	/** 一轮跑完或有提问在等人回答：桌面端据此响铃并弹右下角卡片（实现放在 index）。 */
+	notifyUser?(notice: SessionNotice): void;
 };
 
 /** 扩展与宿主共用的那种事件总线；每个会话一条，提问和答案都落在发起它的那条上。 */
 type EventBus = ReturnType<typeof createEventBus>;
 
-/** 一份还没答完的提问：属于哪个会话，答案该从哪条总线送回去。 */
-type PendingAsk = { sessionId: string; bus: EventBus; request: AskRequest };
+/** 一份还没答完的提问：属于哪个会话，答案该往哪条总线、哪个通道送回去。 */
+type PendingAsk = { sessionId: string; bus: EventBus; submitChannel: string; request: AskRequest };
 
 type LiveSession = {
 	id: string;
@@ -145,6 +140,11 @@ export class SessionHost {
 
 	getWorkspace(): string | null {
 		return this.cwd;
+	}
+
+	/** 当前正在看的会话；任务栏徽标据此判断“人是不是已经看过了”。 */
+	getActiveSessionId(): string | null {
+		return this.activeId;
 	}
 
 	/** 当前渲染所需的全部数据；transcript 取的是活动会话的最新投影。 */
@@ -452,8 +452,13 @@ export class SessionHost {
 		await session.bindExtensions({ mode: "rpc" });
 		const sessionId = session.sessionId;
 		identity.sessionId = sessionId;
-		bus.on(PI_ASK_STARTED, (data) => this.onAskStarted(sessionId, bus, data));
-		bus.on(PI_ASK_COMPLETED, (data) => this.onAskCompleted(sessionId, data));
+		// 两个包名前缀都订：装的是上游 `@eko24ive/pi-ask` 还是分叉 `@fenlyin/pi-ask`，都能接到提问。
+		// 回话用开始那条通道所属的前缀，答案才落回同一个订阅方。
+		for (const namespace of PI_ASK_NAMESPACES) {
+			const channels = piAskChannels(namespace);
+			bus.on(channels.started, (data) => this.onAskStarted(sessionId, bus, channels.submit, data));
+			bus.on(channels.completed, (data) => this.onAskCompleted(sessionId, data));
+		}
 		if (modelFallbackMessage) this.notify("warning", modelFallbackMessage);
 		const live: LiveSession = {
 			id: session.sessionId,
@@ -920,6 +925,7 @@ export class SessionHost {
 				this.markState();
 				this.flushNow();
 				void this.refreshSessionsQuietly();
+				this.announceSettled(live, event.aborted);
 				return;
 			case "session_info_changed":
 				void this.refreshSessionsQuietly();
@@ -1018,13 +1024,45 @@ export class SessionHost {
 		this.markState();
 	}
 
-	/** pi-ask 开始提问：转成界面契约推给 renderer，按 flowId 存好，答案和取消都靠它找回总线。 */
-	private onAskStarted(sessionId: string, bus: EventBus, data: unknown): void {
+	/** pi-ask 开始提问：转成界面契约推给 renderer，按 flowId 存好，答案和取消都靠它找回总线和通道。 */
+	private onAskStarted(sessionId: string, bus: EventBus, submitChannel: string, data: unknown): void {
 		const request = toAskRequest(data);
 		if (!request) return;
-		this.pendingAsks.set(request.flowId, { sessionId, bus, request });
+		this.pendingAsks.set(request.flowId, { sessionId, bus, submitChannel, request });
 		this.setAwaiting(sessionId, true);
 		this.deps.emit({ type: "ask", sessionId, request });
+		this.announceAsk(sessionId, request);
+	}
+
+	/**
+	 * 这一轮真的结束了（不是自动重试的中场）：标题用会话名，正文用最后一条消息的摘要。
+	 * 打断的那一轮也算结束，但带 aborted 过去，由通知层决定不响。
+	 */
+	private announceSettled(live: LiveSession, aborted: boolean): void {
+		if (!this.deps.notifyUser) return;
+		const summary = this.summaryOf(live);
+		this.deps.notifyUser({
+			kind: "settled",
+			sessionId: live.id,
+			sessionActive: live.id === this.activeId,
+			aborted,
+			title: summary.title,
+			body: summary.preview || "Ready for your next prompt",
+		});
+	}
+
+	/** 冒出来一次提问：标题用会话名（或提问自带的标题），正文是第一道题问的什么。 */
+	private announceAsk(sessionId: string, request: AskRequest): void {
+		if (!this.deps.notifyUser) return;
+		const live = this.live.get(sessionId);
+		this.deps.notifyUser({
+			kind: "ask",
+			sessionId,
+			sessionActive: sessionId === this.activeId,
+			aborted: false,
+			title: request.title ?? (live ? this.summaryOf(live).title : "pi"),
+			body: request.questions[0]?.prompt ?? "Waiting for your answer",
+		});
 	}
 
 	/** 提问结束（提交、取消或超时）：让界面上那张卡自己收起，会话行上的问号点一并去掉。 */
@@ -1040,14 +1078,14 @@ export class SessionHost {
 	private answerAsk(flowId: string, answers: Record<string, AskAnswer>, note?: string): void {
 		const pending = this.pendingAsks.get(flowId);
 		if (!pending) return;
-		pending.bus.emit(PI_ASK_SUBMIT, toSubmitPayload(flowId, answers, note));
+		pending.bus.emit(pending.submitChannel, toSubmitPayload(flowId, answers, note));
 	}
 
 	/** 关掉一次提问而不作答：pi-ask 把这一轮当用户取消，不必等到十分钟超时才知道。 */
 	private cancelAsk(flowId: string): void {
 		const pending = this.pendingAsks.get(flowId);
 		if (!pending) return;
-		pending.bus.emit(PI_ASK_SUBMIT, toCancelPayload(flowId));
+		pending.bus.emit(pending.submitChannel, toCancelPayload(flowId));
 	}
 
 	private hasPendingAsk(sessionId: string): boolean {

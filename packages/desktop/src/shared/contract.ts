@@ -15,6 +15,15 @@ export type DesktopSettings = {
 	showThinking: boolean;
 	showToolDetails: boolean;
 	showUsage: boolean;
+	/** 模型这一轮跑完、或 ask_user 在等人回答时，在桌面右下角弹一张卡片并响一声。 */
+	notifyDesktop: boolean;
+	/** 只在主窗口不在前台、或完成的是别的会话时才提示：人正看着的这一条不打扰。 */
+	notifyDesktopAwayOnly: boolean;
+	/**
+	 * 通知的出场方式：`native` 是系统 toast（同时留在 Windows 通知中心 / macOS 通知中心，关掉也翻得到），
+	 * `card` 是自绘卡片（样式可控，但消失就没了）。系统不支持 toast 时一律回退到 `card`。
+	 */
+	notifyStyle: NoticeStyle;
 	sidebarWidth: number;
 	sidebarCollapsed: boolean;
 	/** 侧栏里收起的分组，键为 `<workspace 路径>:<Today|Yesterday|…>`；重启后照样收着。 */
@@ -400,6 +409,8 @@ export type DesktopEvent =
 	| { type: "askClosed"; sessionId: string; flowId: string }
 	/** 撤回的队列消息回到输入框；草稿在 renderer 的 localStorage 里，所以只能这样送回来。 */
 	| { type: "draftRestore"; sessionId: string; text: string }
+	/** 响一声提示音（pi-notify 的 chime）：声音在主窗口的渲染进程里放，seq 递增以便连续两次都生效。 */
+	| { type: "chime"; seq: number }
 	/** 选中那条 issue 的完整内容；null 表示它已经被删除。 */
 	| { type: "issueDetail"; detail: IssueDetail | null };
 
@@ -420,6 +431,38 @@ export type DesktopBridge = {
 	savePastedImage(data: string): Promise<PastedIssueImage>;
 	onEvent(listener: (event: DesktopEvent) => void): () => void;
 };
+
+/** 一张右下角通知卡片的两种由头：这一轮跑完了，或者有提问在等你。 */
+export type NoticeKind = "settled" | "ask";
+
+/** 通知的出场方式：系统 toast 还是自绘卡片。 */
+export type NoticeStyle = "native" | "card";
+
+/**
+ * main 推给通知窗口的一张卡片。通知窗口自己没有会话、没有设置，只靠这份载荷画字：
+ * 主题跟着主窗口走，body 已经压成短文本。
+ */
+export type NoticeView = {
+	id: number;
+	kind: NoticeKind;
+	title: string;
+	body: string;
+	theme: ResolvedTheme;
+};
+
+/** 通知窗口的桥：只跨它自己的 IPC，与主窗口的 DesktopBridge 不共用。 */
+export type NoticeBridge = {
+	onNotice(listener: (notice: NoticeView) => void): () => void;
+	/** 点了某张卡片：把主窗口叫到前台并切到发出它的那条会话。 */
+	activate(id: number): void;
+	/** 卡片堆叠的实际高度（0 表示空了）：main 据此贴着右下角给窗口改大小。 */
+	measure(height: number): void;
+};
+
+/**
+ * 右下角通知的 IPC。新卡片由 main 推下来，点击与高度由渲染进程上报；
+ * 两者都是单向的，没有请求/回应。通道名在 `notice-ipc.ts`（preload 拆包的缘故，见那边注释）。
+ */
 
 export const IPC_GET_STATE = "pi-desktop:get-state";
 export const IPC_ATTACH_FILES = "pi-desktop:attach-files";

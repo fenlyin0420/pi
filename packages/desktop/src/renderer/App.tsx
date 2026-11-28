@@ -15,6 +15,7 @@ import { Titlebar } from "./components/Titlebar.tsx";
 import { ToastHost } from "./components/ToastHost.tsx";
 import { TodoDock } from "./components/todo/TodoDock.tsx";
 import { Transcript } from "./components/transcript/Transcript.tsx";
+import { playChime } from "./lib/chime.ts";
 import { issuesOf } from "./lib/issues.ts";
 import type { TurnFileChange } from "./lib/turn-changes.ts";
 import { useDesktop } from "./store.ts";
@@ -162,6 +163,11 @@ export function App() {
 		window.addEventListener("keydown", onKey);
 		return () => window.removeEventListener("keydown", onKey);
 	}, [send, settings, updateSettings, showConversation, toggleImmersive]);
+
+	// 提示音：一串号一次响声，重渲染不会重放（main 推事件时已经把“要不要响”判完了）。
+	useEffect(() => {
+		if (state.chime > 0) playChime();
+	}, [state.chime]);
 
 	const activeSession = desktop?.sessions.find((session) => session.id === desktop.activeSessionId) ?? null;
 	const collapsed = settings?.sidebarCollapsed ?? false;
